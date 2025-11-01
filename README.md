@@ -26,7 +26,7 @@ One command. Zero downtime. No file editing. Right model, right task.
 
 **Install** (one-liner):
 ```bash
-curl -fsSL kaitran.ca/ccs/install | bash
+curl -fsSL ccs.kaitran.ca/install | bash
 ```
 
 **Configure**:
@@ -103,7 +103,7 @@ If you have both Claude subscription and GLM Coding Plan, you know the pain:
 
 **Short URL** (via CloudFlare):
 ```bash
-curl -fsSL kaitran.ca/ccs/install | bash
+curl -fsSL ccs.kaitran.ca/install | bash
 ```
 
 **Direct from GitHub**:
@@ -144,7 +144,7 @@ cd ccs && git pull && ./install.sh
 **From curl install**:
 ```bash
 # Short URL
-curl -fsSL kaitran.ca/ccs/install | bash
+curl -fsSL ccs.kaitran.ca/install | bash
 
 # Or direct from GitHub
 curl -fsSL https://raw.githubusercontent.com/kaitranntt/ccs/main/install.sh | bash
@@ -427,7 +427,7 @@ ccs-uninstall
 **One-liner** (if ccs-uninstall not available):
 ```bash
 # Short URL
-curl -fsSL kaitran.ca/ccs/uninstall | bash
+curl -fsSL ccs.kaitran.ca/uninstall | bash
 
 # Or direct from GitHub
 curl -fsSL https://raw.githubusercontent.com/kaitranntt/ccs/main/uninstall.sh | bash
