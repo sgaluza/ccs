@@ -2,16 +2,7 @@
 set -euo pipefail
 
 CONFIG_FILE="${CCS_CONFIG:-$HOME/.ccs.json}"
-PROFILE="${1:-}"
-
-# Validate usage
-if [[ -z "$PROFILE" ]]; then
-  echo "Usage: ccs <profile> [claude-args...]"
-  echo "Example: ccs glm --verbose"
-  echo ""
-  echo "Available profiles are defined in: $CONFIG_FILE"
-  exit 1
-fi
+PROFILE="${1:-default}"
 
 # Check config exists
 if [[ ! -f "$CONFIG_FILE" ]]; then

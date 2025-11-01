@@ -2,7 +2,6 @@
   "profiles": {
     "glm": "~/.claude/glm.settings.json",
     "sonnet": "~/.claude/sonnet.settings.json",
-    "opus": "~/.claude/opus.settings.json",
     "default": "~/.claude/settings.json"
   }
 }

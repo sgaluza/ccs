@@ -1,24 +1,61 @@
 # CCS - Claude Code Switch
 
-Ultra-simple wrapper for `claude --settings`. Switch between Claude profiles with friendly aliases.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Bash](https://img.shields.io/badge/bash-3.2%2B-blue.svg)](https://www.gnu.org/software/bash/)
+[![GitHub Stars](https://img.shields.io/github/stars/kaitranntt/ccs.svg)](https://github.com/kaitranntt/ccs/stargazers)
 
-## Why?
+> Ultra-simple Claude CLI profile switcher. One command instead of long paths.
 
-Claude CLI supports `--settings` flag but it's verbose:
+**Before**: `claude --settings ~/.claude/glm.settings.json --verbose`
+**After**: `ccs glm --verbose`
 
+## Quick Start
+
+**Install** (one-liner):
 ```bash
-claude --settings ~/.claude/glm.settings.json
-claude --settings ~/.claude/sonnet.settings.json --verbose
+curl -fsSL https://raw.githubusercontent.com/kaitranntt/ccs/main/install.sh | bash
 ```
 
-CCS makes it friendly:
-
+**Configure**:
 ```bash
-ccs glm
-ccs sonnet --verbose
+# Edit with your profiles
+cat > ~/.ccs.json << 'EOF'
+{
+  "profiles": {
+    "glm": "~/.claude/glm.settings.json",
+    "sonnet": "~/.claude/sonnet.settings.json",
+    "default": "~/.claude/settings.json"
+  }
+}
+EOF
 ```
+
+**Use**:
+```bash
+ccs          # Use default profile
+ccs glm      # Use GLM profile
+ccs sonnet   # Use Sonnet profile
+```
+
+## Why CCS?
+
+Claude CLI's `--settings` flag is powerful but verbose. CCS gives you friendly aliases.
+
+**Features**:
+- Single command profile switching
+- Pass-through all Claude CLI args
+- Zero configuration complexity
+- No proxies, no magic—just bash + jq
 
 ## Installation
+
+### One-Liner (Recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/kaitranntt/ccs/main/install.sh | bash
+```
+
+### Git Clone
 
 ```bash
 git clone https://github.com/kaitranntt/ccs.git
@@ -26,55 +63,106 @@ cd ccs
 ./install.sh
 ```
 
-Or as a one-liner:
+### Manual
 
 ```bash
-git clone https://github.com/kaitranntt/ccs.git && cd ccs && ./install.sh
+# Download script
+curl -fsSL https://raw.githubusercontent.com/kaitranntt/ccs/main/ccs -o ~/.local/bin/ccs
+chmod +x ~/.local/bin/ccs
+
+# Ensure ~/.local/bin in PATH
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
 ## Configuration
 
-Copy example config:
-
-```bash
-cp .ccs.example.json ~/.ccs.json
-```
-
-Edit `~/.ccs.json` with your profiles:
+Create `~/.ccs.json` with profile mappings:
 
 ```json
 {
   "profiles": {
     "glm": "~/.claude/glm.settings.json",
-    "sonnet": "~/.claude/sonnet.settings.json"
+    "sonnet": "~/.claude/sonnet.settings.json",
+    "default": "~/.claude/settings.json"
   }
 }
 ```
+
+Each profile points to a Claude settings JSON file. Create settings files per [Claude CLI docs](https://docs.claude.com/en/docs/claude-code/installation).
 
 ## Usage
 
 ### Basic
 
 ```bash
-ccs glm                  # Use GLM profile
-ccs sonnet               # Use Sonnet profile
+ccs           # Use default profile (no args)
+ccs glm       # Use GLM profile
+ccs sonnet    # Use Sonnet profile
 ```
 
-### Pass Arguments Transparently
+### With Arguments
 
-All arguments after the profile name are passed directly to Claude:
+All args after profile name pass directly to Claude CLI:
 
 ```bash
 ccs glm --verbose
 ccs sonnet /plan "add feature"
-ccs opus --model claude-opus-4
+ccs default --model claude-sonnet-4
 ```
+
+### Custom Config Location
+
+```bash
+export CCS_CONFIG=~/my-custom-ccs.json
+ccs glm
+```
+
+## Use Cases
+
+### Claude Subscription + GLM Coding Plan
+
+Switch between Claude sub and GLM plan:
+
+```json
+{
+  "profiles": {
+    "claude": "~/.claude/claude-sub.settings.json",
+    "glm": "~/.claude/glm.settings.json",
+    "default": "~/.claude/settings.json"
+  }
+}
+```
+
+```bash
+ccs claude   # Use Claude subscription
+ccs glm      # Use GLM coding plan
+```
+
+### Different Models
+
+```json
+{
+  "profiles": {
+    "sonnet": "~/.claude/sonnet.settings.json",
+    "haiku": "~/.claude/haiku.settings.json",
+    "default": "~/.claude/settings.json"
+  }
+}
+```
+
+## How It Works
+
+1. Reads profile name (defaults to "default" if omitted)
+2. Looks up settings file path in `~/.ccs.json`
+3. Executes `claude --settings <path> [remaining-args]`
+
+No magic. No file modification. Pure delegation.
 
 ## Requirements
 
-- `bash` (3.2+ compatible)
+- `bash` 3.2+
 - `jq` (JSON processor)
-- [Claude CLI](https://docs.claude.com/en/docs/claude-code/installation) installed
+- [Claude CLI](https://docs.claude.com/en/docs/claude-code/installation)
 
 ### Installing jq
 
@@ -87,95 +175,67 @@ sudo apt install jq
 
 # Fedora
 sudo dnf install jq
+
+# Arch
+sudo pacman -S jq
 ```
-
-## How It Works
-
-1. Reads profile name from first argument
-2. Looks up settings file path in `~/.ccs.json`
-3. Executes `claude --settings <path> [remaining-args]`
-
-That's it. No magic, no proxies, no file modification.
 
 ## Troubleshooting
 
 ### Profile not found
 
-```bash
+```
 Error: Profile 'foo' not found in ~/.ccs.json
 ```
 
-**Solution**: Add the profile to your `~/.ccs.json` config file.
+**Fix**: Add profile to `~/.ccs.json`:
+```json
+{
+  "profiles": {
+    "foo": "~/.claude/foo.settings.json"
+  }
+}
+```
 
 ### Settings file missing
 
-```bash
+```
 Error: Settings file not found: ~/.claude/foo.settings.json
 ```
 
-**Solution**: Create the settings file or update the path in your config.
+**Fix**: Create settings file or fix path in config.
 
 ### jq not installed
 
-```bash
+```
 Error: jq is required but not installed
 ```
 
-**Solution**: Install jq using your package manager (see Requirements section).
+**Fix**: Install jq (see Requirements).
 
 ### PATH not set
 
-```bash
+```
 ⚠️  Warning: ~/.local/bin is not in PATH
 ```
 
-**Solution**: Add to your shell profile (`~/.bashrc` or `~/.zshrc`):
-
+**Fix**: Add to `~/.bashrc` or `~/.zshrc`:
 ```bash
 export PATH="$HOME/.local/bin:$PATH"
 ```
+Then `source ~/.bashrc` or restart shell.
 
-Then restart your shell or run `source ~/.bashrc` (or `~/.zshrc`).
+### Default profile missing
 
-## Use Cases
+```
+Error: Profile 'default' not found in ~/.ccs.json
+```
 
-### Claude Subscription + GLM Coding Plan
-
-If you have both Claude subscription and GLM coding plan:
-
+**Fix**: Add "default" profile or always specify profile name:
 ```json
 {
   "profiles": {
-    "claude": "~/.claude/sonnet.settings.json",
-    "glm": "~/.claude/glm.settings.json"
-  }
-}
-```
-
-```bash
-ccs claude           # Use Claude subscription
-ccs glm              # Use GLM coding plan
-```
-
-### Multiple Anthropic Accounts
-
-```json
-{
-  "profiles": {
-    "work": "~/.claude/work.settings.json",
-    "personal": "~/.claude/personal.settings.json"
-  }
-}
-```
-
-### Different Models
-
-```json
-{
-  "profiles": {
-    "sonnet": "~/.claude/sonnet.settings.json",
-    "opus": "~/.claude/opus.settings.json",
-    "haiku": "~/.claude/haiku.settings.json"
+    "default": "~/.claude/settings.json"
   }
 }
 ```
@@ -183,22 +243,40 @@ ccs glm              # Use GLM coding plan
 ## Uninstallation
 
 ```bash
-rm ~/.local/bin/ccs
-rm ~/.ccs.json
+ccs-uninstall
 ```
 
-## License
-
-MIT
+Or manual:
+```bash
+rm ~/.local/bin/ccs
+rm ~/.local/bin/ccs-uninstall
+rm ~/.ccs.json  # If you want to remove config
+```
 
 ## Contributing
 
 PRs welcome! Keep it simple (KISS principle).
 
+**Guidelines**:
+- Maintain bash 3.2+ compatibility
+- No dependencies beyond jq
+- Test on macOS and Linux
+- Follow existing code style
+
 ## Philosophy
 
-**YAGNI**: We don't add features "just in case"
-**KISS**: Simple bash script, no complexity
-**DRY**: One source of truth (config file)
+- **YAGNI**: No features "just in case"
+- **KISS**: Simple bash, no complexity
+- **DRY**: One source of truth (config)
 
-This tool does ONE thing well: map profile names to settings files. Nothing more.
+This tool does ONE thing well: map profile names to settings files.
+
+## License
+
+MIT © [Kai Tran](https://github.com/kaitranntt)
+
+## Links
+
+- [Claude CLI Docs](https://docs.claude.com/en/docs/claude-code/installation)
+- [Report Issues](https://github.com/kaitranntt/ccs/issues)
+- [Changelog](https://github.com/kaitranntt/ccs/releases)
