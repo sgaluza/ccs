@@ -136,7 +136,7 @@ CCS is a lightweight CLI wrapper for instant switching between Claude Sonnet 4.5
 - ✅ Added version synchronization scripts (sync-version.js, check-executables.js)
 - ✅ Comprehensive testing of all installation methods (npm, curl, irm, git)
 - ✅ Code review passed with 9.7/10 rating
-- ✅ npm package ready for publication: `npm install -g @kai/ccs`
+- ✅ npm package ready for publication: `npm install -g @kaitranntt/ccs`
 
 **Key npm Package Features:**
 - Cross-platform package distribution via npm registry
@@ -235,7 +235,7 @@ CCS is a lightweight CLI wrapper for instant switching between Claude Sonnet 4.5
 
 #### Installation Method Strategy
 **Primary Recommended Method:**
-- `npm install -g @kai/ccs` (cross-platform, automatic updates)
+- `npm install -g @kaitranntt/ccs` (cross-platform, automatic updates)
 
 **Traditional Methods (Maintained for compatibility):**
 - macOS/Linux: `curl -fsSL ccs.kaitran.ca/install | bash`
@@ -376,7 +376,7 @@ CCS is a lightweight CLI wrapper for instant switching between Claude Sonnet 4.5
 - **Compatibility Matrix**: Windows PowerShell 5.1/7+, macOS/Linux bash/Node.js - all working
 
 #### Installation Methods (All Enhanced)
-- **npm (Recommended)**: `npm install -g @kai/ccs` - Now with standalone Node.js implementation
+- **npm (Recommended)**: `npm install -g @kaitranntt/ccs` - Now with standalone Node.js implementation
 - **Traditional Unix**: `curl -fsSL ccs.kaitran.ca/install | bash` - PowerShell 7+ compatible
 - **Traditional Windows**: `irm ccs.kaitran.ca/install | iex` - PowerShell 7+ compatible
 - **Git Development**: `./installers/install.sh` - Enhanced with better error handling
@@ -391,10 +391,10 @@ CCS is a lightweight CLI wrapper for instant switching between Claude Sonnet 4.5
 - **Installation**: npm package now supports cross-platform distribution
 
 #### Added
-- **npm Package Support**: `npm install -g @kai/ccs` for easy cross-platform installation
+- **npm Package Support**: `npm install -g @kaitranntt/ccs` for easy cross-platform installation
 - **Cross-Platform Entry Point**: `bin/ccs.js` Node.js wrapper with platform detection
 - **Version Management**: `scripts/sync-version.js` and `scripts/check-executables.js` for consistency
-- **Package Metadata**: Complete package.json with bin field and scoped package name (@kai/ccs)
+- **Package Metadata**: Complete package.json with bin field and scoped package name (@kaitranntt/ccs)
 
 #### Changed
 - **Directory Structure**: `ccs` and `ccs.ps1` moved to `lib/` directory
@@ -416,7 +416,7 @@ CCS is a lightweight CLI wrapper for instant switching between Claude Sonnet 4.5
 - **Breaking Changes**: Only affects package structure, CLI functionality unchanged
 
 #### Installation Methods (All Working)
-- **npm (Recommended)**: `npm install -g @kai/ccs`
+- **npm (Recommended)**: `npm install -g @kaitranntt/ccs`
 - **Traditional Unix**: `curl -fsSL ccs.kaitran.ca/install | bash`
 - **Traditional Windows**: `irm ccs.kaitran.ca/install | iex`
 - **Git Development**: `./installers/install.sh`

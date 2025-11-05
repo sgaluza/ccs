@@ -88,10 +88,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - **Installation**: npm package now supports cross-platform distribution
 
 ### Added
-- **npm Package Support**: `npm install -g @kai/ccs` for easy cross-platform installation
+- **npm Package Support**: `npm install -g @kaitranntt/ccs` for easy cross-platform installation
 - **Cross-Platform Entry Point**: `bin/ccs.js` Node.js wrapper with platform detection
 - **Version Management**: `scripts/sync-version.js` and `scripts/check-executables.js` for consistency
-- **Package Metadata**: Complete package.json with bin field and scoped package name (@kai/ccs)
+- **Package Metadata**: Complete package.json with bin field and scoped package name (@kaitranntt/ccs)
 
 ### Changed
 - **Directory Structure**: `ccs` and `ccs.ps1` moved to `lib/` directory
@@ -113,7 +113,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 - **Breaking Changes**: Only affects package structure, CLI functionality unchanged
 
 ### Installation Methods (All Working)
-- **npm (Recommended)**: `npm install -g @kai/ccs`
+- **npm (Recommended)**: `npm install -g @kaitranntt/ccs`
 - **Traditional Unix**: `curl -fsSL ccs.kaitran.ca/install | bash`
 - **Traditional Windows**: `irm ccs.kaitran.ca/install | iex`
 - **Git Development**: `./installers/install.sh`

@@ -6,20 +6,20 @@
 
 **macOS / Linux / Windows**
 ```bash
-npm install -g @kai/ccs
+npm install -g @kaitranntt/ccs
 ```
 
 **Compatible with all package managers:**
-- `npm install -g @kai/ccs`
-- `yarn global add @kai/ccs`
-- `pnpm add -g @kai/ccs`
-- `bun add -g @kai/ccs`
+- `npm install -g @kaitranntt/ccs`
+- `yarn global add @kaitranntt/ccs`
+- `pnpm add -g @kaitranntt/ccs`
+- `bun add -g @kaitranntt/ccs`
 
 **Benefits of npm installation:**
 - ✅ Cross-platform compatibility
 - ✅ Automatic PATH configuration
-- ✅ Easy updates: `npm update -g @kai/ccs`
-- ✅ Clean uninstall: `npm uninstall -g @kai/ccs`
+- ✅ Easy updates: `npm update -g @kaitranntt/ccs`
+- ✅ Clean uninstall: `npm uninstall -g @kaitranntt/ccs`
 - ✅ Version pinning support
 - ✅ Dependency management
 

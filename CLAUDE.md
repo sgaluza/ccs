@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 CCS (Claude Code Switch) is a lightweight CLI wrapper enabling instant profile switching between Claude Sonnet 4.5 and GLM 4.6 models. The tool delegates to the official Claude CLI via the `--settings` flag, supporting both Unix-like systems (bash) and Windows (PowerShell).
 
 **Primary Installation Methods** (highest priority):
-- **npm Package** (recommended): `npm install -g @kai/ccs` (cross-platform)
+- **npm Package** (recommended): `npm install -g @kaitranntt/ccs` (cross-platform)
 - macOS/Linux: `curl -fsSL ccs.kaitran.ca/install | bash`
 - Windows: `irm ccs.kaitran.ca/install | iex`
 
@@ -127,7 +127,7 @@ cat VERSION
 npm pack                    # Creates kai-ccs-X.Y.Z.tgz
 npm install -g kai-ccs-X.Y.Z.tgz  # Test installation
 ccs --version               # Verify it works
-npm uninstall -g @kai/ccs   # Cleanup
+npm uninstall -g @kaitranntt/ccs   # Cleanup
 rm kai-ccs-X.Y.Z.tgz        # Remove tarball
 
 # Clean test environment
