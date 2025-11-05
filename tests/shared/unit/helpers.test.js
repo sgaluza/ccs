@@ -1,7 +1,7 @@
 const assert = require('assert');
 const path = require('path');
 const os = require('os');
-const { expandPath, validateProfileName, isPathSafe } = require('../../bin/helpers');
+const { expandPath, validateProfileName, isPathSafe } = require('../../../bin/helpers');
 
 describe('helpers', () => {
   describe('expandPath', () => {
