@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { error, expandPath } = require('./helpers');
+const { ErrorManager } = require('./error-manager');
 
 // Get config file path
 function getConfigPath() {
@@ -16,7 +17,15 @@ function readConfig() {
 
   // Check config exists
   if (!fs.existsSync(configPath)) {
-    error(`Config file not found: ${configPath}`);
+    // Attempt recovery
+    const RecoveryManager = require('./recovery-manager');
+    const recovery = new RecoveryManager();
+    recovery.ensureConfigJson();
+
+    if (!fs.existsSync(configPath)) {
+      ErrorManager.showInvalidConfig(configPath, 'File not found');
+      process.exit(1);
+    }
   }
 
   // Read and parse JSON
@@ -25,12 +34,14 @@ function readConfig() {
     const configContent = fs.readFileSync(configPath, 'utf8');
     config = JSON.parse(configContent);
   } catch (e) {
-    error(`Invalid JSON in ${configPath}: ${e.message}`);
+    ErrorManager.showInvalidConfig(configPath, `Invalid JSON: ${e.message}`);
+    process.exit(1);
   }
 
   // Validate config has profiles object
   if (!config.profiles || typeof config.profiles !== 'object') {
-    error(`Config must have 'profiles' object in ${configPath}`);
+    ErrorManager.showInvalidConfig(configPath, "Missing 'profiles' object");
+    process.exit(1);
   }
 
   return config;
@@ -44,8 +55,10 @@ function getSettingsPath(profile) {
   const settingsPath = config.profiles[profile];
 
   if (!settingsPath) {
-    const availableProfiles = Object.keys(config.profiles).join(', ');
-    error(`Profile '${profile}' not found. Available: ${availableProfiles}`);
+    const availableProfiles = Object.keys(config.profiles);
+    const profileList = availableProfiles.map(p => `  - ${p}`);
+    ErrorManager.showProfileNotFound(profile, profileList);
+    process.exit(1);
   }
 
   // Expand path
@@ -53,7 +66,22 @@ function getSettingsPath(profile) {
 
   // Validate settings file exists
   if (!fs.existsSync(expandedPath)) {
-    error(`Settings file not found: ${expandedPath}`);
+    // Auto-create if it's ~/.claude/settings.json
+    if (expandedPath.includes('.claude') && expandedPath.endsWith('settings.json')) {
+      const RecoveryManager = require('./recovery-manager');
+      const recovery = new RecoveryManager();
+      recovery.ensureClaudeSettings();
+
+      if (!fs.existsSync(expandedPath)) {
+        ErrorManager.showSettingsNotFound(expandedPath);
+        process.exit(1);
+      }
+
+      console.log('[i] Auto-created missing settings file');
+    } else {
+      ErrorManager.showSettingsNotFound(expandedPath);
+      process.exit(1);
+    }
   }
 
   // Validate settings file is valid JSON
@@ -61,7 +89,8 @@ function getSettingsPath(profile) {
     const settingsContent = fs.readFileSync(expandedPath, 'utf8');
     JSON.parse(settingsContent);
   } catch (e) {
-    error(`Invalid JSON in ${expandedPath}: ${e.message}`);
+    ErrorManager.showInvalidConfig(expandedPath, `Invalid JSON: ${e.message}`);
+    process.exit(1);
   }
 
   return expandedPath;

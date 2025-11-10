@@ -12,7 +12,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Version (updated by scripts/bump-version.sh)
-$CcsVersion = "3.0.0"
+$CcsVersion = "3.0.1"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ConfigFile = if ($env:CCS_CONFIG) { $env:CCS_CONFIG } else { "$env:USERPROFILE\.ccs\config.json" }
 $ProfilesJson = "$env:USERPROFILE\.ccs\profiles.json"
@@ -100,14 +100,15 @@ function Show-Help {
     Write-ColorLine "  ccs [flags]" "Yellow"
     Write-Host ""
     Write-ColorLine "Description:" "Cyan"
-    Write-Host "  Switch between Claude accounts and models instantly."
-    Write-Host "  Supports concurrent multi-account sessions."
+    Write-Host "  Switch between multiple Claude accounts (work, personal, team) and"
+    Write-Host "  alternative models (GLM, Kimi) instantly. Concurrent sessions with"
+    Write-Host "  auto-recovery. Zero downtime."
     Write-Host ""
-    Write-ColorLine "Profile Switching:" "Cyan"
-    Write-ColorLine "  ccs                         Use default profile" "Yellow"
-    Write-ColorLine "  ccs glm                     Switch to GLM profile" "Yellow"
-    Write-ColorLine "  ccs work                    Switch to work account" "Yellow"
-    Write-ColorLine "  ccs work 'debug code'       Run command with work account" "Yellow"
+    Write-ColorLine "Model Switching:" "Cyan"
+    Write-ColorLine "  ccs                         Use default Claude account" "Yellow"
+    Write-ColorLine "  ccs glm                     Switch to GLM 4.6 model" "Yellow"
+    Write-ColorLine "  ccs kimi                    Switch to Kimi for Coding" "Yellow"
+    Write-ColorLine "  ccs glm 'debug this code'   Use GLM and run command" "Yellow"
     Write-Host ""
     Write-ColorLine "Account Management:" "Cyan"
     Write-ColorLine "  ccs auth create <profile>   Create new account profile" "Yellow"
@@ -115,6 +116,12 @@ function Show-Help {
     Write-ColorLine "  ccs auth show <profile>     Show profile details" "Yellow"
     Write-ColorLine "  ccs auth remove <profile>   Remove profile (requires --force)" "Yellow"
     Write-ColorLine "  ccs auth default <profile>  Set default profile" "Yellow"
+    Write-ColorLine "  ccs work                    Switch to work account" "Yellow"
+    Write-ColorLine "  ccs personal                Switch to personal account" "Yellow"
+    Write-ColorLine "  ccs work 'review code'      Run command with work account" "Yellow"
+    Write-Host ""
+    Write-ColorLine "Diagnostics:" "Cyan"
+    Write-ColorLine "  ccs doctor                  Run health check and diagnostics" "Yellow"
     Write-Host ""
     Write-ColorLine "Flags:" "Cyan"
     Write-ColorLine "  -h, --help                  Show this help message" "Yellow"
@@ -200,6 +207,79 @@ function Show-Version {
     } else {
         Write-Host "Run 'ccs --help' for usage information"
     }
+}
+
+# --- Auto-Recovery Functions ---
+
+function Ensure-CcsDirectory {
+    if (Test-Path "$env:USERPROFILE\.ccs") { return $true }
+
+    try {
+        New-Item -ItemType Directory -Path "$env:USERPROFILE\.ccs" -Force | Out-Null
+        Write-Host "[i] Auto-recovery: Created ~/.ccs/ directory"
+        return $true
+    } catch {
+        Write-ErrorMsg "Cannot create ~/.ccs/ directory. Check permissions."
+        return $false
+    }
+}
+
+function Ensure-ConfigJson {
+    $ConfigFile = "$env:USERPROFILE\.ccs\config.json"
+
+    # Check if exists and valid
+    if (Test-Path $ConfigFile) {
+        try {
+            Get-Content $ConfigFile -Raw | ConvertFrom-Json | Out-Null
+            return $true
+        } catch {
+            # Corrupted - backup and recreate
+            $BackupFile = "$ConfigFile.backup.$(Get-Date -Format 'yyyyMMddHHmmss')"
+            Move-Item $ConfigFile $BackupFile -Force
+            Write-Host "[i] Auto-recovery: Backed up corrupted config.json"
+        }
+    }
+
+    # Create default config
+    $DefaultConfig = @{
+        profiles = @{
+            glm = "~/.ccs/glm.settings.json"
+            kimi = "~/.ccs/kimi.settings.json"
+            default = "~/.claude/settings.json"
+        }
+    }
+
+    $DefaultConfig | ConvertTo-Json -Depth 10 | Set-Content $ConfigFile
+    Write-Host "[i] Auto-recovery: Created ~/.ccs/config.json"
+    return $true
+}
+
+function Ensure-ClaudeSettings {
+    $ClaudeDir = "$env:USERPROFILE\.claude"
+    $SettingsFile = "$ClaudeDir\settings.json"
+
+    # Create ~/.claude/ if missing
+    if (-not (Test-Path $ClaudeDir)) {
+        New-Item -ItemType Directory -Path $ClaudeDir -Force | Out-Null
+        Write-Host "[i] Auto-recovery: Created ~/.claude/ directory"
+    }
+
+    # Create settings.json if missing
+    if (-not (Test-Path $SettingsFile)) {
+        '{}' | Set-Content $SettingsFile
+        Write-Host "[i] Auto-recovery: Created ~/.claude/settings.json"
+        Write-Host "[i] Next step: Run 'claude /login' to authenticate"
+        return $true
+    }
+
+    return $false
+}
+
+function Invoke-AutoRecovery {
+    if (-not (Ensure-CcsDirectory)) { return $false }
+    if (-not (Ensure-ConfigJson)) { return $false }
+    Ensure-ClaudeSettings | Out-Null
+    return $true
 }
 
 # --- Profile Registry Functions (Phase 4) ---
@@ -828,6 +908,12 @@ if ($RemainingArgs.Count -gt 0 -and $RemainingArgs[0] -eq "auth") {
     $AuthArgs = if ($RemainingArgs.Count -gt 1) { $RemainingArgs[1..($RemainingArgs.Count-1)] } else { @() }
     Invoke-AuthCommands $AuthArgs
     exit $LASTEXITCODE
+}
+
+# Run auto-recovery before main logic
+if (-not (Invoke-AutoRecovery)) {
+    Write-ErrorMsg "Auto-recovery failed. Check permissions."
+    exit 1
 }
 
 # Smart profile detection: if first arg starts with '-', it's a flag not a profile

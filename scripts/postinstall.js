@@ -14,6 +14,52 @@ const os = require('os');
  * Cross-platform: Works on Unix, macOS, Windows
  */
 
+/**
+ * Validate created configuration files
+ * @returns {object} { success: boolean, errors: string[], warnings: string[] }
+ */
+function validateConfiguration() {
+  const homedir = os.homedir();
+  const errors = [];
+  const warnings = [];
+
+  // Check ~/.ccs/ directory
+  const ccsDir = path.join(homedir, '.ccs');
+  if (!fs.existsSync(ccsDir)) {
+    errors.push('~/.ccs/ directory not found');
+  }
+
+  // Check required files
+  const requiredFiles = [
+    { path: path.join(ccsDir, 'config.json'), name: 'config.json' },
+    { path: path.join(ccsDir, 'glm.settings.json'), name: 'glm.settings.json' },
+    { path: path.join(ccsDir, 'kimi.settings.json'), name: 'kimi.settings.json' }
+  ];
+
+  for (const file of requiredFiles) {
+    if (!fs.existsSync(file.path)) {
+      errors.push(`${file.name} not found`);
+      continue;
+    }
+
+    // Validate JSON syntax
+    try {
+      const content = fs.readFileSync(file.path, 'utf8');
+      JSON.parse(content);
+    } catch (e) {
+      errors.push(`${file.name} has invalid JSON: ${e.message}`);
+    }
+  }
+
+  // Check ~/.claude/settings.json (warning only, not critical)
+  const claudeSettings = path.join(homedir, '.claude', 'settings.json');
+  if (!fs.existsSync(claudeSettings)) {
+    warnings.push('~/.claude/settings.json not found - run "claude /login"');
+  }
+
+  return { success: errors.length === 0, errors, warnings };
+}
+
 function createConfigFiles() {
   try {
     // Get user home directory (cross-platform)
@@ -107,23 +153,76 @@ function createConfigFiles() {
       console.log('[OK] Kimi profile exists: ~/.ccs/kimi.settings.json (preserved)');
     }
 
+    // Create ~/.claude/settings.json if missing (NEW)
+    const claudeDir = path.join(homedir, '.claude');
+    const claudeSettingsPath = path.join(claudeDir, 'settings.json');
+
+    if (!fs.existsSync(claudeDir)) {
+      fs.mkdirSync(claudeDir, { recursive: true, mode: 0o755 });
+      console.log('[OK] Created directory: ~/.claude/');
+    }
+
+    if (!fs.existsSync(claudeSettingsPath)) {
+      // Create empty settings (matches Claude CLI behavior)
+      const tmpPath = `${claudeSettingsPath}.tmp`;
+      fs.writeFileSync(tmpPath, '{}\n', 'utf8');
+      fs.renameSync(tmpPath, claudeSettingsPath);
+
+      console.log('[OK] Created default settings: ~/.claude/settings.json');
+      console.log('');
+      console.log('  [i] Configure Claude CLI:');
+      console.log('      Run: claude /login');
+      console.log('');
+    } else {
+      console.log('[OK] Claude settings exist: ~/.claude/settings.json (preserved)');
+    }
+
+    // Validate configuration
+    console.log('');
+    console.log('[i] Validating configuration...');
+    const validation = validateConfiguration();
+
+    if (!validation.success) {
+      console.error('');
+      console.error('[X] Configuration validation failed:');
+      validation.errors.forEach(err => console.error(`    - ${err}`));
+      console.error('');
+      throw new Error('Configuration incomplete');
+    }
+
+    // Show warnings (non-critical)
+    if (validation.warnings.length > 0) {
+      console.warn('');
+      console.warn('[!] Warnings:');
+      validation.warnings.forEach(warn => console.warn(`    - ${warn}`));
+    }
+
     console.log('');
     console.log('[OK] CCS configuration ready!');
     console.log('  Run: ccs --version');
 
   } catch (err) {
-    // Silent failure: don't break npm install
-    console.warn('');
-    console.warn('[!] Could not auto-create CCS configuration');
-    console.warn(`    Error: ${err.message}`);
-    console.warn('');
-    console.warn('    Manual setup:');
-    console.warn('      mkdir -p ~/.ccs');
-    console.warn('      # See: https://github.com/kaitranntt/ccs#configuration');
-    console.warn('');
+    // Show error details
+    console.error('');
+    console.error('[X] CCS configuration failed');
+    console.error(`    Error: ${err.message}`);
+    console.error('');
+    console.error('Recovery steps:');
+    console.error('  1. Create directory manually:');
+    console.error('     mkdir -p ~/.ccs ~/.claude');
+    console.error('');
+    console.error('  2. Create empty settings:');
+    console.error('     echo "{}" > ~/.claude/settings.json');
+    console.error('');
+    console.error('  3. Retry installation:');
+    console.error('     npm install -g @kaitranntt/ccs --force');
+    console.error('');
+    console.error('  4. If issue persists, report at:');
+    console.error('     https://github.com/kaitranntt/ccs/issues');
+    console.error('');
 
-    // Don't exit with error code - allow npm install to succeed
-    process.exit(0);
+    // Exit with error code (npm will show warning)
+    process.exit(1);
   }
 }
 

@@ -16,8 +16,18 @@ CCS (Claude Code Switch) is a lightweight CLI wrapper enabling instant switching
 **YAGNI** (You Aren't Gonna Need It): No features "just in case"
 **KISS** (Keep It Simple): Simple bash/PowerShell/Node.js, no complexity
 **DRY** (Don't Repeat Yourself): One source of truth (config.json)
+**CLI-First UX**: The primary user experience is through the command-line interface
 
 The tool does ONE thing: enable instant switching between Claude accounts and alternative models. Never add features that violate these principles.
+
+### CLI Documentation Requirement (CRITICAL)
+
+**All functionality changes MUST update `--help` output across all implementations:**
+- `bin/ccs.js` - handleHelpCommand() function
+- `lib/ccs` - show_help() function (bash)
+- `lib/ccs.ps1` - Show-Help function (PowerShell)
+
+This is non-negotiable. The CLI help is the primary documentation users reference. If a feature exists but isn't documented in `--help`, it effectively doesn't exist for users.
 
 ## Key Constraints
 
@@ -281,9 +291,11 @@ All values must be strings (not booleans/objects) to prevent PowerShell crashes.
 ### Adding a New Feature
 1. Verify it aligns with YAGNI/KISS/DRY principles
 2. Implement for both bash/PowerShell and Node.js if applicable
-3. Test on all platforms (macOS, Linux, Windows)
-4. Update tests in `tests/edge-cases.sh` and `tests/edge-cases.ps1`
-5. Update CONTRIBUTING.md if it affects contributors
+3. **Update `--help` output in ALL three implementations** (bin/ccs.js, lib/ccs, lib/ccs.ps1) - REQUIRED
+4. Test on all platforms (macOS, Linux, Windows)
+5. Update tests in `tests/edge-cases.sh` and `tests/edge-cases.ps1`
+6. Update CONTRIBUTING.md if it affects contributors
+7. Update README.md examples if user-facing
 
 ### Fixing Bugs
 1. Add test case reproducing the bug
@@ -318,6 +330,8 @@ Before any PR, verify:
 - [ ] Manual PATH setup instructions clear if auto fails
 - [ ] v3.0 concurrent sessions work correctly
 - [ ] Instance isolation works (no cross-profile contamination)
+- [ ] **`--help` output updated in bin/ccs.js, lib/ccs, and lib/ccs.ps1** (if feature added/changed)
+- [ ] **`--help` output consistent across all three implementations**
 
 ## Integration with Claude Code
 

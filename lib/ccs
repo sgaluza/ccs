@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Version (updated by scripts/bump-version.sh)
-CCS_VERSION="3.0.0"
+CCS_VERSION="3.0.1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly CONFIG_FILE="${CCS_CONFIG:-$HOME/.ccs/config.json}"
 readonly PROFILES_JSON="$HOME/.ccs/profiles.json"
@@ -44,14 +44,15 @@ show_help() {
   echo -e "  ${YELLOW}ccs${RESET} [flags]"
   echo ""
   echo -e "${CYAN}Description:${RESET}"
-  echo -e "  Switch between Claude accounts and models instantly."
-  echo -e "  Supports concurrent multi-account sessions."
+  echo -e "  Switch between multiple Claude accounts (work, personal, team) and"
+  echo -e "  alternative models (GLM, Kimi) instantly. Concurrent sessions with"
+  echo -e "  auto-recovery. Zero downtime."
   echo ""
-  echo -e "${CYAN}Profile Switching:${RESET}"
-  echo -e "  ${YELLOW}ccs${RESET}                         Use default profile"
-  echo -e "  ${YELLOW}ccs glm${RESET}                     Switch to GLM profile"
-  echo -e "  ${YELLOW}ccs work${RESET}                    Switch to work account"
-  echo -e "  ${YELLOW}ccs work${RESET} \"debug code\"       Run command with work account"
+  echo -e "${CYAN}Model Switching:${RESET}"
+  echo -e "  ${YELLOW}ccs${RESET}                         Use default Claude account"
+  echo -e "  ${YELLOW}ccs glm${RESET}                     Switch to GLM 4.6 model"
+  echo -e "  ${YELLOW}ccs kimi${RESET}                    Switch to Kimi for Coding"
+  echo -e "  ${YELLOW}ccs glm${RESET} \"debug this code\"   Use GLM and run command"
   echo ""
   echo -e "${CYAN}Account Management:${RESET}"
   echo -e "  ${YELLOW}ccs auth create <profile>${RESET}   Create new account profile"
@@ -59,6 +60,12 @@ show_help() {
   echo -e "  ${YELLOW}ccs auth show <profile>${RESET}     Show profile details"
   echo -e "  ${YELLOW}ccs auth remove <profile>${RESET}   Remove profile (requires --force)"
   echo -e "  ${YELLOW}ccs auth default <profile>${RESET}  Set default profile"
+  echo -e "  ${YELLOW}ccs work${RESET}                    Switch to work account"
+  echo -e "  ${YELLOW}ccs personal${RESET}                Switch to personal account"
+  echo -e "  ${YELLOW}ccs work${RESET} \"review code\"      Run command with work account"
+  echo ""
+  echo -e "${CYAN}Diagnostics:${RESET}"
+  echo -e "  ${YELLOW}ccs doctor${RESET}                  Run health check and diagnostics"
   echo ""
   echo -e "${CYAN}Flags:${RESET}"
   echo -e "  ${YELLOW}-h, --help${RESET}                  Show this help message"
@@ -92,6 +99,210 @@ setup_colors
 command -v jq &>/dev/null || {
   msg_error "jq required but not installed. Install: brew install jq (macOS) or apt install jq (Ubuntu)"
   exit 1
+}
+
+# --- Auto-Recovery Functions ---
+
+ensure_ccs_directory() {
+  [[ -d "$HOME/.ccs" ]] && return 0
+
+  mkdir -p "$HOME/.ccs" 2>/dev/null || {
+    msg_error "Cannot create ~/.ccs/ directory. Check permissions."
+    return 1
+  }
+
+  echo "[i] Auto-recovery: Created ~/.ccs/ directory"
+  return 0
+}
+
+ensure_config_json() {
+  local config_file="$HOME/.ccs/config.json"
+
+  # Check if exists and valid
+  if [[ -f "$config_file" ]]; then
+    jq empty "$config_file" 2>/dev/null && return 0
+
+    # Corrupted - backup and recreate
+    local backup_file="${config_file}.backup.$(date +%s)"
+    mv "$config_file" "$backup_file" 2>/dev/null
+    echo "[i] Auto-recovery: Backed up corrupted config.json"
+  fi
+
+  # Create default config
+  cat > "$config_file" <<'EOF'
+{
+  "profiles": {
+    "glm": "~/.ccs/glm.settings.json",
+    "kimi": "~/.ccs/kimi.settings.json",
+    "default": "~/.claude/settings.json"
+  }
+}
+EOF
+
+  echo "[i] Auto-recovery: Created ~/.ccs/config.json"
+  return 0
+}
+
+ensure_claude_settings() {
+  local claude_dir="$HOME/.claude"
+  local settings_file="$claude_dir/settings.json"
+
+  # Create ~/.claude/ if missing
+  if [[ ! -d "$claude_dir" ]]; then
+    mkdir -p "$claude_dir" 2>/dev/null || return 1
+    echo "[i] Auto-recovery: Created ~/.claude/ directory"
+  fi
+
+  # Create settings.json if missing
+  if [[ ! -f "$settings_file" ]]; then
+    echo '{}' > "$settings_file" 2>/dev/null || return 1
+    echo "[i] Auto-recovery: Created ~/.claude/settings.json"
+    echo "[i] Next step: Run 'claude /login' to authenticate"
+    return 0
+  fi
+
+  return 0
+}
+
+# Run auto-recovery
+auto_recover() {
+  ensure_ccs_directory || return 1
+  ensure_config_json || return 1
+  ensure_claude_settings || return 1
+  return 0
+}
+
+# --- Doctor Command ---
+
+doctor_check() {
+  local check_name="$1"
+  local status="$2"  # success, warning, error
+  local message="${3:-}"
+
+  case "$status" in
+    success)
+      echo -e "${GREEN}[OK]${RESET} $check_name"
+      ;;
+    warning)
+      echo -e "${YELLOW}[!]${RESET} $check_name${message:+: $message}"
+      ;;
+    error)
+      echo -e "${RED}[X]${RESET} $check_name: $message"
+      ;;
+  esac
+}
+
+doctor_run() {
+  echo -e "${CYAN}Running CCS Health Check...${RESET}"
+  echo ""
+
+  local has_errors=false
+
+  # Check Claude CLI
+  if command -v "$(detect_claude_cli)" &>/dev/null; then
+    doctor_check "Claude CLI" "success"
+  else
+    doctor_check "Claude CLI" "error" "Not found in PATH"
+    has_errors=true
+  fi
+
+  # Check ~/.ccs/
+  if [[ -d "$HOME/.ccs" ]]; then
+    doctor_check "CCS Directory" "success"
+  else
+    doctor_check "CCS Directory" "error" "~/.ccs/ not found"
+    has_errors=true
+  fi
+
+  # Check config.json
+  if [[ -f "$CONFIG_FILE" ]]; then
+    if jq empty "$CONFIG_FILE" 2>/dev/null; then
+      doctor_check "config.json" "success"
+    else
+      doctor_check "config.json" "error" "Invalid JSON"
+      has_errors=true
+    fi
+  else
+    doctor_check "config.json" "error" "Not found"
+    has_errors=true
+  fi
+
+  # Check glm.settings.json
+  local glm_file="$HOME/.ccs/glm.settings.json"
+  if [[ -f "$glm_file" ]]; then
+    if jq empty "$glm_file" 2>/dev/null; then
+      doctor_check "glm.settings.json" "success"
+    else
+      doctor_check "glm.settings.json" "error" "Invalid JSON"
+      has_errors=true
+    fi
+  else
+    doctor_check "glm.settings.json" "error" "Not found"
+    has_errors=true
+  fi
+
+  # Check kimi.settings.json
+  local kimi_file="$HOME/.ccs/kimi.settings.json"
+  if [[ -f "$kimi_file" ]]; then
+    if jq empty "$kimi_file" 2>/dev/null; then
+      doctor_check "kimi.settings.json" "success"
+    else
+      doctor_check "kimi.settings.json" "error" "Invalid JSON"
+      has_errors=true
+    fi
+  else
+    doctor_check "kimi.settings.json" "error" "Not found"
+    has_errors=true
+  fi
+
+  # Check ~/.claude/settings.json
+  if [[ -f "$HOME/.claude/settings.json" ]]; then
+    if jq empty "$HOME/.claude/settings.json" 2>/dev/null; then
+      doctor_check "Claude Settings" "success"
+    else
+      doctor_check "Claude Settings" "warning" "Invalid JSON"
+    fi
+  else
+    doctor_check "Claude Settings" "warning" "Not found - run 'claude /login'"
+  fi
+
+  # Check profiles
+  if [[ -f "$CONFIG_FILE" ]]; then
+    local profile_count=$(jq -r '.profiles | length' "$CONFIG_FILE" 2>/dev/null || echo "0")
+    doctor_check "Profiles" "success" "($profile_count configured)"
+  fi
+
+  # Check instances
+  if [[ -d "$INSTANCES_DIR" ]]; then
+    local instance_count=$(find "$INSTANCES_DIR" -maxdepth 1 -type d 2>/dev/null | wc -l)
+    instance_count=$((instance_count - 1))  # Exclude parent dir
+    doctor_check "Instances" "success" "($instance_count account profiles)"
+  else
+    doctor_check "Instances" "success" "(no account profiles)"
+  fi
+
+  # Check permissions
+  local test_file="$HOME/.ccs/.permission-test"
+  if echo "test" > "$test_file" 2>/dev/null; then
+    rm -f "$test_file" 2>/dev/null
+    doctor_check "Permissions" "success"
+  else
+    doctor_check "Permissions" "error" "Cannot write to ~/.ccs/"
+    has_errors=true
+  fi
+
+  # Summary
+  echo ""
+  echo -e "${CYAN}═══════════════════════════════════════════${RESET}"
+  if $has_errors; then
+    echo -e "${RED}Status: Installation has errors${RESET}"
+    echo "Run: npm install -g @kaitranntt/ccs --force"
+  else
+    echo -e "${GREEN}✓ All checks passed!${RESET}"
+  fi
+  echo ""
+
+  $has_errors && exit 1 || exit 0
 }
 
 # --- Claude CLI Detection Logic ---
@@ -726,6 +937,18 @@ if [[ $# -gt 0 ]] && [[ "${1}" == "auth" ]]; then
   handle_auth_commands "$@"
   exit $?
 fi
+
+# Special case: doctor command
+if [[ $# -gt 0 ]] && [[ "${1}" == "doctor" || "${1}" == "--doctor" ]]; then
+  doctor_run
+  exit $?
+fi
+
+# Run auto-recovery before main logic
+auto_recover || {
+  msg_error "Auto-recovery failed. Check permissions."
+  exit 1
+}
 
 # Smart profile detection: if first arg starts with '-', it's a flag not a profile
 if [[ $# -eq 0 ]] || [[ "${1}" =~ ^- ]]; then

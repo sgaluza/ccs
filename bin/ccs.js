@@ -8,6 +8,8 @@ const os = require('os');
 const { error, colored } = require('./helpers');
 const { detectClaudeCli, showClaudeNotFoundError } = require('./claude-detector');
 const { getSettingsPath, getConfigPath } = require('./config-manager');
+const { ErrorManager } = require('./error-manager');
+const RecoveryManager = require('./recovery-manager');
 
 // Version (sync with package.json)
 const CCS_VERSION = require('../package.json').version;
@@ -97,25 +99,34 @@ function handleHelpCommand() {
 
   // Description
   console.log(colored('Description:', 'cyan'));
-  console.log('  Switch between Claude models instantly. Stop hitting rate limits.');
-  console.log('  Maps profile names to Claude settings files via ~/.ccs/config.json');
+  console.log('  Switch between multiple Claude accounts (work, personal, team) and');
+  console.log('  alternative models (GLM, Kimi) instantly. Concurrent sessions with');
+  console.log('  auto-recovery. Zero downtime.');
   console.log('');
 
-  // Profile Switching
-  console.log(colored('Profile Switching:', 'cyan'));
-  console.log(`  ${colored('ccs', 'yellow')}                         Use default profile`);
-  console.log(`  ${colored('ccs glm', 'yellow')}                     Switch to GLM profile`);
-  console.log(`  ${colored('ccs kimi', 'yellow')}                    Switch to Kimi profile`);
-  console.log(`  ${colored('ccs work', 'yellow')}                    Use work account (saved profile)`);
-  console.log(`  ${colored('ccs glm', 'yellow')} "debug this code"   Switch to GLM and run command`);
-  console.log(`  ${colored('ccs work', 'yellow')} "review code"      Use work account and run command`);
+  // Model Switching
+  console.log(colored('Model Switching:', 'cyan'));
+  console.log(`  ${colored('ccs', 'yellow')}                         Use default Claude account`);
+  console.log(`  ${colored('ccs glm', 'yellow')}                     Switch to GLM 4.6 model`);
+  console.log(`  ${colored('ccs kimi', 'yellow')}                    Switch to Kimi for Coding`);
+  console.log(`  ${colored('ccs glm', 'yellow')} "debug this code"   Use GLM and run command`);
   console.log('');
 
   // Account Management
   console.log(colored('Account Management:', 'cyan'));
   console.log(`  ${colored('ccs auth create <profile>', 'yellow')}   Create new profile and login`);
   console.log(`  ${colored('ccs auth list', 'yellow')}               List all saved profiles`);
-  console.log(`  ${colored('ccs auth --help', 'yellow')}             Show account management help`);
+  console.log(`  ${colored('ccs auth show <profile>', 'yellow')}     Show profile details`);
+  console.log(`  ${colored('ccs auth remove <profile>', 'yellow')}   Remove profile (requires --force)`);
+  console.log(`  ${colored('ccs auth default <profile>', 'yellow')}  Set default profile`);
+  console.log(`  ${colored('ccs work', 'yellow')}                    Switch to work account`);
+  console.log(`  ${colored('ccs personal', 'yellow')}                Switch to personal account`);
+  console.log(`  ${colored('ccs work', 'yellow')} "review code"      Run command with work account`);
+  console.log('');
+
+  // Diagnostics
+  console.log(colored('Diagnostics:', 'cyan'));
+  console.log(`  ${colored('ccs doctor', 'yellow')}                  Run health check and diagnostics`);
   console.log('');
 
   // Flags
@@ -195,6 +206,16 @@ function handleUninstallCommand() {
   process.exit(0);
 }
 
+async function handleDoctorCommand() {
+  const Doctor = require('./doctor');
+  const doctor = new Doctor();
+
+  await doctor.runAllChecks();
+
+  // Exit with error code if unhealthy
+  process.exit(doctor.results.isHealthy() ? 0 : 1);
+}
+
 // Smart profile detection
 function detectProfile(args) {
   if (args.length === 0 || args[0].startsWith('-')) {
@@ -234,6 +255,12 @@ async function main() {
     return;
   }
 
+  // Special case: doctor command
+  if (firstArg === 'doctor' || firstArg === '--doctor') {
+    await handleDoctorCommand();
+    return;
+  }
+
   // Special case: auth command (multi-account management)
   if (firstArg === 'auth') {
     const AuthCommands = require('./auth-commands');
@@ -242,13 +269,21 @@ async function main() {
     return;
   }
 
+  // Auto-recovery for missing configuration
+  const recovery = new RecoveryManager();
+  const recovered = recovery.recoverAll();
+
+  if (recovered) {
+    recovery.showRecoveryHints();
+  }
+
   // Detect profile
   const { profile, remainingArgs } = detectProfile(args);
 
   // Detect Claude CLI first (needed for all paths)
   const claudeCli = detectClaudeCli();
   if (!claudeCli) {
-    showClaudeNotFoundError();
+    ErrorManager.showClaudeNotFound();
     process.exit(1);
   }
 
