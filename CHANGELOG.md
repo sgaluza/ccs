@@ -4,6 +4,137 @@ All notable changes to CCS will be documented here.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.2] - 2025-11-10
+
+### Fixed
+- **Default Profile Behavior**: Profile creation no longer auto-sets as default
+  - Removed auto-default logic from all implementations (npm, bash, PowerShell)
+  - Implicit 'default' profile always exists (uses ~/.claude/)
+  - Users must explicitly run `ccs auth default <profile>` to set default
+  - Enhanced success messages guide users to set explicit default
+  - Added explanatory comments in code
+
+### Changed
+- **Help Text Simplification**: Main help output reduced by ~40%
+  - Removed verbose Examples section from main help
+  - Condensed Account Management section to `ccs auth --help`
+  - Kept detailed examples in `ccs auth --help` where relevant
+  - Consistent across npm, bash, and PowerShell implementations
+
+### Technical Details
+- **Files Modified**: `bin/profile-registry.js`, `bin/auth-commands.js`, `bin/ccs.js`, `lib/ccs`, `lib/ccs.ps1`
+- **Breaking Change**: Existing workflows expecting auto-default behavior need to add `ccs auth default <profile>` command
+
+## [3.0.1] - 2025-11-10
+
+### Added
+- **Auto-Recovery System**: Automatic recovery for missing/corrupted config files
+  - New `RecoveryManager` class handles config restoration
+  - Auto-creates missing `~/.claude/settings.json` if needed
+  - Atomic file operations prevent corruption
+- **Health Check Command**: New `ccs doctor` command for diagnostics
+  - Comprehensive health check across all implementations (npm, bash, PowerShell)
+  - Validates Claude CLI installation, config files, profiles, permissions
+  - Provides context-aware recovery commands
+  - New `Doctor` class with structured health reporting
+- **Enhanced Error Messages**: New `ErrorManager` class
+  - Structured, helpful error messages with recovery guidance
+  - Context-aware diagnostics
+  - Consistent error formatting across platforms
+
+### Fixed
+- **Silent Postinstall Failures**: Critical fix for npm install issues
+  - Postinstall now exits with error code 1 on critical failures
+  - Validates created files during installation
+  - Reports issues clearly instead of failing silently
+  - Auto-creates `~/.claude/settings.json` if missing
+
+### Changed
+- **Postinstall Validation**: Enhanced installation process
+  - Comprehensive file validation after creation
+  - Better error reporting during setup
+  - Improved cross-platform compatibility checks
+
+### Technical Details
+- **New Files**: `bin/doctor.js`, `bin/error-manager.js`, `bin/recovery-manager.js`
+- **Modified Files**: `bin/ccs.js`, `bin/config-manager.js`, `lib/ccs`, `lib/ccs.ps1`, `scripts/postinstall.js`
+- **Lines Added**: 1199+ (comprehensive error handling and recovery)
+
+### BREAKING CHANGES
+- Postinstall now exits with error code 1 on critical failures (was silent before)
+
+## [3.0.0] - 2025-11-09
+
+### Added
+- **Native Multi-Account Switching**: Run multiple Claude accounts concurrently
+  - Profile registry (`~/.ccs/profiles.json`) tracks account profiles
+  - Instance isolation (`~/.ccs/instances/<profile>/`) for each account
+  - Complete session isolation (todos, logs, file history, settings)
+- **Auth Commands**: Full profile management CLI
+  - `ccs auth create <profile>` - Create new profile and login
+  - `ccs auth list` - List all saved profiles
+  - `ccs auth show <profile>` - Show profile details
+  - `ccs auth remove <profile>` - Remove profile (requires --force)
+  - `ccs auth default <profile>` - Set default profile
+- **Concurrent Sessions**: Multiple profiles run simultaneously
+  - Each profile uses isolated config directory via `CLAUDE_CONFIG_DIR`
+  - No cross-profile contamination
+  - Independent session state per profile
+- **Auto-Config Copy**: Global `.claude/` configs auto-copied to new instances
+  - Commands, skills, settings migrated automatically
+  - Maintains consistency across profiles
+
+### Changed
+- **Architecture**: v3.0 login-per-profile model (simplified from v2.x vault encryption)
+  - Each profile is isolated Claude instance
+  - Users login directly in each instance
+  - No credential copying or vault files
+- **Profile Detection**: Smart routing between profile types
+  - Settings-based profiles (GLM, Kimi) checked first for backward compatibility
+  - Account-based profiles (work, personal) use instance isolation
+  - Default profile fallback to Claude CLI defaults
+- **Cross-Platform**: Consistent implementation
+  - Both bash (`lib/ccs`) and PowerShell (`lib/ccs.ps1`) updated
+  - npm package (`bin/ccs.js`) fully featured
+  - Identical behavior across platforms
+
+### Technical Details
+- **New Files**: `bin/profile-registry.js`, `bin/profile-detector.js`, `bin/instance-manager.js`, `bin/auth-commands.js`
+- **Profile Schema (v3.0)**:
+  ```json
+  {
+    "version": "2.0.0",
+    "profiles": {
+      "work": {
+        "type": "account",
+        "created": "ISO timestamp",
+        "last_used": "ISO timestamp or null"
+      }
+    },
+    "default": "work"
+  }
+  ```
+- **Instance Structure**: Each profile gets:
+  - `session-env/` - Environment variables
+  - `todos/` - Task lists
+  - `logs/` - Session logs
+  - `file-history/` - File tracking
+  - `shell-snapshots/` - Shell state
+  - `debug/` - Debug info
+  - `.anthropic/` - Settings
+  - `commands/` - Custom commands
+  - `skills/` - Skills
+
+### BREAKING CHANGES
+- Removed v2.x vault encryption system (credentials now in isolated instances)
+- Removed credential reading from profiles (login-per-profile model)
+- Profile schema updated to v3.0 (minimal metadata)
+
+### Documentation
+- Added Japanese README (pull request #2 from @eltociear)
+- Updated CONTRIBUTING.md for v3.0 and npm package
+- Streamlined documentation structure
+
 ## [2.5.1] - 2025-11-07
 
 ### Added
