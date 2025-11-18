@@ -181,6 +181,7 @@ function handleHelpCommand() {
   console.log(colored('Diagnostics:', 'cyan'));
   console.log(`  ${colored('ccs doctor', 'yellow')}                  Run health check and diagnostics`);
   console.log(`  ${colored('ccs sync', 'yellow')}                    Sync delegation commands and skills`);
+  console.log(`  ${colored('ccs update', 'yellow')}                  Update CCS to latest version`);
   console.log('');
 
   // Flags
@@ -283,6 +284,164 @@ async function handleSyncCommand() {
   manager.sync();
 
   process.exit(0);
+}
+
+async function handleUpdateCommand() {
+  const { checkForUpdates } = require('./utils/update-checker');
+  const { spawn } = require('child_process');
+
+  console.log('');
+  console.log(colored('Checking for updates...', 'cyan'));
+  console.log('');
+
+  // Detect installation method for proper update source
+  const isNpmInstall = process.argv[1].includes('node_modules');
+  const installMethod = isNpmInstall ? 'npm' : 'direct';
+
+  // Check for updates (force check)
+  const updateResult = await checkForUpdates(CCS_VERSION, true, installMethod);
+
+  if (updateResult.status === 'check_failed') {
+    console.log(colored(`[X] ${updateResult.message}`, 'red'));
+    console.log('');
+    console.log(colored('[i] Possible causes:', 'yellow'));
+    console.log('  • Network connection issues');
+    console.log('  • Firewall blocking requests');
+    console.log('  • GitHub/npm API temporarily unavailable');
+    console.log('');
+    console.log('Try again later or update manually:');
+    if (isNpmInstall) {
+      console.log(colored('  npm install -g @kaitranntt/ccs@latest', 'yellow'));
+    } else {
+      const isWindows = process.platform === 'win32';
+      if (isWindows) {
+        console.log(colored('  irm ccs.kaitran.ca/install | iex', 'yellow'));
+      } else {
+        console.log(colored('  curl -fsSL ccs.kaitran.ca/install | bash', 'yellow'));
+      }
+    }
+    console.log('');
+    process.exit(1);
+  }
+
+  if (updateResult.status === 'no_update') {
+    let message = `You are already on the latest version (${CCS_VERSION})`;
+
+    // Add context for why no update is shown
+    switch (updateResult.reason) {
+      case 'dismissed':
+        message = `Update dismissed. You are on version ${CCS_VERSION}`;
+        console.log(colored(`[i] ${message}`, 'yellow'));
+        break;
+      case 'cached':
+        message = `No updates available (cached result). You are on version ${CCS_VERSION}`;
+        console.log(colored(`[i] ${message}`, 'cyan'));
+        break;
+      default:
+        console.log(colored(`[OK] ${message}`, 'green'));
+    }
+    console.log('');
+    process.exit(0);
+  }
+
+  // Update available
+  console.log(colored(`[i] Update available: ${updateResult.current} → ${updateResult.latest}`, 'yellow'));
+  console.log('');
+
+  if (isNpmInstall) {
+    // npm installation - use npm update
+    console.log(colored('Updating via npm...', 'cyan'));
+    console.log('');
+
+    const child = spawn('npm', ['install', '-g', '@kaitranntt/ccs@latest'], {
+      stdio: 'inherit',
+      shell: true
+    });
+
+    child.on('exit', (code) => {
+      if (code === 0) {
+        console.log('');
+        console.log(colored('[OK] Update successful!', 'green'));
+        console.log('');
+        console.log(`Run ${colored('ccs --version', 'yellow')} to verify`);
+        console.log('');
+      } else {
+        console.log('');
+        console.log(colored('[X] Update failed', 'red'));
+        console.log('');
+        console.log('Try manually:');
+        console.log(colored('  npm install -g @kaitranntt/ccs@latest', 'yellow'));
+        console.log('');
+      }
+      process.exit(code || 0);
+    });
+
+    child.on('error', (err) => {
+      console.log('');
+      console.log(colored('[X] Failed to run npm update', 'red'));
+      console.log('');
+      console.log('Try manually:');
+      console.log(colored('  npm install -g @kaitranntt/ccs@latest', 'yellow'));
+      console.log('');
+      process.exit(1);
+    });
+  } else {
+    // Direct installation - re-run installer
+    console.log(colored('Updating via installer...', 'cyan'));
+    console.log('');
+
+    const isWindows = process.platform === 'win32';
+    let command, args;
+
+    if (isWindows) {
+      command = 'powershell.exe';
+      args = ['-Command', 'irm ccs.kaitran.ca/install | iex'];
+    } else {
+      command = 'bash';
+      args = ['-c', 'curl -fsSL ccs.kaitran.ca/install | bash'];
+    }
+
+    const child = spawn(command, args, {
+      stdio: 'inherit',
+      shell: true
+    });
+
+    child.on('exit', (code) => {
+      if (code === 0) {
+        console.log('');
+        console.log(colored('[OK] Update successful!', 'green'));
+        console.log('');
+        console.log(`Run ${colored('ccs --version', 'yellow')} to verify`);
+        console.log('');
+      } else {
+        console.log('');
+        console.log(colored('[X] Update failed', 'red'));
+        console.log('');
+        console.log('Try manually:');
+        if (isWindows) {
+          console.log(colored('  irm ccs.kaitran.ca/install | iex', 'yellow'));
+        } else {
+          console.log(colored('  curl -fsSL ccs.kaitran.ca/install | bash', 'yellow'));
+        }
+        console.log('');
+      }
+      process.exit(code || 0);
+    });
+
+    child.on('error', (err) => {
+      console.log('');
+      console.log(colored('[X] Failed to run installer', 'red'));
+      console.log('');
+      console.log('Try manually:');
+      if (isWindows) {
+        console.log(colored('  irm ccs.kaitran.ca/install | iex', 'yellow'));
+      } else {
+        console.log(colored('  curl -fsSL ccs.kaitran.ca/install | bash', 'yellow'));
+      }
+      console.log('');
+      process.exit(1);
+    });
+  }
 }
 
 // Smart profile detection
@@ -525,6 +684,12 @@ async function main() {
   // Special case: sync command (sync delegation commands and skills to ~/.claude/)
   if (firstArg === 'sync' || firstArg === '--sync') {
     await handleSyncCommand();
+    return;
+  }
+
+  // Special case: update command (update CCS to latest version)
+  if (firstArg === 'update' || firstArg === '--update') {
+    await handleUpdateCommand();
     return;
   }
 
