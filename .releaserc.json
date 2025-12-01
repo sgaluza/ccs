@@ -18,8 +18,9 @@
       "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
     }],
     ["@semantic-release/github", {
-      "successComment": false,
-      "failComment": false
+      "successComment": ":tada: This issue has been resolved in version ${nextRelease.version} :tada:\n\nThe release is available on:\n- [npm package (@${nextRelease.channel || 'latest'})](https://www.npmjs.com/package/ccs-claude-code-switcher)\n- [GitHub release](${releases.filter(r => r.name === 'GitHub release').map(r => r.url)[0] || url})",
+      "failComment": false,
+      "releasedLabels": ["released"]
     }]
   ]
 }
