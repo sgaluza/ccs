@@ -1,7 +1,11 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { initUI, box, color, dim, sectionHeader, subheader } from '../utils/ui';
 
-// Version is read from VERSION file during build
-const VERSION = '5.3.0';
+// Get version from package.json (same as version-command.ts)
+const VERSION = JSON.parse(
+  fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8')
+).version;
 
 /**
  * Print a major section with ═══ borders (only for 3 main sections)

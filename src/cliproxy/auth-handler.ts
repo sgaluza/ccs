@@ -94,8 +94,10 @@ function isHeadlessEnvironment(): boolean {
     return true;
   }
 
-  // Non-interactive (piped stdin)
-  if (!process.stdin.isTTY) {
+  // Non-interactive (piped stdin) - skip on Windows
+  // Windows npm wrappers don't set isTTY correctly (returns undefined, not true)
+  // Windows desktop environments always have browser capability
+  if (process.platform !== 'win32' && !process.stdin.isTTY) {
     return true;
   }
 
