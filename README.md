@@ -833,6 +833,24 @@ ccs doctor
 Status: Installation healthy
 ```
 
+### Updating CCS
+
+```bash
+# Update to latest stable version
+ccs update
+
+# Force reinstall (fix corrupted installation)
+ccs update --force
+
+# Install beta/dev channel (unstable, for testing)
+ccs update --beta
+
+# Force reinstall from dev channel
+ccs update --force --beta
+```
+
+**Note:** `--beta` installs from the `@dev` npm tag, which contains unreleased features. Not recommended for production use.
+
 ### Update CCS Items
 
 If you modify CCS items or need to re-install symlinks:
@@ -850,6 +868,42 @@ ccs sync
 - After manual modifications to ~/.claude/
 - If `ccs doctor` reports symlink issues
 - After upgrading CCS to a new version
+
+<br>
+
+### Troubleshooting
+
+#### Broken Installation
+
+If CCS is corrupted or behaving unexpectedly:
+
+```bash
+# Force reinstall to fix
+ccs update --force
+```
+
+If that doesn't work, try manual reinstall:
+
+```bash
+npm install -g @kaitranntt/ccs@latest --force
+```
+
+#### Beta Testing Issues
+
+If you're on the dev channel and experiencing issues:
+
+```bash
+# Return to stable channel
+ccs update
+```
+
+#### Common Issues
+
+- **Update fails**: Check network connection and try `ccs update --force`
+- **Beta not working**: Use `ccs update` to return to stable version
+- **Direct install error**: Beta channel requires npm installation
+
+For detailed troubleshooting, see [Troubleshooting Guide](./docs/en/troubleshooting.md).
 
 <br>
 

@@ -82,6 +82,7 @@ execClaude(claudeCli, remainingArgs, envVars);
 - **doctor-command.ts** (415B): System diagnostics and health checks
 - **sync-command.ts** (1.0KB): Configuration synchronization and symlink repair
 - **shell-completion-command.ts** (2.1KB): Shell completion installation for 4 shells
+- **update-command.ts** (2.1KB): Update management with force reinstall support (Phase 2 implementation)
 
 **Phase 02 Benefits**:
 - **Single Responsibility**: Each command has focused, dedicated module
@@ -102,6 +103,24 @@ interface CommandHandler {
 **New Utility Modules** (`src/utils/` - Phase 02):
 - **shell-executor.ts** (1.5KB): Cross-platform shell command execution with process management
 - **package-manager-detector.ts** (3.8KB): Package manager detection (npm, yarn, pnpm, bun)
+
+#### Phase 2 Implementation Details (Update Command)
+
+**Force Reinstall Feature (Phase 2)**:
+- **Purpose**: Allows users to bypass update checks and force reinstall from target channel
+- **Implementation**: Added `force` and `beta` flags to `UpdateOptions` interface
+- **Behavior**:
+  - When `force=true`: Skips version comparison and cache validation
+  - Installs directly from `latest` or `dev` tag based on `--beta` flag
+  - Automatically clears package manager cache before reinstalling
+  - Supports both npm and direct installation methods (with limitations)
+- **Error Handling**: Graceful fallback for direct install + beta flag combination
+
+**Key Functions**:
+- `handleUpdateCommand(options)`: Main entry point with flag parsing
+- `performNpmUpdate(targetTag, isReinstall)`: Handles npm-based updates with cache clearing
+- `performDirectUpdate()`: Handles installer-based updates (force only)
+- `handleDirectBetaNotSupported()`: Clear error messaging for unsupported combinations
 
 ### 3. Delegation System (`src/delegation/` - ~1,200 lines, Phase 5 Enhanced)
 
@@ -252,7 +271,8 @@ src/                         # TypeScript source files (Phase 02 Modular Archite
 │   ├── install-command.ts         # 957B - Install/uninstall
 │   ├── doctor-command.ts          # 415B - System diagnostics
 │   ├── sync-command.ts            # 1.0KB - Configuration sync
-│   └── shell-completion-command.ts # 2.1KB - Shell completion
+│   ├── shell-completion-command.ts # 2.1KB - Shell completion
+│   └── update-command.ts          # 2.1KB - Update management
 ├── auth/               # Multi-account management (v3.0 core)
 │   ├── auth-commands.ts       # CLI handlers (~400 lines)
 │   ├── profile-detector.ts    # Profile routing (~150 lines)
@@ -547,15 +567,28 @@ Claude CLI: Read credentials from instance, execute
 ### Unit Tests
 - `tests/unit/delegation/`: Delegation system tests (v4.0+)
 - `tests/unit/glmt/`: GLMT transformer tests (v3.x)
+- `tests/unit/utils/version-comparison.test.js`: Version comparison logic tests (v5.x update flags)
 - `tests/shared/unit/`: Utility function tests
 
 ### Integration Tests
-- `tests/npm/`: End-to-end CLI functionality
+- `tests/npm/special-commands.test.js`: CLI special commands including update flag tests
 - `tests/integration/`: Cross-platform behavior, edge cases
 
+### Test Coverage Details
+- **Version Comparison**: 25 comprehensive tests for update flags (--force, --beta)
+  - Semantic version comparison with prereleases
+  - Edge cases: invalid versions, large numbers, case sensitivity
+  - Downgrade detection for beta channel warnings
+- **Update Command Flags**: 4 integration tests for flag parsing
+  - --force flag verification
+  - --beta flag verification
+  - Combined --force --beta handling
+  - Error messages for invalid usage
+
 ### Test Count
-- **Total**: ~50 test files
+- **Total**: ~55 test files
 - **Coverage**: >90% for critical paths
+- **New in v5.x**: Update flags test suite (29 new tests)
 
 ## Dependencies (v4.3.2)
 

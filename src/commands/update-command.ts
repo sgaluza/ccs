@@ -10,6 +10,15 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { colored } from '../utils/helpers';
 import { detectInstallationMethod, detectPackageManager } from '../utils/package-manager-detector';
+import { compareVersionsWithPrerelease } from '../utils/update-checker';
+
+/**
+ * Options for the update command
+ */
+export interface UpdateOptions {
+  force?: boolean;
+  beta?: boolean;
+}
 
 // Version (sync with package.json)
 const CCS_VERSION = JSON.parse(
@@ -20,8 +29,9 @@ const CCS_VERSION = JSON.parse(
  * Handle the update command
  * Checks for updates and installs the latest version
  */
-export async function handleUpdateCommand(): Promise<void> {
-  const { checkForUpdates } = await import('../utils/update-checker');
+export async function handleUpdateCommand(options: UpdateOptions = {}): Promise<void> {
+  const { force = false, beta = false } = options;
+  const targetTag = beta ? 'dev' : 'latest';
 
   console.log('');
   console.log(colored('Checking for updates...', 'cyan'));
@@ -30,10 +40,30 @@ export async function handleUpdateCommand(): Promise<void> {
   const installMethod = detectInstallationMethod();
   const isNpmInstall = installMethod === 'npm';
 
-  const updateResult = await checkForUpdates(CCS_VERSION, true, installMethod);
+  // Force reinstall - skip update check
+  if (force) {
+    console.log(colored(`[i] Force reinstall from @${targetTag} channel...`, 'cyan'));
+    console.log('');
+
+    if (isNpmInstall) {
+      await performNpmUpdate(targetTag, true);
+    } else {
+      // Direct install doesn't support --beta
+      if (beta) {
+        handleDirectBetaNotSupported();
+        return;
+      }
+      await performDirectUpdate();
+    }
+    return;
+  }
+
+  const { checkForUpdates } = await import('../utils/update-checker');
+
+  const updateResult = await checkForUpdates(CCS_VERSION, true, installMethod, targetTag);
 
   if (updateResult.status === 'check_failed') {
-    handleCheckFailed(updateResult.message ?? 'Update check failed', isNpmInstall);
+    handleCheckFailed(updateResult.message ?? 'Update check failed', isNpmInstall, targetTag);
     return;
   }
 
@@ -48,8 +78,37 @@ export async function handleUpdateCommand(): Promise<void> {
   );
   console.log('');
 
+  // Check if this is a downgrade (e.g., stable to older dev)
+  const isDowngrade =
+    updateResult.latest &&
+    updateResult.current &&
+    compareVersionsWithPrerelease(updateResult.latest, updateResult.current) < 0;
+
+  // This happens when stable user requests @dev but @dev base is older
+  if (isDowngrade && beta) {
+    console.log(
+      colored(
+        '[!] WARNING: Downgrading from ' +
+          (updateResult.current || 'unknown') +
+          ' to ' +
+          (updateResult.latest || 'unknown'),
+        'yellow'
+      )
+    );
+    console.log(colored('[!] Dev channel may be behind stable.', 'yellow'));
+    console.log('');
+  }
+
+  // Show beta warning
+  if (beta) {
+    console.log(colored('[!] Installing from @dev channel (unstable)', 'yellow'));
+    console.log(colored('[!] Not recommended for production use', 'yellow'));
+    console.log(colored('[!] Use `ccs update` (without --beta) to return to stable', 'cyan'));
+    console.log('');
+  }
+
   if (isNpmInstall) {
-    await performNpmUpdate();
+    await performNpmUpdate(targetTag);
   } else {
     await performDirectUpdate();
   }
@@ -58,7 +117,11 @@ export async function handleUpdateCommand(): Promise<void> {
 /**
  * Handle failed update check
  */
-function handleCheckFailed(message: string, isNpmInstall: boolean): void {
+function handleCheckFailed(
+  message: string,
+  isNpmInstall: boolean,
+  targetTag: string = 'latest'
+): void {
   console.log(colored(`[X] ${message}`, 'red'));
   console.log('');
   console.log(colored('[i] Possible causes:', 'yellow'));
@@ -74,19 +137,19 @@ function handleCheckFailed(message: string, isNpmInstall: boolean): void {
 
     switch (packageManager) {
       case 'npm':
-        manualCommand = 'npm install -g @kaitranntt/ccs@latest';
+        manualCommand = `npm install -g @kaitranntt/ccs@${targetTag}`;
         break;
       case 'yarn':
-        manualCommand = 'yarn global add @kaitranntt/ccs@latest';
+        manualCommand = `yarn global add @kaitranntt/ccs@${targetTag}`;
         break;
       case 'pnpm':
-        manualCommand = 'pnpm add -g @kaitranntt/ccs@latest';
+        manualCommand = `pnpm add -g @kaitranntt/ccs@${targetTag}`;
         break;
       case 'bun':
-        manualCommand = 'bun add -g @kaitranntt/ccs@latest';
+        manualCommand = `bun add -g @kaitranntt/ccs@${targetTag}`;
         break;
       default:
-        manualCommand = 'npm install -g @kaitranntt/ccs@latest';
+        manualCommand = `npm install -g @kaitranntt/ccs@${targetTag}`;
     }
 
     console.log(colored(`  ${manualCommand}`, 'yellow'));
@@ -131,7 +194,10 @@ function handleNoUpdate(reason: string | undefined): void {
 /**
  * Perform update via npm/yarn/pnpm/bun
  */
-async function performNpmUpdate(): Promise<void> {
+async function performNpmUpdate(
+  targetTag: string = 'latest',
+  isReinstall: boolean = false
+): Promise<void> {
   const packageManager = detectPackageManager();
   let updateCommand: string;
   let updateArgs: string[];
@@ -141,36 +207,38 @@ async function performNpmUpdate(): Promise<void> {
   switch (packageManager) {
     case 'npm':
       updateCommand = 'npm';
-      updateArgs = ['install', '-g', '@kaitranntt/ccs@latest'];
+      updateArgs = ['install', '-g', `@kaitranntt/ccs@${targetTag}`];
       cacheCommand = 'npm';
       cacheArgs = ['cache', 'clean', '--force'];
       break;
     case 'yarn':
       updateCommand = 'yarn';
-      updateArgs = ['global', 'add', '@kaitranntt/ccs@latest'];
+      updateArgs = ['global', 'add', `@kaitranntt/ccs@${targetTag}`];
       cacheCommand = 'yarn';
       cacheArgs = ['cache', 'clean'];
       break;
     case 'pnpm':
       updateCommand = 'pnpm';
-      updateArgs = ['add', '-g', '@kaitranntt/ccs@latest'];
+      updateArgs = ['add', '-g', `@kaitranntt/ccs@${targetTag}`];
       cacheCommand = 'pnpm';
       cacheArgs = ['store', 'prune'];
       break;
     case 'bun':
       updateCommand = 'bun';
-      updateArgs = ['add', '-g', '@kaitranntt/ccs@latest'];
+      updateArgs = ['add', '-g', `@kaitranntt/ccs@${targetTag}`];
       cacheCommand = null;
       cacheArgs = null;
       break;
     default:
       updateCommand = 'npm';
-      updateArgs = ['install', '-g', '@kaitranntt/ccs@latest'];
+      updateArgs = ['install', '-g', `@kaitranntt/ccs@${targetTag}`];
       cacheCommand = 'npm';
       cacheArgs = ['cache', 'clean', '--force'];
   }
 
-  console.log(colored(`Updating via ${packageManager}...`, 'cyan'));
+  console.log(
+    colored(`${isReinstall ? 'Reinstalling' : 'Updating'} via ${packageManager}...`, 'cyan')
+  );
   console.log('');
 
   const performUpdate = (): void => {
@@ -181,13 +249,13 @@ async function performNpmUpdate(): Promise<void> {
     child.on('exit', (code) => {
       if (code === 0) {
         console.log('');
-        console.log(colored('[OK] Update successful!', 'green'));
+        console.log(colored(`[OK] ${isReinstall ? 'Reinstall' : 'Update'} successful!`, 'green'));
         console.log('');
         console.log(`Run ${colored('ccs --version', 'yellow')} to verify`);
         console.log('');
       } else {
         console.log('');
-        console.log(colored('[X] Update failed', 'red'));
+        console.log(colored(`[X] ${isReinstall ? 'Reinstall' : 'Update'} failed`, 'red'));
         console.log('');
         console.log('Try manually:');
         console.log(colored(`  ${updateCommand} ${updateArgs.join(' ')}`, 'yellow'));
@@ -198,7 +266,12 @@ async function performNpmUpdate(): Promise<void> {
 
     child.on('error', () => {
       console.log('');
-      console.log(colored(`[X] Failed to run ${packageManager} update`, 'red'));
+      console.log(
+        colored(
+          `[X] Failed to run ${packageManager} ${isReinstall ? 'reinstall' : 'update'}`,
+          'red'
+        )
+      );
       console.log('');
       console.log('Try manually:');
       console.log(colored(`  ${updateCommand} ${updateArgs.join(' ')}`, 'yellow'));
@@ -227,6 +300,23 @@ async function performNpmUpdate(): Promise<void> {
   } else {
     performUpdate();
   }
+}
+
+/**
+ * Handle direct install beta not supported error
+ */
+function handleDirectBetaNotSupported(): void {
+  console.log(colored('[X] --beta flag requires npm installation', 'red'));
+  console.log('');
+  console.log('Current installation method: direct installer');
+  console.log('To use beta releases, install via npm:');
+  console.log('');
+  console.log(colored('  npm install -g @kaitranntt/ccs', 'yellow'));
+  console.log(colored('  ccs update --beta', 'yellow'));
+  console.log('');
+  console.log('Or continue using stable releases via direct installer.');
+  console.log('');
+  process.exit(1);
 }
 
 /**

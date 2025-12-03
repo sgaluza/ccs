@@ -269,6 +269,12 @@ interface CommandHandler {
   requiresProfile?: boolean;
   description?: string;
 }
+
+// Example: Update command options interface
+interface UpdateOptions {
+  force?: boolean;
+  beta?: boolean;
+}
 ```
 
 **Implementation Example**:

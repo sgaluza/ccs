@@ -25,7 +25,7 @@ describe('SettingsParser', () => {
     setupTestDir();
   });
 
-  after(() => {
+  afterAll(() => {
     cleanupTestDir();
   });
 

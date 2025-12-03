@@ -240,7 +240,10 @@ async function main(): Promise<void> {
 
   // Special case: update command
   if (firstArg === 'update' || firstArg === '--update') {
-    await handleUpdateCommand();
+    const updateArgs = args.slice(1);
+    const forceFlag = updateArgs.includes('--force');
+    const betaFlag = updateArgs.includes('--beta');
+    await handleUpdateCommand({ force: forceFlag, beta: betaFlag });
     return;
   }
 

@@ -11,7 +11,7 @@ import { colored } from './helpers';
 const UPDATE_CHECK_FILE = path.join(os.homedir(), '.ccs', 'update-check.json');
 const CHECK_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 const GITHUB_API_URL = 'https://api.github.com/repos/kaitranntt/ccs/releases/latest';
-const NPM_REGISTRY_URL = 'https://registry.npmjs.org/@kaitranntt/ccs/latest';
+const NPM_REGISTRY_BASE = 'https://registry.npmjs.org/@kaitranntt/ccs';
 const REQUEST_TIMEOUT = 5000; // 5 seconds
 
 interface UpdateCache {
@@ -28,6 +28,38 @@ interface UpdateResult {
   message?: string;
 }
 
+interface ParsedVersion {
+  major: number;
+  minor: number;
+  patch: number;
+  prerelease: string | null; // e.g., 'dev'
+  prereleaseNum: number | null; // e.g., 3 for '-dev.3'
+}
+
+/**
+ * Parse version string into components
+ */
+function parseVersion(version: string): ParsedVersion {
+  // Remove leading 'v' if present
+  const cleaned = version.replace(/^v/, '');
+
+  // Match: X.Y.Z or X.Y.Z-prerelease.N
+  const match = cleaned.match(/^(\d+)\.(\d+)\.(\d+)(?:-([a-z]+)\.(\d+))?$/i);
+
+  if (!match) {
+    // Fallback for invalid versions
+    return { major: 0, minor: 0, patch: 0, prerelease: null, prereleaseNum: null };
+  }
+
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+    prerelease: match[4] || null,
+    prereleaseNum: match[5] ? parseInt(match[5], 10) : null,
+  };
+}
+
 /**
  * Compare semantic versions
  * @returns 1 if v1 > v2, -1 if v1 < v2, 0 if equal
@@ -42,6 +74,33 @@ export function compareVersions(v1: string, v2: string): number {
     if (p1 > p2) return 1;
     if (p1 < p2) return -1;
   }
+  return 0;
+}
+
+/**
+ * Compare versions with prerelease support
+ * @returns 1 if v1 > v2 (upgrade), -1 if v1 < v2 (downgrade), 0 if equal
+ */
+export function compareVersionsWithPrerelease(v1: string, v2: string): number {
+  const p1 = parseVersion(v1);
+  const p2 = parseVersion(v2);
+
+  // Compare base version (major.minor.patch)
+  if (p1.major !== p2.major) return p1.major > p2.major ? 1 : -1;
+  if (p1.minor !== p2.minor) return p1.minor > p2.minor ? 1 : -1;
+  if (p1.patch !== p2.patch) return p1.patch > p2.patch ? 1 : -1;
+
+  // Same base version - check prerelease
+  // Release > prerelease (5.0.2 > 5.0.2-dev.1)
+  if (p1.prerelease === null && p2.prerelease !== null) return 1;
+  if (p1.prerelease !== null && p2.prerelease === null) return -1;
+
+  // Both are prereleases - compare prerelease numbers
+  if (p1.prereleaseNum !== null && p2.prereleaseNum !== null) {
+    if (p1.prereleaseNum > p2.prereleaseNum) return 1;
+    if (p1.prereleaseNum < p2.prereleaseNum) return -1;
+  }
+
   return 0;
 }
 
@@ -89,40 +148,37 @@ function fetchLatestVersionFromGitHub(): Promise<string | null> {
 }
 
 /**
- * Fetch latest version from npm registry
+ * Fetch version from specific npm tag
+ * @param tag - npm tag to fetch ('latest' or 'dev')
  */
-function fetchLatestVersionFromNpm(): Promise<string | null> {
+function fetchVersionFromNpmTag(tag: 'latest' | 'dev'): Promise<string | null> {
   return new Promise((resolve) => {
+    const url = `${NPM_REGISTRY_BASE}/${tag}`;
     const req = https.get(
-      NPM_REGISTRY_URL,
+      url,
       {
         headers: { 'User-Agent': 'CCS-Update-Checker' },
         timeout: REQUEST_TIMEOUT,
       },
       (res) => {
         let data = '';
-
         res.on('data', (chunk: Buffer) => {
           data += chunk.toString();
         });
-
         res.on('end', () => {
           try {
             if (res.statusCode !== 200) {
               resolve(null);
               return;
             }
-
             const packageData = JSON.parse(data) as { version?: string };
-            const version = packageData.version || null;
-            resolve(version);
+            resolve(packageData.version || null);
           } catch {
             resolve(null);
           }
         });
       }
     );
-
     req.on('error', () => resolve(null));
     req.on('timeout', () => {
       req.destroy();
@@ -168,11 +224,13 @@ export function writeCache(cache: UpdateCache): void {
  * @param currentVersion - Current CCS version
  * @param force - Force check even if within interval
  * @param installMethod - Installation method ('npm' or 'direct')
+ * @param targetTag - Target npm tag ('latest' or 'dev')
  */
 export async function checkForUpdates(
   currentVersion: string,
   force = false,
-  installMethod: 'npm' | 'direct' = 'direct'
+  installMethod: 'npm' | 'direct' = 'direct',
+  targetTag: 'latest' | 'dev' = 'latest'
 ): Promise<UpdateResult> {
   const cache = readCache();
   const now = Date.now();
@@ -180,7 +238,10 @@ export async function checkForUpdates(
   // Check if we should check for updates
   if (!force && now - cache.last_check < CHECK_INTERVAL) {
     // Use cached result if available
-    if (cache.latest_version && compareVersions(cache.latest_version, currentVersion) > 0) {
+    if (
+      cache.latest_version &&
+      compareVersionsWithPrerelease(cache.latest_version, currentVersion) > 0
+    ) {
       // Don't show if user dismissed this version
       if (cache.dismissed_version === cache.latest_version) {
         return { status: 'no_update', reason: 'dismissed' };
@@ -190,12 +251,21 @@ export async function checkForUpdates(
     return { status: 'no_update', reason: 'cached' };
   }
 
+  // Direct install doesn't support beta channel
+  if (installMethod === 'direct' && targetTag === 'dev') {
+    return {
+      status: 'check_failed',
+      reason: 'beta_not_supported',
+      message: '--beta requires npm installation method',
+    };
+  }
+
   // Fetch latest version from appropriate source
   let latestVersion: string | null;
   let fetchError: string | null = null;
 
   if (installMethod === 'npm') {
-    latestVersion = await fetchLatestVersionFromNpm();
+    latestVersion = await fetchVersionFromNpmTag(targetTag);
     if (!latestVersion) fetchError = 'npm_registry_error';
   } else {
     latestVersion = await fetchLatestVersionFromGitHub();
@@ -219,7 +289,7 @@ export async function checkForUpdates(
   }
 
   // Check if update available
-  if (latestVersion && compareVersions(latestVersion, currentVersion) > 0) {
+  if (latestVersion && compareVersionsWithPrerelease(latestVersion, currentVersion) > 0) {
     // Don't show if user dismissed this version
     if (cache.dismissed_version === latestVersion) {
       return { status: 'no_update', reason: 'dismissed' };

@@ -17,7 +17,6 @@ describe('integration: special commands', () => {
   });
 
   it('shows help with --help', function() {
-    this.timeout(5000);
     // Note: Requires claude installation, so we just test that it doesn't crash
     try {
       const output = execSync(`node ${ccsPath} --help`, {
@@ -43,5 +42,74 @@ describe('integration: special commands', () => {
     assert(output.includes('Feature not available'));
     assert(output.includes('under development'));
     assert(output.includes('.claude/ integration testing'));
+  });
+
+  describe('ccs update command flags', () => {
+    it.skip('parses --force flag without error', function() { // Skip: requires network/child process
+      // Note: This will fail at update check (no network in test), but proves flag parsing works
+      try {
+        execSync(`node ${ccsPath} update --force`, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 5000
+        });
+      } catch (e) {
+        // Expected: either network error or success message
+        // NOT expected: "unknown flag" error
+        assert(!e.stderr?.includes('unknown'));
+        assert(!e.stderr?.includes('Invalid'));
+      }
+    });
+
+    it.skip('parses --beta flag without error', function() { // Skip: requires network/child process
+      try {
+        execSync(`node ${ccsPath} update --beta`, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 5000
+        });
+      } catch (e) {
+        assert(!e.stderr?.includes('unknown'));
+        assert(!e.stderr?.includes('Invalid'));
+      }
+    });
+
+    it.skip('parses combined --force --beta flags', function() { // Skip: requires network/child process
+      try {
+        execSync(`node ${ccsPath} update --force --beta`, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 5000
+        });
+      } catch (e) {
+        assert(!e.stderr?.includes('unknown'));
+        assert(!e.stderr?.includes('Invalid'));
+      }
+    });
+
+    it.skip('shows appropriate error for direct install with --beta', function() { // Skip: requires network/child process
+      // Test direct install rejection of --beta flag
+      try {
+        execSync(`node ${ccsPath} update --beta`, {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 5000
+        });
+      } catch (e) {
+        // Check both stdout and stderr since ccs uses console.log for error messages
+        const output = (e.stdout?.toString() || '') + (e.stderr?.toString() || '');
+
+        // Should show beta not supported error for direct install
+        // or network error if check passes first
+        const hasBetaError = output.includes('requires npm installation') ||
+                           output.includes('beta not supported');
+        const hasNetworkError = output.includes('network') ||
+                              output.includes('ECONNRESET') ||
+                              output.includes('timeout');
+
+        // Either is acceptable - beta error or network error
+        assert(hasBetaError || hasNetworkError, `Expected beta or network error, got: ${output}`);
+      }
+    });
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@kaitranntt/ccs",
-  "version": "5.4.0",
+  "version": "5.4.1-dev.1",
   "description": "Claude Code Switch - Instant profile switching between Claude Sonnet 4.5 and GLM 4.6",
   "keywords": [
     "cli",
@@ -60,9 +60,9 @@
     "format:check": "prettier --check src/",
     "validate": "bun run typecheck && bun run lint:fix && bun run format:check && bun run test",
     "test": "bun run build && bun run test:all",
-    "test:all": "bun run test:unit && bun run test:npm",
-    "test:unit": "mocha 'tests/**/unit/**/*.test.js' 'tests/unit/**/*.test.js' --timeout 5000",
-    "test:npm": "mocha tests/npm/**/*.test.js --timeout 10000",
+    "test:all": "bun test",
+    "test:unit": "bun test tests/unit/",
+    "test:npm": "bun test tests/npm/",
     "test:native": "bash tests/native/unix/edge-cases.sh",
     "prepublishOnly": "npm run validate && node scripts/sync-version.js",
     "prepack": "npm run validate && node scripts/sync-version.js",

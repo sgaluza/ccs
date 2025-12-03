@@ -8,7 +8,7 @@ describe('npm CLI', () => {
   let testEnv;
   let testCcsHome;
 
-  before(() => {
+  beforeAll(() => {
     // Create isolated test environment
     testEnv = createTestEnvironment();
     testCcsHome = testEnv.testHome;
@@ -21,7 +21,7 @@ describe('npm CLI', () => {
     });
   });
 
-  after(() => {
+  afterAll(() => {
     // Clean up test environment
     if (testEnv) {
       testEnv.cleanup();
@@ -38,8 +38,6 @@ describe('npm CLI', () => {
 
   describe('Argument parsing', () => {
     it('handles flag -c without profile error', function() {
-      this.timeout(5000);
-
       try {
         runCli('-c', { stdio: 'pipe', timeout: 3000 });
       } catch (e) {
@@ -50,8 +48,6 @@ describe('npm CLI', () => {
     });
 
     it('handles flag --verbose without profile error', function() {
-      this.timeout(5000);
-
       try {
         runCli('--verbose', { stdio: 'pipe', timeout: 3000 });
       } catch (e) {
@@ -61,8 +57,6 @@ describe('npm CLI', () => {
     });
 
     it('handles flag -p with value', function() {
-      this.timeout(10000);
-
       try {
         runCli('-p "test prompt"', { stdio: 'pipe', timeout: 8000 });
       } catch (e) {
@@ -72,8 +66,6 @@ describe('npm CLI', () => {
     });
 
     it('handles multiple flags', function() {
-      this.timeout(5000);
-
       try {
         runCli('-c --verbose', { stdio: 'pipe', timeout: 3000 });
       } catch (e) {
@@ -86,8 +78,6 @@ describe('npm CLI', () => {
 
   describe('Profile handling', () => {
     it('loads glm profile', function() {
-      this.timeout(5000);
-
       try {
         runCli('glm --help', { stdio: 'pipe' });
       } catch (e) {
@@ -97,8 +87,6 @@ describe('npm CLI', () => {
     });
 
     it('shows error for invalid profile', function() {
-      this.timeout(5000);
-
       try {
         runCli('invalid-profile-name', { stdio: 'pipe' });
         assert(false, 'Should have thrown an error for invalid profile');
@@ -109,8 +97,6 @@ describe('npm CLI', () => {
     });
 
     it('handles profile with flags', function() {
-      this.timeout(5000);
-
       try {
         runCli('glm -c', { stdio: 'pipe', timeout: 3000 });
       } catch (e) {
@@ -123,29 +109,21 @@ describe('npm CLI', () => {
 
   describe('Version and help', () => {
     it('shows version with --version flag', function() {
-      this.timeout(5000);
-
       const output = runCli('--version', { encoding: 'utf8' });
       assert(/\d+\.\d+\.\d+/.test(output), 'Should show version number');
     });
 
     it('shows version with -v flag', function() {
-      this.timeout(5000);
-
       const output = runCli('-v', { encoding: 'utf8' });
       assert(/\d+\.\d+\.\d+/.test(output), 'Should show version number');
     });
 
     it('shows help with --help flag', function() {
-      this.timeout(5000);
-
       const output = runCli('--help', { encoding: 'utf8' });
       assert(/usage|help|options/i.test(output), 'Should show help information');
     });
 
     it('shows help with -h flag', function() {
-      this.timeout(5000);
-
       const output = runCli('-h', { encoding: 'utf8' });
       assert(/usage|help|options/i.test(output), 'Should show help information');
     });
@@ -153,8 +131,6 @@ describe('npm CLI', () => {
 
   describe('Error handling', () => {
     it('handles empty arguments gracefully', function() {
-      this.timeout(5000);
-
       try {
         runCli('', { stdio: 'pipe' });
       } catch (e) {
@@ -165,8 +141,6 @@ describe('npm CLI', () => {
     });
 
     it('handles very long argument', function() {
-      this.timeout(5000);
-
       const longArg = 'a'.repeat(1000);
       try {
         runCli(`"${longArg}"`, { stdio: 'pipe' });
