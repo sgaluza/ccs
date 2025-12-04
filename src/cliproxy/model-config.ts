@@ -11,6 +11,7 @@ import { InteractivePrompt } from '../utils/prompt';
 import { getProviderCatalog, supportsModelConfig, ModelEntry } from './model-catalog';
 import { getProviderSettingsPath, getClaudeEnvVars } from './config-generator';
 import { CLIProxyProvider } from './types';
+import { initUI, color, bold, dim, ok, info, header } from '../utils/ui';
 
 /** CCS directory */
 const CCS_DIR = path.join(process.env.HOME || process.env.USERPROFILE || '', '.ccs');
@@ -39,11 +40,23 @@ export function getCurrentModel(provider: CLIProxyProvider): string | undefined 
 }
 
 /**
- * Format model entry for display
+ * Format model entry for display in selection list
  */
 function formatModelOption(model: ModelEntry): string {
-  const tierLabel = model.tier === 'paid' ? ' [paid]' : '';
-  return `${model.name} (${model.id})${tierLabel}`;
+  // Tier badge: clarify that "paid" means API tier, not model pricing
+  const tierBadge = model.tier === 'paid' ? color(' [Paid API]', 'warning') : '';
+  return `${model.name}${tierBadge}`;
+}
+
+/**
+ * Format model entry for detailed display (with description)
+ */
+function formatModelDetailed(model: ModelEntry, isCurrent: boolean): string {
+  const marker = isCurrent ? color('>', 'success') : ' ';
+  const name = isCurrent ? bold(model.name) : model.name;
+  const tierBadge = model.tier === 'paid' ? color(' [Paid API]', 'warning') : '';
+  const desc = model.description ? dim(` - ${model.description}`) : '';
+  return `  ${marker} ${name}${tierBadge}${desc}`;
 }
 
 /**
@@ -72,6 +85,9 @@ export async function configureProviderModel(
     return false;
   }
 
+  // Initialize UI for colors/gradient
+  await initUI();
+
   // Build options list
   const options = catalog.models.map((m) => ({
     id: m.id,
@@ -82,9 +98,13 @@ export async function configureProviderModel(
   const defaultIdx = catalog.models.findIndex((m) => m.id === catalog.defaultModel);
   const safeDefaultIdx = defaultIdx >= 0 ? defaultIdx : 0;
 
-  // Show header
+  // Show header with context (gradient like ccs doctor)
   console.error('');
-  console.error(`[i] Configure ${catalog.displayName} model`);
+  console.error(header(`Configure ${catalog.displayName} Model`));
+  console.error('');
+  console.error(dim('    Select which model to use for this provider.'));
+  console.error(dim('    Models marked [Paid API] require a paid Google AI Studio API key.'));
+  console.error('');
 
   // Interactive selection
   const selectedModel = await InteractivePrompt.selectFromList('Select model:', options, {
@@ -118,8 +138,8 @@ export async function configureProviderModel(
   const displayName = selectedEntry?.name || selectedModel;
 
   console.error('');
-  console.error(`[OK] Model set to: ${displayName} (${selectedModel})`);
-  console.error(`[i] Saved to: ${settingsPath}`);
+  console.error(ok(`Model set to: ${bold(displayName)}`));
+  console.error(dim(`     Config saved: ${settingsPath}`));
   console.error('');
 
   return true;
@@ -128,41 +148,47 @@ export async function configureProviderModel(
 /**
  * Show current model configuration
  */
-export function showCurrentConfig(provider: CLIProxyProvider): void {
+export async function showCurrentConfig(provider: CLIProxyProvider): Promise<void> {
   if (!supportsModelConfig(provider)) {
-    console.error(`[i] Provider ${provider} does not support model configuration`);
+    console.error(info(`Provider ${provider} does not support model configuration`));
     return;
   }
 
   const catalog = getProviderCatalog(provider);
   if (!catalog) return;
 
+  // Initialize UI for colors/gradient
+  await initUI();
+
   const currentModel = getCurrentModel(provider);
   const settingsPath = getProviderSettingsPath(provider);
 
   console.error('');
-  console.error(`[i] ${catalog.displayName} Model Configuration`);
+  console.error(header(`${catalog.displayName} Model Configuration`));
   console.error('');
 
   if (currentModel) {
     const entry = catalog.models.find((m) => m.id === currentModel);
     const displayName = entry?.name || 'Unknown';
-    console.error(`  Current: ${displayName} (${currentModel})`);
-    console.error(`  Config:  ${settingsPath}`);
+    console.error(
+      `  ${bold('Current:')} ${color(displayName, 'success')} ${dim(`(${currentModel})`)}`
+    );
+    console.error(`  ${bold('Config:')}  ${dim(settingsPath)}`);
   } else {
-    console.error(`  Current: (using defaults)`);
-    console.error(`  Default: ${catalog.defaultModel}`);
+    console.error(`  ${bold('Current:')} ${dim('(using defaults)')}`);
+    console.error(`  ${bold('Default:')} ${catalog.defaultModel}`);
   }
 
   console.error('');
-  console.error('Available models:');
+  console.error(bold('Available models:'));
+  console.error(dim('  [Paid API] = Requires paid Google AI Studio API key'));
+  console.error('');
   catalog.models.forEach((m) => {
     const isCurrent = m.id === currentModel;
-    const marker = isCurrent ? '>' : ' ';
-    console.error(`  ${marker} ${formatModelOption(m)}`);
+    console.error(formatModelDetailed(m, isCurrent));
   });
 
   console.error('');
-  console.error(`Run "ccs ${provider} --config" to change`);
+  console.error(dim(`Run "ccs ${provider} --config" to change`));
   console.error('');
 }

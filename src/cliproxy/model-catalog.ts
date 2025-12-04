@@ -15,8 +15,10 @@ export interface ModelEntry {
   id: string;
   /** Human-readable name for display */
   name: string;
-  /** Access tier indicator */
+  /** Access tier indicator - 'paid' means requires paid API tier (not model pricing) */
   tier?: 'free' | 'paid';
+  /** Optional description for the model */
+  description?: string;
 }
 
 /**
@@ -40,10 +42,27 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
     displayName: 'Antigravity',
     defaultModel: 'gemini-3-pro-preview',
     models: [
-      { id: 'gemini-claude-opus-4-5-thinking', name: 'Claude Opus 4.5 Thinking' },
-      { id: 'gemini-claude-sonnet-4-5-thinking', name: 'Claude Sonnet 4.5 Thinking' },
-      { id: 'gemini-claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
-      { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', tier: 'paid' },
+      {
+        id: 'gemini-claude-opus-4-5-thinking',
+        name: 'Claude Opus 4.5 Thinking',
+        description: 'Most capable, extended thinking',
+      },
+      {
+        id: 'gemini-claude-sonnet-4-5-thinking',
+        name: 'Claude Sonnet 4.5 Thinking',
+        description: 'Balanced with extended thinking',
+      },
+      {
+        id: 'gemini-claude-sonnet-4-5',
+        name: 'Claude Sonnet 4.5',
+        description: 'Fast and capable',
+      },
+      {
+        id: 'gemini-3-pro-preview',
+        name: 'Gemini 3 Pro',
+        tier: 'paid',
+        description: 'Google latest, requires Paid API tier',
+      },
     ],
   },
   gemini: {
@@ -51,8 +70,17 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
     displayName: 'Gemini',
     defaultModel: 'gemini-2.5-pro',
     models: [
-      { id: 'gemini-3-pro-preview', name: 'Gemini 3 Pro', tier: 'paid' },
-      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      {
+        id: 'gemini-3-pro-preview',
+        name: 'Gemini 3 Pro',
+        tier: 'paid',
+        description: 'Latest model, requires Paid API tier',
+      },
+      {
+        id: 'gemini-2.5-pro',
+        name: 'Gemini 2.5 Pro',
+        description: 'Stable release, works with free tier',
+      },
     ],
   },
 };

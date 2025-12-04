@@ -55,20 +55,20 @@ describe('Model Config', () => {
   });
 
   describe('showCurrentConfig', () => {
-    it('does not throw for agy provider', () => {
+    it('does not throw for agy provider', async () => {
       const { showCurrentConfig } = modelConfig;
-      // Just verify it doesn't throw
-      assert.doesNotThrow(() => showCurrentConfig('agy'));
+      // Just verify it doesn't throw (now async)
+      await assert.doesNotReject(async () => showCurrentConfig('agy'));
     });
 
-    it('does not throw for gemini provider', () => {
+    it('does not throw for gemini provider', async () => {
       const { showCurrentConfig } = modelConfig;
-      assert.doesNotThrow(() => showCurrentConfig('gemini'));
+      await assert.doesNotReject(async () => showCurrentConfig('gemini'));
     });
 
-    it('does not throw for unsupported provider', () => {
+    it('does not throw for unsupported provider', async () => {
       const { showCurrentConfig } = modelConfig;
-      assert.doesNotThrow(() => showCurrentConfig('codex'));
+      await assert.doesNotReject(async () => showCurrentConfig('codex'));
     });
   });
 
