@@ -184,6 +184,8 @@ Claude Code Profile & Model Switcher`.trim();
     ['ccs doctor', 'Run health check and diagnostics'],
     ['ccs sync', 'Sync delegation commands and skills'],
     ['ccs update', 'Update CCS to latest version'],
+    ['ccs update --force', 'Force reinstall current version'],
+    ['ccs update --beta', 'Install from dev channel (unstable)'],
   ]);
 
   // Flags
@@ -224,6 +226,17 @@ Claude Code Profile & Model Switcher`.trim();
     `  $ ${color('ccs gemini', 'command')}              ${dim('# OAuth (browser opens first time)')}`
   );
   console.log(`  $ ${color('ccs glm "implement API"', 'command')} ${dim('# API key model')}`);
+  console.log('');
+
+  // Update examples
+  console.log(subheader('Update:'));
+  console.log(
+    `  $ ${color('ccs update', 'command')}              ${dim('# Update to latest stable')}`
+  );
+  console.log(
+    `  $ ${color('ccs update --force', 'command')}      ${dim('# Force reinstall current')}`
+  );
+  console.log(`  $ ${color('ccs update --beta', 'command')}       ${dim('# Install dev channel')}`);
   console.log('');
 
   // Docs link

@@ -78,6 +78,7 @@ graph TB
 **Key Responsibilities**:
 - Argument parsing and profile detection
 - **Command routing to modular handlers** (Phase 02 enhancement)
+- **Flag extraction for command options** (Phase 1: update command --force and --beta flags)
 - Delegation detection (`-p` / `--prompt` flag routing)
 - Profile type routing (settings-based vs account-based)
 - GLMT proxy lifecycle management
@@ -87,7 +88,7 @@ graph TB
 
 **Phase 02 Refactoring Achievement**:
 - **Size reduction**: 1,071 → 593 lines (**44.6% reduction**)
-- **Modularization**: 6 command handlers extracted to dedicated modules
+- **Modularization**: 7 command handlers extracted to dedicated modules
 - **Maintainability**: Single responsibility principle applied to all commands
 - **Focus**: Now contains only core routing, profile detection, and GLMT proxy logic
 
@@ -324,6 +325,82 @@ The modular command architecture separates command handling logic from the main 
 - Installs shell completion scripts for Bash, Zsh, Fish, PowerShell
 - Manages shell-specific completion logic
 
+**7. Update Command Handler (`src/commands/update-command.ts` - 2.1KB)**
+- Handles `update` subcommand for version checking and updates
+- Supports both npm and direct installation methods
+- Provides update notifications and installation workflows
+- **Phase 1 Enhancement**: Added flag parsing for `--force` and `--beta` options (UpdateOptions interface)
+- **Phase 2 Implementation**: Force reinstall logic that bypasses update checks
+- **Phase 3 Enhancement**: Beta channel support with npm tag switching (latest/dev)
+
+#### Update Command Flow (Phase 3: Beta Channel Support)
+
+```mermaid
+graph TD
+    subgraph "Update Command Handler"
+        START[handleUpdateCommand] --> PARSE{Parse Options}
+        PARSE --> |beta=true| SET_TARGET[Set targetTag=dev]
+        PARSE --> |beta=false| SET_TARGET_LATEST[Set targetTag=latest]
+        SET_TARGET --> DETECT_INSTALL[Detect Installation Method]
+        SET_TARGET_LATEST --> DETECT_INSTALL
+
+        DETECT_INSTALL --> |force=true| FORCE[Force Reinstall]
+        DETECT_INSTALL --> |force=false| CHECK[Check for Updates]
+
+        subgraph "Force Reinstall Path"
+            FORCE --> |npm| FORCE_NPM[performNpmUpdate with targetTag]
+            FORCE --> |direct| CHECK_BETA{beta=true?}
+            CHECK_BETA --> |Yes| BETA_ERROR[Show Beta Not Supported]
+            CHECK_BETA --> |No| FORCE_DIRECT[performDirectUpdate]
+            FORCE_NPM --> CLEAR_CACHE[Clear Package Cache]
+            CLEAR_CACHE --> INSTALL_PKG[Install Package @targetTag]
+            FORCE_DIRECT --> INSTALL_DIRECT[Run Direct Installer]
+            BETA_ERROR --> EXIT_ERROR[Exit: Error]
+        end
+
+        subgraph "Standard Update Path"
+            CHECK --> |beta=true| CHECK_NPM{installMethod=npm?}
+            CHECK_NPM --> |No| BETA_ERROR
+            CHECK_NPM --> |Yes| FETCH_NPM[fetchVersionFromNpmTag 'dev']
+            CHECK --> |beta=false| FETCH_LATEST[fetchVersionFromNpmTag 'latest' or GitHub]
+
+            FETCH_NPM --> RESULT{Update Available?}
+            FETCH_LATEST --> RESULT
+            RESULT --> |No Update| EXIT_NO[Exit: No Update]
+            RESULT --> |Update Available| SHOW_BETA_WARN{beta=true?}
+            SHOW_BETA_WARN --> |Yes| BETA_WARNINGS[Show Beta Warnings]
+            SHOW_BETA_WARN --> |No| INSTALL_UPDATE[Install Update]
+            BETA_WARNINGS --> INSTALL_UPDATE_BETA[Install from @dev]
+            RESULT --> |Check Failed| EXIT_ERROR[Exit: Error]
+        end
+
+        INSTALL_PKG --> SUCCESS[Exit: Success]
+        INSTALL_DIRECT --> SUCCESS
+        INSTALL_UPDATE --> SUCCESS
+        INSTALL_UPDATE_BETA --> SUCCESS
+    end
+```
+
+**Force Reinstall Behavior**:
+- **Skip Update Check**: Bypasses version comparison and cache validation
+- **Target Channel Support**: Installs from `latest` or `dev` tag based on `--beta` flag
+- **Cache Clearing**: Automatically clears package manager cache before reinstalling
+- **Installation Method Awareness**:
+  - npm installations: Supports both `--force` and `--beta` flags
+  - Direct installations: Only supports `--force` (shows error for `--beta`)
+- **Beta Channel Warnings**: Shows stability warnings when installing from `@dev` tag
+
+**Beta Channel Implementation (Phase 3)**:
+- **NPM Tag Switching**: Fetches versions from `@dev` tag instead of `@latest`
+- **Stability Warnings**:
+  - Displays "[!] Installing from @dev channel (unstable)"
+  - Shows "[!] Not recommended for production use"
+  - Provides return path: "[!] Use `ccs update` (without --beta) to return to stable"
+- **Installation Method Validation**:
+  - npm installations: Full beta channel support
+  - Direct installations: Error message with npm migration guidance
+- **Version Fetching**: New `fetchVersionFromNpmTag()` function for tag-specific queries
+
 **New Utility Modules** (`src/utils/`):
 
 **1. Shell Executor (`src/utils/shell-executor.ts` - 1.5KB)**
@@ -353,6 +430,7 @@ graph TD
         DOCTOR[doctor-command.ts]
         SYNC[sync-command.ts]
         COMPLETION[shell-completion-command.ts]
+        UPDATE[update-command.ts]
     end
 
     subgraph "Utility Modules (src/utils/)"
@@ -368,6 +446,7 @@ graph TD
     SPECIAL -->|doctor| DOCTOR
     SPECIAL -->|sync| SYNC
     SPECIAL -->|--shell-completion| COMPLETION
+    SPECIAL -->|update| UPDATE
 
     VERSION --> SHELL_EXEC
     HELP --> SHELL_EXEC
@@ -637,10 +716,14 @@ CCS provides comprehensive health diagnostics and maintenance commands.
 - Fixes directory structure
 - Updates shared data
 
-**3. Update Checker (`bin/utils/update-checker.js` - ~150 lines)**
+**3. Update Checker (`src/utils/update-checker.ts` - ~264 lines)**
 - Checks for newer CCS versions
 - Smart notifications (once per day)
 - Displays upgrade instructions
+- **Phase 3 Enhancement**: Beta channel support with tag-specific version fetching
+  - `fetchVersionFromNpmTag()`: Fetches from 'latest' or 'dev' npm tags
+  - Installation method validation for beta channel
+  - Target tag parameter in `checkForUpdates()` function
 
 ## GLMT Architecture (v3.2.0+)
 
@@ -907,7 +990,8 @@ src/                         # TypeScript source files (Phase 02 Modular Archite
 │   ├── install-command.ts         # 957B - Install/uninstall
 │   ├── doctor-command.ts          # 415B - System diagnostics
 │   ├── sync-command.ts            # 1.0KB - Configuration sync
-│   └── shell-completion-command.ts # 2.1KB - Shell completion
+│   ├── shell-completion-command.ts # 2.1KB - Shell completion
+│   └── update-command.ts          # 2.1KB - Update management
 ├── auth/                    # Authentication system
 │   ├── auth-commands.ts
 │   ├── profile-detector.ts
@@ -1318,6 +1402,13 @@ The CCS system architecture successfully balances simplicity with enhanced funct
 4. **New Utility Modules**: Cross-platform shell execution and package manager detection
 5. **TypeScript Excellence**: 100% type coverage across all new modules
 
+**Phase 03 Architecture Highlights** (Beta Channel Implementation):
+1. **Beta Channel Support**: NPM tag switching between 'latest' and 'dev' channels
+2. **Enhanced Update Command**: `--beta` flag with stability warnings and validation
+3. **Installation Method Awareness**: Differential support for npm vs direct installations
+4. **Version Fetching Enhancement**: Tag-specific version queries with `fetchVersionFromNpmTag()`
+5. **User Safety**: Clear warnings and migration guidance for beta channel usage
+
 **v4.3.2 Architecture Highlights**:
 1. **Delegation Architecture**: Stream-JSON parsing, session management, result formatting
 2. **Symlinking Architecture**: Selective sharing with Windows fallback
@@ -1329,6 +1420,7 @@ The CCS system architecture successfully balances simplicity with enhanced funct
 - **v2.x → v3.0**: 40% reduction through vault removal, login-per-profile model
 - **v3.0 → v4.x**: Enhanced capabilities with delegation, symlinking, diagnostics (zero breaking changes)
 - **v4.x → Phase 02**: Modular command architecture with 44.6% main file reduction
+- **Phase 02 → Phase 03**: Beta channel implementation with npm tag switching
 - **Future (v5.0+)**: AI-powered features, enterprise capabilities, ecosystem expansion
 
 The architecture demonstrates how thoughtful design can add sophisticated AI delegation capabilities, shared data management, and comprehensive diagnostics while maintaining simplicity, backward compatibility, and cross-platform support.

@@ -9,7 +9,7 @@ const assert = require('assert');
 describe('UI Module', function () {
   let ui;
 
-  before(async function () {
+  beforeAll(async function () {
     // Dynamic import for ESM module - import the built dist file
     const uiModule = await import('../../../dist/utils/ui.js');
     ui = uiModule;

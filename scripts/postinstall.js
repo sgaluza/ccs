@@ -336,7 +336,11 @@ function createConfigFiles() {
       const kimiSettings = {
         env: {
           ANTHROPIC_BASE_URL: 'https://api.kimi.com/coding/',
-          ANTHROPIC_AUTH_TOKEN: 'YOUR_KIMI_API_KEY_HERE'
+          ANTHROPIC_AUTH_TOKEN: 'YOUR_KIMI_API_KEY_HERE',
+          ANTHROPIC_MODEL: 'kimi-k2-thinking-turbo',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: 'kimi-k2-thinking-turbo',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: 'kimi-k2-thinking-turbo',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: 'kimi-k2-thinking-turbo'
         },
         alwaysThinkingEnabled: true
       };
@@ -360,12 +364,13 @@ function createConfigFiles() {
     // They are created on-demand when user runs `ccs gemini` or `ccs codex` for the first time
     // This prevents confusion - users need to run `--auth` first anyway
 
-    // Migrate existing Kimi configs to remove deprecated model fields (v4.1.2)
-    // Kimi API changed - model fields now cause 401 errors
+    // Migrate existing Kimi configs to use kimi-k2-thinking-turbo model (v5.5.0)
+    // Kimi API now supports model specification with thinking models
     if (fs.existsSync(kimiSettingsPath)) {
       try {
         const existing = JSON.parse(fs.readFileSync(kimiSettingsPath, 'utf8'));
         let updated = false;
+        const defaultModel = 'kimi-k2-thinking-turbo';
 
         // Ensure env object exists
         if (!existing.env) {
@@ -373,20 +378,25 @@ function createConfigFiles() {
           updated = true;
         }
 
-        // Remove deprecated model fields that cause 401 errors
-        const deprecatedFields = [
-          'ANTHROPIC_MODEL',
-          'ANTHROPIC_SMALL_FAST_MODEL',
-          'ANTHROPIC_DEFAULT_OPUS_MODEL',
-          'ANTHROPIC_DEFAULT_SONNET_MODEL',
-          'ANTHROPIC_DEFAULT_HAIKU_MODEL'
-        ];
+        // Add/update model fields to use kimi-k2-thinking-turbo
+        const modelFields = {
+          ANTHROPIC_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: defaultModel,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: defaultModel
+        };
 
-        for (const field of deprecatedFields) {
-          if (existing.env[field] !== undefined) {
-            delete existing.env[field];
+        for (const [field, value] of Object.entries(modelFields)) {
+          if (existing.env[field] !== value) {
+            existing.env[field] = value;
             updated = true;
           }
+        }
+
+        // Remove deprecated ANTHROPIC_SMALL_FAST_MODEL if present
+        if (existing.env.ANTHROPIC_SMALL_FAST_MODEL !== undefined) {
+          delete existing.env.ANTHROPIC_SMALL_FAST_MODEL;
+          updated = true;
         }
 
         // Ensure required fields exist
@@ -406,13 +416,11 @@ function createConfigFiles() {
           const tmpPath = `${kimiSettingsPath}.tmp`;
           fs.writeFileSync(tmpPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
           fs.renameSync(tmpPath, kimiSettingsPath);
-          console.log('[OK] Migrated Kimi config (v4.1.2): removed deprecated model fields');
-          console.log('     Kimi API no longer requires model fields (they cause 401 errors)');
+          console.log('[OK] Migrated Kimi config (v5.5.0): updated to kimi-k2-thinking-turbo model');
         }
       } catch (err) {
         console.warn('[!] Kimi config migration failed:', err.message);
-        console.warn('    Existing config preserved, but may cause 401 errors');
-        console.warn('    Manually remove ANTHROPIC_MODEL fields from ~/.ccs/kimi.settings.json');
+        console.warn('    Existing config preserved');
       }
     }
 

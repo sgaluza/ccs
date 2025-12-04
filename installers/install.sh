@@ -62,7 +62,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 CCS_DIR="$HOME/.ccs"
 CLAUDE_DIR="$HOME/.claude"
 GLM_MODEL="glm-4.6"
-KIMI_MODEL="kimi-for-coding"
+KIMI_MODEL="kimi-k2-thinking-turbo"
 
 # Resolve script directory (handles both file-based and piped execution)
 if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
@@ -84,7 +84,7 @@ fi
 # IMPORTANT: Update this version when releasing new versions!
 # This hardcoded version is used for standalone installations (curl | bash)
 # For git installations, VERSION file is read if available
-CCS_VERSION="5.4.3"
+CCS_VERSION="5.4.4-dev.2"
 
 # Try to read VERSION file for git installations
 if [[ -f "$SCRIPT_DIR/VERSION" ]]; then

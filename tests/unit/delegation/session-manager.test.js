@@ -17,7 +17,7 @@ describe('SessionManager', () => {
     cleanupTestSessions();
   });
 
-  after(() => {
+  afterAll(() => {
     cleanupTestSessions();
   });
 
