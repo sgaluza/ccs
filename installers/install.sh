@@ -62,7 +62,7 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/.local/bin}"
 CCS_DIR="$HOME/.ccs"
 CLAUDE_DIR="$HOME/.claude"
 GLM_MODEL="glm-4.6"
-KIMI_MODEL="kimi-for-coding"
+KIMI_MODEL="kimi-k2-thinking-turbo"
 
 # Resolve script directory (handles both file-based and piped execution)
 if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
