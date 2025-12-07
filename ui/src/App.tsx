@@ -1,8 +1,11 @@
 import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ConnectionIndicator } from '@/components/connection-indicator';
 import { Toaster } from 'sonner';
+import { queryClient } from '@/lib/query-client';
 import {
   HomePage,
   ApiPage,
@@ -20,7 +23,10 @@ function Layout() {
       <main className="flex-1 overflow-auto">
         <header className="flex items-center justify-between p-4 border-b">
           <SidebarTrigger />
-          <ThemeToggle />
+          <div className="flex items-center gap-4">
+            <ConnectionIndicator />
+            <ThemeToggle />
+          </div>
         </header>
         <Outlet />
       </main>
@@ -30,19 +36,21 @@ function Layout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/api" element={<ApiPage />} />
-          <Route path="/cliproxy" element={<CliproxyPage />} />
-          <Route path="/accounts" element={<AccountsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/health" element={<HealthPage />} />
-          <Route path="/shared" element={<SharedPage />} />
-        </Route>
-      </Routes>
-      <Toaster position="top-right" />
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/api" element={<ApiPage />} />
+            <Route path="/cliproxy" element={<CliproxyPage />} />
+            <Route path="/accounts" element={<AccountsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/health" element={<HealthPage />} />
+            <Route path="/shared" element={<SharedPage />} />
+          </Route>
+        </Routes>
+        <Toaster position="top-right" />
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }

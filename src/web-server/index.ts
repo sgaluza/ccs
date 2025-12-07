@@ -9,6 +9,7 @@ import express from 'express';
 import http from 'http';
 import path from 'path';
 import { WebSocketServer } from 'ws';
+import { setupWebSocket } from './websocket';
 
 export interface ServerOptions {
   port: number;
@@ -18,6 +19,7 @@ export interface ServerOptions {
 export interface ServerInstance {
   server: http.Server;
   wss: WebSocketServer;
+  cleanup: () => void;
 }
 
 /**
@@ -32,7 +34,8 @@ export async function startServer(options: ServerOptions): Promise<ServerInstanc
   app.use(express.json());
 
   // REST API routes (Phase 03)
-  // app.use('/api', apiRoutes);
+  const { apiRoutes } = await import('./routes');
+  app.use('/api', apiRoutes);
 
   // Static files (dist/ui/)
   const staticDir = options.staticDir || path.join(__dirname, '../../dist/ui');
@@ -43,23 +46,13 @@ export async function startServer(options: ServerOptions): Promise<ServerInstanc
     res.sendFile(path.join(staticDir, 'index.html'));
   });
 
-  // WebSocket connection handler (stub for Phase 04)
-  wss.on('connection', (ws) => {
-    console.log('[i] WebSocket client connected');
-
-    ws.on('close', () => {
-      console.log('[i] WebSocket client disconnected');
-    });
-
-    ws.on('error', (error) => {
-      console.error('[!] WebSocket error:', error.message);
-    });
-  });
+  // WebSocket connection handler + file watcher
+  const { cleanup } = setupWebSocket(wss);
 
   // Start listening
   return new Promise<ServerInstance>((resolve) => {
     server.listen(options.port, () => {
-      resolve({ server, wss });
+      resolve({ server, wss, cleanup });
     });
   });
 }

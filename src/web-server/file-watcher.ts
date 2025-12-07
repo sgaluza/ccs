@@ -1,22 +1,75 @@
 /**
  * File Watcher (Phase 04)
  *
- * Stub for chokidar file watching - will be implemented in Phase 04.
- * Watches config files and broadcasts changes to WebSocket clients.
+ * Watches ~/.ccs/ directory for config file changes using chokidar.
+ * Broadcasts changes to WebSocket clients for real-time sync.
  */
 
-import { FSWatcher } from 'chokidar';
+import chokidar, { FSWatcher } from 'chokidar';
+import * as path from 'path';
+import { getCcsDir } from '../utils/config-manager';
 
-export interface WatcherOptions {
-  paths: string[];
-  onChange: (path: string) => void;
+export interface FileChangeEvent {
+  type: 'config-changed' | 'settings-changed' | 'profiles-changed';
+  path: string;
+  timestamp: number;
 }
 
-/**
- * Create file watcher for config files (Phase 04)
- */
-export function createFileWatcher(_options: WatcherOptions): FSWatcher | null {
-  // Will be implemented in Phase 04
-  // Use chokidar to watch config.json, settings files, profiles.json
-  return null;
+export type FileChangeCallback = (event: FileChangeEvent) => void;
+
+export function createFileWatcher(onChange: FileChangeCallback): FSWatcher {
+  const ccsDir = getCcsDir();
+
+  const watcher = chokidar.watch(
+    [
+      path.join(ccsDir, 'config.json'),
+      path.join(ccsDir, '*.settings.json'),
+      path.join(ccsDir, 'profiles.json'),
+    ],
+    {
+      persistent: true,
+      ignoreInitial: true,
+      awaitWriteFinish: {
+        stabilityThreshold: 100,
+        pollInterval: 50,
+      },
+    }
+  );
+
+  watcher.on('change', (filePath) => {
+    const basename = path.basename(filePath);
+    let type: FileChangeEvent['type'];
+
+    if (basename === 'config.json') {
+      type = 'config-changed';
+    } else if (basename === 'profiles.json') {
+      type = 'profiles-changed';
+    } else {
+      type = 'settings-changed';
+    }
+
+    onChange({
+      type,
+      path: filePath,
+      timestamp: Date.now(),
+    });
+  });
+
+  watcher.on('add', (filePath) => {
+    onChange({
+      type: 'config-changed',
+      path: filePath,
+      timestamp: Date.now(),
+    });
+  });
+
+  watcher.on('unlink', (filePath) => {
+    onChange({
+      type: 'config-changed',
+      path: filePath,
+      timestamp: Date.now(),
+    });
+  });
+
+  return watcher;
 }
