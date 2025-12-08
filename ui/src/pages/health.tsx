@@ -1,58 +1,14 @@
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Info,
-  Monitor,
-  Settings,
-  Users,
-  Shield,
-  Zap,
-  Stethoscope,
-  Copy,
-  Terminal,
-} from 'lucide-react';
-import { HealthCheckItem } from '@/components/health-check-item';
+import { RefreshCw, Terminal, Copy, Cpu } from 'lucide-react';
+import { HealthGauge } from '@/components/health-gauge';
+import { HealthStatsBar } from '@/components/health-stats-bar';
+import { HealthGroupSection } from '@/components/health-group-section';
 import { useHealth, type HealthGroup } from '@/hooks/use-health';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const groupIcons: Record<string, typeof Monitor> = {
-  Monitor,
-  Settings,
-  Users,
-  Shield,
-  Zap,
-};
-
-const statusConfig = {
-  ok: {
-    icon: CheckCircle2,
-    label: 'All Systems Operational',
-    color: 'text-green-600',
-    bg: 'bg-green-500/10',
-    border: 'border-green-500/20',
-  },
-  warning: {
-    icon: AlertTriangle,
-    label: 'Some Issues Detected',
-    color: 'text-yellow-500',
-    bg: 'bg-yellow-500/10',
-    border: 'border-yellow-500/20',
-  },
-  error: {
-    icon: XCircle,
-    label: 'Action Required',
-    color: 'text-red-500',
-    bg: 'bg-red-500/10',
-    border: 'border-red-500/20',
-  },
-};
+import { useEffect, useState } from 'react';
 
 function getOverallStatus(summary: { passed: number; warnings: number; errors: number }) {
   if (summary.errors > 0) return 'error';
@@ -60,119 +16,58 @@ function getOverallStatus(summary: { passed: number; warnings: number; errors: n
   return 'ok';
 }
 
-function HealthGroupSection({ group }: { group: HealthGroup }) {
-  const Icon = groupIcons[group.icon] || Monitor;
-
-  const groupPassed = group.checks.filter((c) => c.status === 'ok').length;
-  const groupTotal = group.checks.length;
-  const hasIssues = group.checks.some((c) => c.status === 'error' || c.status === 'warning');
-
-  return (
-    <Card className={cn('transition-all duration-200', hasIssues && 'border-yellow-500/30')}>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <div
-              className={cn(
-                'p-1.5 rounded-md',
-                hasIssues ? 'bg-yellow-500/10 text-yellow-500' : 'bg-muted text-muted-foreground'
-              )}
-            >
-              <Icon className="w-4 h-4" />
-            </div>
-            {group.name}
-          </CardTitle>
-          <Badge variant="secondary" className="font-mono text-xs">
-            {groupPassed}/{groupTotal}
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-2">
-          {group.checks.map((check) => (
-            <HealthCheckItem key={check.id} check={check} />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
+function formatRelativeTime(timestamp: number): string {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ago`;
 }
 
-function SummaryCard({
-  label,
-  value,
-  icon: Icon,
-  color,
-}: {
-  label: string;
-  value: number;
-  icon: typeof CheckCircle2;
-  color: string;
-}) {
+function sortGroupsByIssues(groups: HealthGroup[]): HealthGroup[] {
+  return [...groups].sort((a, b) => {
+    const aErrors = a.checks.filter((c) => c.status === 'error').length;
+    const bErrors = b.checks.filter((c) => c.status === 'error').length;
+    const aWarnings = a.checks.filter((c) => c.status === 'warning').length;
+    const bWarnings = b.checks.filter((c) => c.status === 'warning').length;
+    if (aErrors !== bErrors) return bErrors - aErrors;
+    return bWarnings - aWarnings;
+  });
+}
+
+function TerminalHeader() {
   return (
-    <Card className="overflow-hidden border-none shadow-sm hover:shadow-md transition-all duration-200">
-      <CardContent className="p-0">
-        <div className="flex items-center gap-4 p-4 bg-card">
-          <div
-            className={cn(
-              'p-3 rounded-xl bg-background shadow-sm border',
-              color
-                .replace('text-', 'text-opacity-80 border-')
-                .replace('600', '200')
-                .replace('500', '200')
-            )}
-          >
-            <Icon className={cn('w-6 h-6', color)} />
-          </div>
-          <div>
-            <p className={cn('text-3xl font-bold font-mono tracking-tight', color)}>{value}</p>
-            <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="font-mono text-sm text-muted-foreground flex items-center gap-2">
+      <span className="text-green-500">$</span>
+      <span>ccs doctor</span>
+    </div>
   );
 }
 
 function LoadingSkeleton() {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Hero Skeleton */}
-      <div className="rounded-xl border p-6">
-        <div className="flex items-center gap-4">
-          <Skeleton className="h-12 w-12 rounded-lg" />
-          <div className="flex-1">
-            <Skeleton className="h-7 w-[240px] mb-2" />
-            <Skeleton className="h-4 w-[180px]" />
+      {/* Hero skeleton */}
+      <div className="rounded-xl border bg-gradient-to-br from-background to-muted/20 p-6">
+        <div className="flex items-center gap-6">
+          <Skeleton className="w-[120px] h-[120px] rounded-full" />
+          <div className="flex-1 space-y-3">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-8 w-64" />
+            <Skeleton className="h-4 w-32" />
           </div>
-          <Skeleton className="h-10 w-24" />
         </div>
       </div>
 
-      {/* Summary Skeleton */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stats skeleton */}
+      <Skeleton className="h-16 w-full rounded-lg" />
+
+      {/* Groups skeleton */}
+      <div className="space-y-3">
         {[1, 2, 3, 4].map((i) => (
           <Skeleton key={i} className="h-20 rounded-lg" />
-        ))}
-      </div>
-
-      {/* Groups Skeleton */}
-      <div className="columns-1 md:columns-2 gap-4 space-y-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="break-inside-avoid">
-            <Card>
-              <CardHeader className="pb-3">
-                <Skeleton className="h-5 w-32" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {[1, 2, 3].map((j) => (
-                    <Skeleton key={j} className="h-12 w-full" />
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
         ))}
       </div>
     </div>
@@ -182,13 +77,26 @@ function LoadingSkeleton() {
 export function HealthPage() {
   const { data, isLoading, refetch, dataUpdatedAt } = useHealth();
 
-  const formatTime = (timestamp: number) => {
-    return new Date(timestamp).toLocaleTimeString();
-  };
+  // Use dataUpdatedAt directly instead of storing in state
+  const lastRefresh = dataUpdatedAt;
+
+  // Update relative time display by forcing re-render every second
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  // Consume tick to prevent unused variable warning
+  void tick;
 
   const copyDoctorCommand = () => {
     navigator.clipboard.writeText('ccs doctor');
     toast.success('Copied to clipboard');
+  };
+
+  const handleRefresh = () => {
+    refetch();
+    toast.info('Refreshing health checks...');
   };
 
   if (isLoading && !data) {
@@ -196,19 +104,26 @@ export function HealthPage() {
   }
 
   const overallStatus = data ? getOverallStatus(data.summary) : 'ok';
-  const status = statusConfig[overallStatus];
-  const StatusIcon = status.icon;
+  const sortedGroups = data?.groups ? sortGroupsByIssues(data.groups) : [];
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      {/* Hero Section */}
+      {/* Hero Section - Terminal-inspired control center header */}
       <div
         className={cn(
           'relative overflow-hidden rounded-xl border p-6',
           'bg-gradient-to-br from-background via-background to-muted/30'
         )}
       >
-        {/* Subtle background pattern */}
+        {/* Subtle scan lines effect */}
+        <div
+          className="absolute inset-0 opacity-[0.02] pointer-events-none"
+          style={{
+            backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 2px, currentColor 2px, currentColor 3px)`,
+          }}
+        />
+
+        {/* Grid pattern background */}
         <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
           <div
             className="absolute inset-0"
@@ -219,129 +134,123 @@ export function HealthPage() {
           />
         </div>
 
-        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          {/* Left: Title and Status */}
-          <div className="flex items-center gap-4">
-            <div className={cn('p-3 rounded-xl', status.bg)}>
-              <Stethoscope className={cn('w-8 h-8', status.color)} />
+        <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
+          {/* Left: Health Gauge - excludes info from percentage */}
+          {data && (
+            <div className="shrink-0">
+              <HealthGauge
+                passed={data.summary.passed}
+                total={data.summary.total - data.summary.info}
+                status={overallStatus}
+                size="md"
+              />
             </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">Health Check</h1>
-                {data?.version && (
-                  <Badge variant="outline" className="font-mono text-xs">
-                    v{data.version}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-2 mt-1">
-                <StatusIcon className={cn('w-4 h-4', status.color)} />
-                <span className={cn('text-sm font-medium', status.color)}>{status.label}</span>
-              </div>
+          )}
+
+          {/* Center: Title and status */}
+          <div className="flex-1 space-y-3">
+            {/* Terminal prompt */}
+            <TerminalHeader />
+
+            {/* Main title */}
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold font-mono tracking-tight">System Health</h1>
+              {data?.version && (
+                <Badge variant="outline" className="font-mono text-xs bg-muted/50">
+                  build {data.version}
+                </Badge>
+              )}
+            </div>
+
+            {/* Status message */}
+            <div className="flex items-center gap-2 text-sm">
+              <Cpu className="w-4 h-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Last scan:</span>
+              <span className="font-mono">
+                {lastRefresh ? formatRelativeTime(lastRefresh) : '--'}
+              </span>
+              <span className="text-muted-foreground">|</span>
+              <span className="text-muted-foreground">Auto-refresh:</span>
+              <span className="font-mono text-green-500">30s</span>
             </div>
           </div>
 
           {/* Right: Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             <Button
               variant="outline"
               size="sm"
               onClick={copyDoctorCommand}
-              className="gap-2 text-muted-foreground"
+              className="gap-2 font-mono text-xs"
             >
-              <Terminal className="w-4 h-4" />
+              <Terminal className="w-3 h-3" />
               ccs doctor
-              <Copy className="w-3 h-3" />
+              <Copy className="w-3 h-3 opacity-50" />
             </Button>
-            <Button variant="outline" onClick={() => refetch()} disabled={isLoading}>
-              <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
-              Refresh
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+              className="gap-2"
+            >
+              <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+              <span className="hidden sm:inline">Refresh</span>
+              <kbd className="hidden md:inline-flex h-5 items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+                R
+              </kbd>
             </Button>
           </div>
         </div>
-
-        {/* Last check time */}
-        {dataUpdatedAt && (
-          <p className="relative text-xs text-muted-foreground mt-4">
-            Last check: {formatTime(dataUpdatedAt)}
-          </p>
-        )}
       </div>
 
-      {/* Summary Stats */}
+      {/* Stats Bar */}
       {data && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SummaryCard
-            label="Passed"
-            value={data.summary.passed}
-            icon={CheckCircle2}
-            color="text-green-600"
+        <div className="rounded-lg border bg-card p-4">
+          <HealthStatsBar
+            total={data.summary.total}
+            passed={data.summary.passed}
+            warnings={data.summary.warnings}
+            errors={data.summary.errors}
+            info={data.summary.info}
           />
-          <SummaryCard
-            label="Warnings"
-            value={data.summary.warnings}
-            icon={AlertTriangle}
-            color="text-yellow-500"
-          />
-          <SummaryCard
-            label="Errors"
-            value={data.summary.errors}
-            icon={XCircle}
-            color="text-red-500"
-          />
-          <SummaryCard label="Info" value={data.summary.info} icon={Info} color="text-blue-500" />
         </div>
       )}
 
-      {/* Health Check Groups */}
-      {data?.groups && (
-        <div className="columns-1 md:columns-2 gap-4 space-y-4">
-          {data.groups.map((group) => (
-            <div key={group.id} className="break-inside-avoid">
-              <HealthGroupSection group={group} />
-            </div>
+      {/* Health Check Groups - Single column layout */}
+      {sortedGroups.length > 0 && (
+        <div className="space-y-3">
+          {sortedGroups.map((group, index) => (
+            <HealthGroupSection
+              key={group.id}
+              group={group}
+              defaultOpen={
+                index < 2 ||
+                group.checks.some((c) => c.status === 'error' || c.status === 'warning')
+              }
+            />
           ))}
         </div>
       )}
 
-      {/* Issues Summary */}
-      {data && (data.summary.errors > 0 || data.summary.warnings > 0) && (
-        <Card className="border-yellow-500/30 bg-yellow-500/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2 text-yellow-600">
-              <AlertTriangle className="w-4 h-4" />
-              Issues Detected
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              {data.checks
-                .filter((c) => c.status === 'error' || c.status === 'warning')
-                .map((check) => (
-                  <div
-                    key={check.id}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-background border"
-                  >
-                    {check.status === 'error' ? (
-                      <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-                    ) : (
-                      <AlertTriangle className="w-4 h-4 text-yellow-500 mt-0.5 shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{check.name}</p>
-                      <p className="text-xs text-muted-foreground">{check.message}</p>
-                      {check.fix && (
-                        <code className="mt-1 block text-xs bg-muted px-2 py-1 rounded font-mono text-muted-foreground">
-                          {check.fix}
-                        </code>
-                      )}
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Footer metadata */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
+        <div className="flex items-center gap-4">
+          <span>
+            Version <span className="font-mono">{data?.version ?? '--'}</span>
+          </span>
+          <span>
+            Platform{' '}
+            <span className="font-mono">
+              {typeof navigator !== 'undefined' ? navigator.platform : 'linux'}
+            </span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span>Live monitoring active</span>
+        </div>
+      </div>
     </div>
   );
 }
