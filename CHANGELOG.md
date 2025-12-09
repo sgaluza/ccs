@@ -1,3 +1,28 @@
+# [5.12.0](https://github.com/kaitranntt/ccs/compare/v5.11.0...v5.12.0) (2025-12-09)
+
+
+### Bug Fixes
+
+* **security:** improve API key detection patterns to prevent false positives ([efb42ba](https://github.com/kaitranntt/ccs/commit/efb42ba8f6adfa5128c4974d43140fd640b826a1))
+* **ui:** reduce focus ring size to prevent overlapping content ([639eec7](https://github.com/kaitranntt/ccs/commit/639eec7930c4f34dacd0fb2326de87ed640d8e74))
+* **ui:** update dropdown menu item SVG color on focus ([ed5c3fc](https://github.com/kaitranntt/ccs/commit/ed5c3fc83ab4117263e74aaf29a4df8d63a8e5c1))
+* **web:** correct skill detection to look for SKILL.md instead of prompt.md ([13194fe](https://github.com/kaitranntt/ccs/commit/13194fecbe575e83bd6f366e2aca1d92922ccd24))
+
+
+### Features
+
+* **analytics:** add usage analytics page with caching layer ([a721af3](https://github.com/kaitranntt/ccs/commit/a721af3cf3ff618603e982aa2fda47980251c4e4))
+* **cli:** Introduce version utility and command updates ([d77f07e](https://github.com/kaitranntt/ccs/commit/d77f07e09376e410bf693d40d3ac646e2f35465c))
+* **cliproxy:** promote thinking models as default for agy provider ([1475adb](https://github.com/kaitranntt/ccs/commit/1475adb61649fc9ac5d7e66845649f3eb63f88b0))
+* **ui:** add modular health dashboard components ([4ff6f08](https://github.com/kaitranntt/ccs/commit/4ff6f085122c20209e73fcbda457175fb47958de))
+* **ui:** Enhance web overview with new components and data ([cc16556](https://github.com/kaitranntt/ccs/commit/cc1655624c08e8f0f20cd0416831272affe9fdf0))
+* **ui:** redesign health dashboard to match ccs doctor output ([8aae0db](https://github.com/kaitranntt/ccs/commit/8aae0db7da9e691e9a35d222d6828d6e658c49c4))
+
+
+### Performance Improvements
+
+* **analytics:** add cache pre-warming and SWR pattern for instant page load ([69e6a32](https://github.com/kaitranntt/ccs/commit/69e6a322248d3952156784520a9e264b7f24c0e8))
+
 # [5.11.0](https://github.com/kaitranntt/ccs/compare/v5.10.0...v5.11.0) (2025-12-08)
 
 
