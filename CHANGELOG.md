@@ -1,3 +1,10 @@
+## [5.12.1](https://github.com/kaitranntt/ccs/compare/v5.12.0...v5.12.1) (2025-12-09)
+
+
+### Performance Improvements
+
+* **analytics:** instant dashboard loading with disk cache persistence ([abb156d](https://github.com/kaitranntt/ccs/commit/abb156d9f4064d078a953966082e06059ad52d80))
+
 # [5.12.0](https://github.com/kaitranntt/ccs/compare/v5.11.0...v5.12.0) (2025-12-09)
 
 
