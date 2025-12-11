@@ -4,12 +4,14 @@
  * Uses react-simple-code-editor + prism-react-renderer for minimal bundle size (~18KB)
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import Editor from 'react-simple-code-editor';
 import { Highlight, themes } from 'prism-react-renderer';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
+import { isSensitiveKey } from '@/lib/sensitive-keys';
+import { AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface CodeEditorProps {
   value: string;
@@ -71,6 +73,19 @@ export function CodeEditor({
 }: CodeEditorProps) {
   const { isDark } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
+  const [isMasked, setIsMasked] = useState(true);
+  // Force Editor remount when theme changes (works around react-simple-code-editor caching)
+  const [editorKey, setEditorKey] = useState(0);
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Skip first render, only trigger on theme changes
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    setEditorKey((k) => k + 1);
+  }, [isDark]);
 
   // Validate on every change for JSON
   const validation = useMemo(() => {
@@ -81,32 +96,76 @@ export function CodeEditor({
   }, [value, language]);
 
   // Highlight function using prism-react-renderer
+  // Note: Line numbers removed - they break textarea/pre alignment in react-simple-code-editor
   const highlightCode = useCallback(
     (code: string) => (
       <Highlight theme={isDark ? themes.nightOwl : themes.github} code={code} language={language}>
-        {({ tokens, getLineProps, getTokenProps }) => (
-          <>
-            {tokens.map((line, i) => (
-              <div
-                key={i}
-                {...getLineProps({ line })}
-                className={cn('table-row', validation.line === i + 1 && 'bg-destructive/20')}
-              >
-                <span className="table-cell pr-4 text-right text-muted-foreground select-none opacity-50 text-xs w-8">
-                  {i + 1}
-                </span>
-                <span className="table-cell">
-                  {line.map((token, key) => (
-                    <span key={key} {...getTokenProps({ token })} />
-                  ))}
-                </span>
-              </div>
-            ))}
-          </>
-        )}
+        {({ tokens, getLineProps, getTokenProps }) => {
+          let nextValueIsSensitive = false;
+
+          return (
+            <>
+              {tokens.map((line, i) => (
+                <div
+                  key={i}
+                  {...getLineProps({ line })}
+                  className={cn(validation.line === i + 1 && 'bg-destructive/20')}
+                >
+                  {line.map((token, key) => {
+                    let isSensitive = false;
+
+                    // Check for sensitive keys
+                    if (token.types.includes('property')) {
+                      const content = token.content.replace(/['"]/g, '');
+                      // Use shared sensitive key detection utility
+                      if (isSensitiveKey(content)) {
+                        nextValueIsSensitive = true;
+                      } else {
+                        nextValueIsSensitive = false;
+                      }
+                    }
+                    // Apply masking to values following sensitive keys
+                    else if (
+                      (token.types.includes('string') ||
+                        token.types.includes('number') ||
+                        token.types.includes('boolean')) &&
+                      nextValueIsSensitive
+                    ) {
+                      isSensitive = true;
+                      // Consumes the flag for this value
+                      nextValueIsSensitive = false;
+                    }
+                    // Reset flag on commas or new keys (handled by property check),
+                    // but persist through colons and whitespace
+                    else if (token.types.includes('punctuation')) {
+                      if (
+                        token.content !== ':' &&
+                        token.content !== '[' &&
+                        token.content !== '{'
+                      ) {
+                        nextValueIsSensitive = false;
+                      }
+                    }
+
+                    const tokenProps = getTokenProps({ token });
+
+                    if (isSensitive && isMasked) {
+                      tokenProps.className = cn(
+                        tokenProps.className,
+                        'blur-[3px] select-none opacity-70 transition-all duration-200'
+                      );
+                    }
+
+                    return <span key={key} {...tokenProps} />;
+                  })}
+                </div>
+              ))}
+            </>
+          );
+        }}
       </Highlight>
     ),
-    [isDark, language, validation.line]
+    [isDark, language, validation.line, isMasked]
   );
 
   return (
@@ -126,7 +185,7 @@ export function CodeEditor({
           value={value}
           onValueChange={readonly ? () => {} : onChange}
           highlight={highlightCode}
-          key={isDark ? 'dark' : 'light'}
+          key={editorKey}
           padding={12}
           disabled={readonly}
           onFocus={() => setIsFocused(true)}
@@ -142,6 +201,19 @@ export function CodeEditor({
             minHeight,
           }}
         />
+
+        {/* Secrets Toggle Overlay */}
+        <div className="absolute top-2 right-2 z-10 opacity-50 hover:opacity-100 transition-opacity">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 bg-background/50 hover:bg-background border shadow-sm rounded-full"
+            onClick={() => setIsMasked(!isMasked)}
+            title={isMasked ? 'Reveal sensitive values' : 'Mask sensitive values'}
+          >
+            {isMasked ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+          </Button>
+        </div>
       </div>
 
       {/* Validation status */}

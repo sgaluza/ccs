@@ -21,7 +21,7 @@ import {
   FileJson,
 } from 'lucide-react';
 import { ProfileEditor } from '@/components/profile-editor';
-import { ProfileCreateForm } from '@/components/profile-create-form';
+import { ProfileCreateDialog } from '@/components/profile-create-dialog';
 import { useProfiles, useDeleteProfile } from '@/hooks/use-profiles';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import type { Profile } from '@/lib/api-client';
@@ -33,7 +33,7 @@ export function ApiPage() {
   const deleteMutation = useDeleteProfile();
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [isCreateDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Memoize profiles to maintain stable reference
@@ -47,12 +47,11 @@ export function ApiPage() {
 
   // Compute effective selected profile (auto-select first if none selected)
   const effectiveSelectedProfile = useMemo(() => {
-    if (showCreateForm) return null;
     if (selectedProfile && profiles.some((p) => p.name === selectedProfile)) {
       return selectedProfile;
     }
     return profiles.length > 0 ? profiles[0].name : null;
-  }, [selectedProfile, profiles, showCreateForm]);
+  }, [selectedProfile, profiles]);
 
   // Handle profile deletion
   const handleDelete = (name: string) => {
@@ -68,7 +67,7 @@ export function ApiPage() {
 
   // Handle create success
   const handleCreateSuccess = (name: string) => {
-    setShowCreateForm(false);
+    setCreateDialogOpen(false);
     setSelectedProfile(name);
   };
 
@@ -88,8 +87,7 @@ export function ApiPage() {
             <Button
               size="sm"
               onClick={() => {
-                setShowCreateForm(true);
-                setSelectedProfile(null);
+                setCreateDialogOpen(true);
               }}
             >
               <Plus className="w-4 h-4 mr-1" />
@@ -128,8 +126,7 @@ export function ApiPage() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      setShowCreateForm(true);
-                      setSelectedProfile(null);
+                      setCreateDialogOpen(true);
                     }}
                   >
                     <Plus className="w-4 h-4 mr-1" />
@@ -151,7 +148,6 @@ export function ApiPage() {
                   isSelected={effectiveSelectedProfile === profile.name}
                   onSelect={() => {
                     setSelectedProfile(profile.name);
-                    setShowCreateForm(false);
                   }}
                   onDelete={() => setDeleteConfirm(profile.name)}
                 />
@@ -178,17 +174,7 @@ export function ApiPage() {
 
       {/* Right Panel - Editor */}
       <div className="flex-1 flex flex-col min-w-0">
-        {showCreateForm ? (
-          <ProfileCreateForm
-            onSuccess={handleCreateSuccess}
-            onCancel={() => {
-              setShowCreateForm(false);
-              if (profiles.length > 0) {
-                setSelectedProfile(profiles[0].name);
-              }
-            }}
-          />
-        ) : selectedProfileData ? (
+        {selectedProfileData ? (
           <ProfileEditor
             profileName={selectedProfileData.name}
             onDelete={() => setDeleteConfirm(selectedProfileData.name)}
@@ -196,12 +182,18 @@ export function ApiPage() {
         ) : (
           <EmptyState
             onCreateClick={() => {
-              setShowCreateForm(true);
-              setSelectedProfile(null);
+              setCreateDialogOpen(true);
             }}
           />
         )}
       </div>
+
+      {/* Create Dialog */}
+      <ProfileCreateDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={handleCreateSuccess}
+      />
 
       {/* Delete Confirmation */}
       <ConfirmDialog
