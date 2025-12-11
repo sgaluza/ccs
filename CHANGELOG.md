@@ -1,3 +1,24 @@
+# [5.15.0](https://github.com/kaitranntt/ccs/compare/v5.14.0...v5.15.0) (2025-12-11)
+
+
+### Bug Fixes
+
+* **cache:** use ~/.ccs/cache/ for usage and update-check files ([790ac3c](https://github.com/kaitranntt/ccs/commit/790ac3c862c81539a048db5b3f67ed8d86a86cfb))
+* **migrate:** include backup path in rollback command ([0aa9131](https://github.com/kaitranntt/ccs/commit/0aa913164211b6cd0ad65b3b546e49edaa0bcc30))
+* **migrate:** skip autoMigrate when running migrate command ([05a6199](https://github.com/kaitranntt/ccs/commit/05a6199d839c26ebff6278448825174466fc6518))
+* **ui:** resolve layout and theme issues in profile editor ([46ee1df](https://github.com/kaitranntt/ccs/commit/46ee1df0836fac4bb6b4b75413846163ced2fc6f))
+
+
+### Features
+
+* **api-profile-ux:** Implement API & UI for profile management ([8357005](https://github.com/kaitranntt/ccs/commit/83570050ef9b68746405df8588e400faa2007c0a))
+* **api-profile-ux:** implement tabbed profile editor and fix disclaimer visibility ([8c9d669](https://github.com/kaitranntt/ccs/commit/8c9d669ccec6d2c56c37f4421e5ca6d4c95703e3))
+* **api:** improve create UX with URL validation and model mapping ([f83051b](https://github.com/kaitranntt/ccs/commit/f83051be40514a2084ceb06007eea37b31dd3062)), closes [#72](https://github.com/kaitranntt/ccs/issues/72)
+* **cliproxy:** implement --nickname flag for account management ([0d70708](https://github.com/kaitranntt/ccs/commit/0d70708658efb4b7e431f95d69c742a28d254ca6))
+* **config:** add unified YAML config with migration support ([b621b8e](https://github.com/kaitranntt/ccs/commit/b621b8e47bc63f2939b45a243173ce6b414a3ec2)), closes [#75](https://github.com/kaitranntt/ccs/issues/75)
+* **dashboard:** add code editor for raw JSON settings editing ([2b1a3b4](https://github.com/kaitranntt/ccs/commit/2b1a3b48799eae30b5d0493e5af65edab204f4d8)), closes [#73](https://github.com/kaitranntt/ccs/issues/73)
+* **profile:** refactor create UX with dialog-based interface ([720ff9d](https://github.com/kaitranntt/ccs/commit/720ff9d7d6eb881a73547daab262030fb619e5ee))
+
 # [5.14.0](https://github.com/kaitranntt/ccs/compare/v5.13.0...v5.14.0) (2025-12-10)
 
 
