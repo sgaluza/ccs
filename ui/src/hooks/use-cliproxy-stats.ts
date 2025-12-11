@@ -5,7 +5,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 /** CLIProxy usage statistics */
-export interface ClipproxyStats {
+export interface CliproxyStats {
   totalRequests: number;
   tokens: {
     input: number;
@@ -20,14 +20,14 @@ export interface ClipproxyStats {
 }
 
 /** CLIProxy running status */
-export interface ClipproxyStatus {
+export interface CliproxyStatus {
   running: boolean;
 }
 
 /**
  * Fetch CLIProxy stats from API
  */
-async function fetchClipproxyStats(): Promise<ClipproxyStats> {
+async function fetchCliproxyStats(): Promise<CliproxyStats> {
   const response = await fetch('/api/cliproxy/stats');
   if (!response.ok) {
     const error = await response.json();
@@ -39,7 +39,7 @@ async function fetchClipproxyStats(): Promise<ClipproxyStats> {
 /**
  * Fetch CLIProxy running status
  */
-async function fetchClipproxyStatus(): Promise<ClipproxyStatus> {
+async function fetchCliproxyStatus(): Promise<CliproxyStatus> {
   const response = await fetch('/api/cliproxy/status');
   if (!response.ok) {
     throw new Error('Failed to fetch status');
@@ -50,10 +50,10 @@ async function fetchClipproxyStatus(): Promise<ClipproxyStatus> {
 /**
  * Hook to get CLIProxy running status
  */
-export function useClipproxyStatus() {
+export function useCliproxyStatus() {
   return useQuery({
     queryKey: ['cliproxy-status'],
-    queryFn: fetchClipproxyStatus,
+    queryFn: fetchCliproxyStatus,
     refetchInterval: 10000, // Check every 10 seconds
     retry: 1,
   });
@@ -62,10 +62,10 @@ export function useClipproxyStatus() {
 /**
  * Hook to get CLIProxy usage stats
  */
-export function useClipproxyStats(enabled = true) {
+export function useCliproxyStats(enabled = true) {
   return useQuery({
     queryKey: ['cliproxy-stats'],
-    queryFn: fetchClipproxyStats,
+    queryFn: fetchCliproxyStats,
     enabled,
     refetchInterval: 30000, // Refresh every 30 seconds
     retry: 1,

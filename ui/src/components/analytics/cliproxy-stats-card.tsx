@@ -14,15 +14,15 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Server, Zap, Cpu, Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useClipproxyStats, useClipproxyStatus } from '@/hooks/use-cliproxy-stats';
+import { useCliproxyStats, useCliproxyStatus } from '@/hooks/use-cliproxy-stats';
 
-interface ClipproxyStatsCardProps {
+interface CliproxyStatsCardProps {
   className?: string;
 }
 
-export function ClipproxyStatsCard({ className }: ClipproxyStatsCardProps) {
-  const { data: status, isLoading: statusLoading } = useClipproxyStatus();
-  const { data: stats, isLoading: statsLoading, error } = useClipproxyStats(status?.running);
+export function CliproxyStatsCard({ className }: CliproxyStatsCardProps) {
+  const { data: status, isLoading: statusLoading } = useCliproxyStatus();
+  const { data: stats, isLoading: statsLoading, error } = useCliproxyStats(status?.running);
 
   const isLoading = statusLoading || (status?.running && statsLoading);
 

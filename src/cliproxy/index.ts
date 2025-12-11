@@ -103,8 +103,8 @@ export {
 } from './auth-handler';
 
 // Stats fetcher
-export type { ClipproxyStats } from './stats-fetcher';
-export { fetchClipproxyStats, isClipproxyRunning } from './stats-fetcher';
+export type { CliproxyStats } from './stats-fetcher';
+export { fetchCliproxyStats, isCliproxyRunning } from './stats-fetcher';
 
 // OpenAI compatibility layer
 export type { OpenAICompatProvider, OpenAICompatModel } from './openai-compat-manager';

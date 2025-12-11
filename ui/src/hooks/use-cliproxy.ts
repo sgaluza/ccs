@@ -117,3 +117,35 @@ export function useRemoveAccount() {
     },
   });
 }
+
+// Stats and models hooks for Overview tab
+export function useCliproxyStats() {
+  return useQuery({
+    queryKey: ['cliproxy-stats'],
+    queryFn: () => api.cliproxy.stats(),
+    refetchInterval: 30000, // Refresh every 30s
+  });
+}
+
+export function useCliproxyModels() {
+  return useQuery({
+    queryKey: ['cliproxy-models'],
+    queryFn: () => api.cliproxy.models(),
+  });
+}
+
+export function useUpdateModel() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ provider, model }: { provider: string; model: string }) =>
+      api.cliproxy.updateModel(provider, model),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cliproxy-models'] });
+      toast.success('Model updated');
+    },
+    onError: (error: Error) => {
+      toast.error(error.message);
+    },
+  });
+}

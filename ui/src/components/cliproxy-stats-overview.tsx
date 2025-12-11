@@ -25,15 +25,15 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useClipproxyStats, useClipproxyStatus } from '@/hooks/use-cliproxy-stats';
+import { useCliproxyStats, useCliproxyStatus } from '@/hooks/use-cliproxy-stats';
 
-interface ClipproxyStatsOverviewProps {
+interface CliproxyStatsOverviewProps {
   className?: string;
 }
 
-export function ClipproxyStatsOverview({ className }: ClipproxyStatsOverviewProps) {
-  const { data: status, isLoading: statusLoading } = useClipproxyStatus();
-  const { data: stats, isLoading: statsLoading, error } = useClipproxyStats(status?.running);
+export function CliproxyStatsOverview({ className }: CliproxyStatsOverviewProps) {
+  const { data: status, isLoading: statusLoading } = useCliproxyStatus();
+  const { data: stats, isLoading: statsLoading, error } = useCliproxyStats(status?.running);
 
   const isLoading = statusLoading || (status?.running && statsLoading);
 

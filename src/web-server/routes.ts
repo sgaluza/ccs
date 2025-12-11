@@ -12,7 +12,7 @@ import { Config, Settings } from '../types/config';
 import { expandPath } from '../utils/helpers';
 import { runHealthChecks, fixHealthIssue } from './health-service';
 import { getAllAuthStatus, getOAuthConfig, initializeAccounts } from '../cliproxy/auth-handler';
-import { fetchClipproxyStats, isClipproxyRunning } from '../cliproxy/stats-fetcher';
+import { fetchCliproxyStats, isCliproxyRunning } from '../cliproxy/stats-fetcher';
 import {
   listOpenAICompatProviders,
   getOpenAICompatProvider,
@@ -1036,12 +1036,12 @@ apiRoutes.get('/files', (_req: Request, res: Response): void => {
 
 /**
  * GET /api/cliproxy/stats - Get CLIProxyAPI usage statistics
- * Returns: ClipproxyStats or error if proxy not running
+ * Returns: CliproxyStats or error if proxy not running
  */
 apiRoutes.get('/cliproxy/stats', async (_req: Request, res: Response): Promise<void> => {
   try {
     // Check if proxy is running first
-    const running = await isClipproxyRunning();
+    const running = await isCliproxyRunning();
     if (!running) {
       res.status(503).json({
         error: 'CLIProxyAPI not running',
@@ -1051,7 +1051,7 @@ apiRoutes.get('/cliproxy/stats', async (_req: Request, res: Response): Promise<v
     }
 
     // Fetch stats from management API
-    const stats = await fetchClipproxyStats();
+    const stats = await fetchCliproxyStats();
     if (!stats) {
       res.status(503).json({
         error: 'Stats unavailable',
@@ -1072,7 +1072,7 @@ apiRoutes.get('/cliproxy/stats', async (_req: Request, res: Response): Promise<v
  */
 apiRoutes.get('/cliproxy/status', async (_req: Request, res: Response): Promise<void> => {
   try {
-    const running = await isClipproxyRunning();
+    const running = await isCliproxyRunning();
     res.json({ running });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });

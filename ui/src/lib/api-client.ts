@@ -86,6 +86,12 @@ export interface AuthStatus {
   defaultAccount?: string;
 }
 
+/** Auth file info for Config tab */
+export interface AuthFile {
+  name: string;
+  provider?: string;
+}
+
 /** Provider accounts summary */
 export type ProviderAccountsMap = Record<string, OAuthAccount[]>;
 
@@ -146,6 +152,47 @@ export const api = {
         body: JSON.stringify(data),
       }),
     delete: (name: string) => request(`/cliproxy/${name}`, { method: 'DELETE' }),
+
+    // Stats and models for Overview tab
+    stats: () => request<{ usage: Record<string, unknown> }>('/cliproxy/usage'),
+    models: () =>
+      request<{
+        providers: Record<string, { currentModel: string; availableModels: string[] }>;
+      }>('/cliproxy/models'),
+    updateModel: (provider: string, model: string) =>
+      request(`/cliproxy/models/${provider}`, {
+        method: 'PUT',
+        body: JSON.stringify({ model }),
+      }),
+
+    // Config YAML for Config tab
+    getConfigYaml: async (): Promise<string> => {
+      const res = await fetch(`${BASE_URL}/cliproxy/config.yaml`);
+      if (!res.ok) throw new Error('Failed to load config');
+      return res.text();
+    },
+    saveConfigYaml: async (content: string): Promise<void> => {
+      const res = await fetch(`${BASE_URL}/cliproxy/config.yaml`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/yaml' },
+        body: content,
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({ error: 'Failed to save config' }));
+        throw new Error(error.error || 'Failed to save config');
+      }
+    },
+
+    // Auth files for Config tab
+    getAuthFiles: () => request<{ files: AuthFile[] }>('/cliproxy/auth-files'),
+    getAuthFile: async (name: string): Promise<string> => {
+      const res = await fetch(
+        `${BASE_URL}/cliproxy/auth-files/download?name=${encodeURIComponent(name)}`
+      );
+      if (!res.ok) throw new Error('Failed to load auth file');
+      return res.text();
+    },
+
     // Multi-account management
     accounts: {
       list: () => request<{ accounts: ProviderAccountsMap }>('/cliproxy/accounts'),

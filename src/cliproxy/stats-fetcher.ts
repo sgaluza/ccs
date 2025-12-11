@@ -8,7 +8,7 @@
 import { CCS_INTERNAL_API_KEY, CLIPROXY_DEFAULT_PORT } from './config-generator';
 
 /** Usage statistics from CLIProxyAPI */
-export interface ClipproxyStats {
+export interface CliproxyStats {
   /** Total number of requests processed */
   totalRequests: number;
   /** Token counts */
@@ -59,9 +59,9 @@ interface UsageApiResponse {
  * @param port CLIProxyAPI port (default: 8317)
  * @returns Stats object or null if unavailable
  */
-export async function fetchClipproxyStats(
+export async function fetchCliproxyStats(
   port: number = CLIPROXY_DEFAULT_PORT
-): Promise<ClipproxyStats | null> {
+): Promise<CliproxyStats | null> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
@@ -123,7 +123,7 @@ export async function fetchClipproxyStats(
  * @param port CLIProxyAPI port (default: 8317)
  * @returns true if proxy is running
  */
-export async function isClipproxyRunning(port: number = CLIPROXY_DEFAULT_PORT): Promise<boolean> {
+export async function isCliproxyRunning(port: number = CLIPROXY_DEFAULT_PORT): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 1000); // 1s timeout

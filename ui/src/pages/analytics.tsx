@@ -18,7 +18,7 @@ import { UsageTrendChart } from '@/components/analytics/usage-trend-chart';
 import { ModelBreakdownChart } from '@/components/analytics/model-breakdown-chart';
 import { ModelDetailsContent } from '@/components/analytics/model-details-content';
 import { SessionStatsCard } from '@/components/analytics/session-stats-card';
-import { ClipproxyStatsCard } from '@/components/analytics/cliproxy-stats-card';
+import { CliproxyStatsCard } from '@/components/analytics/cliproxy-stats-card';
 import { UsageInsightsCard } from '@/components/analytics/usage-insights-card';
 import { TrendingUp, PieChart, RefreshCw, DollarSign, ChevronRight, Lightbulb } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -329,7 +329,7 @@ export function AnalyticsPage() {
           />
 
           {/* CLIProxy Stats - 2/10 width */}
-          <ClipproxyStatsCard className="lg:col-span-2" />
+          <CliproxyStatsCard className="lg:col-span-2" />
         </div>
 
         {/* Model Details Popover - positioned at cursor */}
