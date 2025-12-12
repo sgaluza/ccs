@@ -232,11 +232,13 @@ async function performNpmUpdate(
   console.log(info(`${isReinstall ? 'Reinstalling' : 'Updating'} via ${packageManager}...`));
   console.log('');
 
+  const isWindows = process.platform === 'win32';
+
   const performUpdate = (): void => {
-    const child = spawn(updateCommand, updateArgs, {
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
+    // On Windows, use shell with full command string to avoid deprecation warning
+    const child = isWindows
+      ? spawn(`${updateCommand} ${updateArgs.join(' ')}`, [], { stdio: 'inherit', shell: true })
+      : spawn(updateCommand, updateArgs, { stdio: 'inherit' });
 
     child.on('exit', (code) => {
       if (code === 0) {
@@ -269,10 +271,10 @@ async function performNpmUpdate(
 
   if (cacheCommand && cacheArgs) {
     console.log(info('Clearing package cache...'));
-    const cacheChild = spawn(cacheCommand, cacheArgs, {
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    });
+    // On Windows, use shell with full command string to avoid deprecation warning
+    const cacheChild = isWindows
+      ? spawn(`${cacheCommand} ${cacheArgs.join(' ')}`, [], { stdio: 'inherit', shell: true })
+      : spawn(cacheCommand, cacheArgs, { stdio: 'inherit' });
 
     cacheChild.on('exit', (code) => {
       if (code !== 0) {
