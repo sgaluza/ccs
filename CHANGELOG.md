@@ -1,3 +1,17 @@
+# [5.19.0](https://github.com/kaitranntt/ccs/compare/v5.18.0...v5.19.0) (2025-12-14)
+
+
+### Bug Fixes
+
+* **auth:** use unified config for account profile touch in ccs.ts ([4ccde8a](https://github.com/kaitranntt/ccs/commit/4ccde8a3f07d5ebb658213dfe9f69a7b11ec3aac)), closes [#98](https://github.com/kaitranntt/ccs/issues/98)
+* **ci:** prevent shell injection from PR body markdown ([5a8db2c](https://github.com/kaitranntt/ccs/commit/5a8db2c1ee87b2a252f61759273863c0c521f27b))
+* **cliproxy:** add SSH port forwarding instructions for headless OAuth ([a6b95db](https://github.com/kaitranntt/ccs/commit/a6b95dbac5f97a870c7ef58701726ad9733ea75d))
+
+
+### Features
+
+* **cliproxy:** disable logging by default and add cleanup command ([e5cdf7c](https://github.com/kaitranntt/ccs/commit/e5cdf7c083b1b220627dad711df6f6f1c746d9ad)), closes [#96](https://github.com/kaitranntt/ccs/issues/96)
+
 # [5.18.0](https://github.com/kaitranntt/ccs/compare/v5.17.0...v5.18.0) (2025-12-13)
 
 
