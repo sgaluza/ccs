@@ -36,6 +36,7 @@ import {
   getProviderAccounts,
   setDefaultAccount as setDefaultAccountFn,
   removeAccount as removeAccountFn,
+  touchAccount,
 } from '../cliproxy/account-manager';
 import type { CLIProxyProvider } from '../cliproxy/types';
 import { getClaudeEnvVars } from '../cliproxy/config-generator';
@@ -469,10 +470,42 @@ apiRoutes.delete('/cliproxy/:name', (req: Request, res: Response): void => {
 
 /**
  * GET /api/cliproxy/auth - Get auth status for built-in CLIProxy profiles
+ * Also fetches CLIProxyAPI stats to update lastUsedAt for active providers
  */
-apiRoutes.get('/cliproxy/auth', (_req: Request, res: Response) => {
+apiRoutes.get('/cliproxy/auth', async (_req: Request, res: Response) => {
   // Initialize accounts from existing tokens on first request
   initializeAccounts();
+
+  // Fetch CLIProxyAPI usage stats to determine active providers
+  const stats = await fetchCliproxyStats();
+
+  // Map CLIProxyAPI provider names to our internal provider names
+  const statsProviderMap: Record<string, CLIProxyProvider> = {
+    gemini: 'gemini',
+    antigravity: 'agy',
+    codex: 'codex',
+    qwen: 'qwen',
+    iflow: 'iflow',
+  };
+
+  // Update lastUsedAt for providers with recent activity
+  if (stats?.requestsByProvider) {
+    for (const [statsProvider, requestCount] of Object.entries(stats.requestsByProvider)) {
+      if (requestCount > 0) {
+        const provider = statsProviderMap[statsProvider.toLowerCase()];
+        if (provider) {
+          // Touch the default account for this provider (or all accounts)
+          const accounts = getProviderAccounts(provider);
+          for (const account of accounts) {
+            // Only touch if this is the default account (most likely being used)
+            if (account.isDefault) {
+              touchAccount(provider, account.id);
+            }
+          }
+        }
+      }
+    }
+  }
 
   const statuses = getAllAuthStatus();
 
