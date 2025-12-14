@@ -1,3 +1,10 @@
+## [5.19.2](https://github.com/kaitranntt/ccs/compare/v5.19.1...v5.19.2) (2025-12-14)
+
+
+### Bug Fixes
+
+* **auth:** handle Windows spawn for profile creation ([5efab53](https://github.com/kaitranntt/ccs/commit/5efab53eb7f048b2a29a088508e1fcb19c4acd91))
+
 ## [5.19.1](https://github.com/kaitranntt/ccs/compare/v5.19.0...v5.19.1) (2025-12-14)
 
 
