@@ -515,7 +515,7 @@ export function AccountFlowViz({ providerData, onBack }: AccountFlowVizProps) {
       {/* Main visualization area - Multi-zone layout */}
       <div className="min-h-[320px] flex gap-4 px-4 py-6 self-stretch items-stretch">
         {/* Flow visualization section */}
-        <div className="relative flex-1 flex flex-col items-center justify-center px-4">
+        <div className="relative flex-1 flex flex-col items-stretch justify-center px-4">
           {/* SVG Canvas (Background) */}
           <svg
             ref={svgRef}
@@ -660,7 +660,7 @@ export function AccountFlowViz({ providerData, onBack }: AccountFlowVizProps) {
           )}
 
           {/* Middle Row: Left | Center Provider | Right */}
-          <div className="flex items-center justify-between flex-1">
+          <div className="flex items-center justify-between gap-8 flex-1">
             {/* Left Accounts */}
             <div className="flex flex-col gap-3 z-10 w-48 justify-center flex-shrink-0">
               {leftAccounts.map((account) => {
