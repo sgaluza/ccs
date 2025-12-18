@@ -343,6 +343,27 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Special case: copilot command (GitHub Copilot integration)
+  // Only route to command handler for known subcommands, otherwise treat as profile
+  const COPILOT_SUBCOMMANDS = [
+    'auth',
+    'status',
+    'models',
+    'start',
+    'stop',
+    'enable',
+    'disable',
+    'help',
+    '--help',
+    '-h',
+  ];
+  if (firstArg === 'copilot' && args.length > 1 && COPILOT_SUBCOMMANDS.includes(args[1])) {
+    // `ccs copilot <subcommand>` - route to copilot command handler
+    const { handleCopilotCommand } = await import('./commands/copilot-command');
+    const exitCode = await handleCopilotCommand(args.slice(1));
+    process.exit(exitCode);
+  }
+
   // Special case: headless delegation (-p flag)
   if (args.includes('-p') || args.includes('--prompt')) {
     const { DelegationHandler } = await import('./delegation/delegation-handler');
@@ -389,6 +410,16 @@ async function main(): Promise<void> {
       const provider = profileInfo.provider || (profileInfo.name as CLIProxyProvider);
       const customSettingsPath = profileInfo.settingsPath; // undefined for hardcoded profiles
       await execClaudeWithCLIProxy(claudeCli, provider, remainingArgs, { customSettingsPath });
+    } else if (profileInfo.type === 'copilot') {
+      // COPILOT FLOW: GitHub Copilot subscription via copilot-api proxy
+      const { executeCopilotProfile } = await import('./copilot');
+      const copilotConfig = profileInfo.copilotConfig;
+      if (!copilotConfig) {
+        console.error('[X] Copilot configuration not found');
+        process.exit(1);
+      }
+      const exitCode = await executeCopilotProfile(copilotConfig, remainingArgs);
+      process.exit(exitCode);
     } else if (profileInfo.type === 'settings') {
       // Settings-based profiles (glm, glmt, kimi) are third-party providers
       // WebSearch is server-side tool - third-party providers have no access
