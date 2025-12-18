@@ -115,6 +115,32 @@ export function hasGeminiCli(): boolean {
 }
 
 /**
+ * Check if Gemini CLI is authenticated
+ *
+ * Gemini CLI stores OAuth credentials in ~/.gemini/oauth_creds.json
+ * Authentication is done by running `gemini` which opens browser for OAuth.
+ * Note: There is NO `gemini auth login` command - just run `gemini` to authenticate.
+ *
+ * @returns true if oauth_creds.json exists with access_token
+ */
+export function isGeminiAuthenticated(): boolean {
+  const oauthPath = path.join(os.homedir(), '.gemini', 'oauth_creds.json');
+
+  if (!fs.existsSync(oauthPath)) {
+    return false;
+  }
+
+  try {
+    const content = fs.readFileSync(oauthPath, 'utf8');
+    const creds = JSON.parse(content);
+    // Check if access_token exists (doesn't validate expiry - Gemini CLI handles refresh)
+    return !!creds.access_token;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Clear Gemini CLI cache (for testing or after installation)
  */
 export function clearGeminiCliCache(): void {
@@ -692,7 +718,7 @@ export function getWebSearchHookEnv(): Record<string, string> {
 /**
  * WebSearch availability status for third-party profiles
  */
-export type WebSearchReadiness = 'ready' | 'unavailable';
+export type WebSearchReadiness = 'ready' | 'needs_auth' | 'unavailable';
 
 /**
  * WebSearch status for display
@@ -700,6 +726,7 @@ export type WebSearchReadiness = 'ready' | 'unavailable';
 export interface WebSearchStatus {
   readiness: WebSearchReadiness;
   geminiCli: boolean;
+  geminiAuthenticated: boolean;
   grokCli: boolean;
   opencodeCli: boolean;
   message: string;
@@ -709,6 +736,7 @@ export interface WebSearchStatus {
  * Get WebSearch readiness status for display
  *
  * Called on third-party profile startup to inform user.
+ * Checks both installation AND authentication status for Gemini CLI.
  */
 export function getWebSearchReadiness(): WebSearchStatus {
   const wsConfig = getWebSearchConfig();
@@ -718,6 +746,7 @@ export function getWebSearchReadiness(): WebSearchStatus {
     return {
       readiness: 'unavailable',
       geminiCli: false,
+      geminiAuthenticated: false,
       grokCli: false,
       opencodeCli: false,
       message: 'Disabled in config',
@@ -726,28 +755,56 @@ export function getWebSearchReadiness(): WebSearchStatus {
 
   // Check all CLIs
   const geminiInstalled = hasGeminiCli();
+  const geminiAuthed = geminiInstalled && isGeminiAuthenticated();
   const grokInstalled = hasGrokCli();
   const opencodeInstalled = hasOpenCodeCli();
 
-  // Build message based on installed CLIs
-  const installedClis: string[] = [];
-  if (geminiInstalled) installedClis.push('Gemini');
-  if (grokInstalled) installedClis.push('Grok');
-  if (opencodeInstalled) installedClis.push('OpenCode');
+  // Build message based on installed + authenticated CLIs
+  const readyClis: string[] = [];
+  const needsAuthClis: string[] = [];
 
-  if (installedClis.length > 0) {
+  // Gemini requires auth check
+  if (geminiInstalled) {
+    if (geminiAuthed) {
+      readyClis.push('Gemini');
+    } else {
+      needsAuthClis.push('Gemini');
+    }
+  }
+
+  // Other CLIs don't require auth check (for now)
+  if (grokInstalled) readyClis.push('Grok');
+  if (opencodeInstalled) readyClis.push('OpenCode');
+
+  // Determine overall status
+  if (readyClis.length > 0) {
+    // At least one CLI is ready
     return {
       readiness: 'ready',
       geminiCli: geminiInstalled,
+      geminiAuthenticated: geminiAuthed,
       grokCli: grokInstalled,
       opencodeCli: opencodeInstalled,
-      message: `Ready (${installedClis.join(' + ')})`,
+      message: `Ready (${readyClis.join(' + ')})`,
+    };
+  }
+
+  if (needsAuthClis.length > 0) {
+    // CLIs installed but need auth
+    return {
+      readiness: 'needs_auth',
+      geminiCli: geminiInstalled,
+      geminiAuthenticated: false,
+      grokCli: grokInstalled,
+      opencodeCli: opencodeInstalled,
+      message: `Gemini: run 'gemini' to login`,
     };
   }
 
   return {
     readiness: 'unavailable',
     geminiCli: false,
+    geminiAuthenticated: false,
     grokCli: false,
     opencodeCli: false,
     message: 'Install: npm i -g @google/gemini-cli',
@@ -766,6 +823,10 @@ export function displayWebSearchStatus(): void {
   switch (status.readiness) {
     case 'ready':
       console.error(ok(`WebSearch: ${status.message}`));
+      break;
+    case 'needs_auth':
+      // CLI installed but not authenticated - show warning
+      console.error(warn(`WebSearch: ${status.message}`));
       break;
     case 'unavailable':
       console.error(fail(`WebSearch: ${status.message}`));
