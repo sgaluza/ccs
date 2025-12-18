@@ -1,24 +1,273 @@
 /**
- * Copilot Page
- *
- * GitHub Copilot integration settings page.
+ * Copilot Page - Master-Detail Layout
+ * Left sidebar: Status overview + Quick actions
+ * Right panel: Split-view configuration form (matches CLIProxy design)
  */
 
-import { CopilotStatusCard } from '@/components/copilot/copilot-status-card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Github,
+  CheckCircle2,
+  XCircle,
+  AlertTriangle,
+  RefreshCw,
+  Power,
+  PowerOff,
+  Key,
+  Server,
+  Cpu,
+} from 'lucide-react';
+import { useCopilot } from '@/hooks/use-copilot';
 import { CopilotConfigForm } from '@/components/copilot/copilot-config-form';
+import { cn } from '@/lib/utils';
+
+// Status section component
+function StatusSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-3">
+        {title}
+      </div>
+      <div className="space-y-1">{children}</div>
+    </div>
+  );
+}
+
+// Status item component
+function StatusItem({
+  icon: Icon,
+  label,
+  status,
+  statusText,
+  variant = 'default',
+}: {
+  icon: React.ElementType;
+  label: string;
+  status: boolean;
+  statusText?: string;
+  variant?: 'default' | 'warning';
+}) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/50">
+      <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className="text-sm">{label}</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        {status ? (
+          <>
+            <CheckCircle2
+              className={cn(
+                'w-4 h-4',
+                variant === 'warning' ? 'text-yellow-500' : 'text-green-500'
+              )}
+            />
+            <span
+              className={cn(
+                'text-xs',
+                variant === 'warning' ? 'text-yellow-500' : 'text-green-500'
+              )}
+            >
+              {statusText || 'Yes'}
+            </span>
+          </>
+        ) : (
+          <>
+            <XCircle className="w-4 h-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">{statusText || 'No'}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Empty state when loading
+function LoadingSidebar() {
+  return (
+    <div className="space-y-4 p-4">
+      <Skeleton className="h-8 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+      <Skeleton className="h-12 w-full" />
+    </div>
+  );
+}
 
 export function CopilotPage() {
+  const {
+    status,
+    statusLoading,
+    refetchStatus,
+    startAuth,
+    isAuthenticating,
+    startDaemon,
+    isStartingDaemon,
+    stopDaemon,
+    isStoppingDaemon,
+  } = useCopilot();
+
   return (
-    <div className="container mx-auto py-6 space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-bold">GitHub Copilot</h1>
-        <p className="text-muted-foreground">
-          Use your GitHub Copilot subscription with Claude Code
-        </p>
+    <div className="h-[calc(100vh-100px)] flex">
+      {/* Left Sidebar - Status Overview */}
+      <div className="w-64 border-r flex flex-col bg-muted/30 shrink-0">
+        {/* Header */}
+        <div className="p-4 border-b bg-background">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <Github className="w-5 h-5 text-primary" />
+              <h1 className="font-semibold">Copilot</h1>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => refetchStatus()}
+              disabled={statusLoading}
+            >
+              <RefreshCw className={cn('w-4 h-4', statusLoading && 'animate-spin')} />
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">GitHub Copilot proxy</p>
+        </div>
+
+        {/* Status Overview */}
+        <ScrollArea className="flex-1">
+          {statusLoading ? (
+            <LoadingSidebar />
+          ) : (
+            <div className="p-3 space-y-4">
+              {/* Warning Banner */}
+              <div className="flex items-start gap-2 rounded-md border border-yellow-500/20 bg-yellow-500/10 p-2.5">
+                <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                  Reverse-engineered API
+                </p>
+              </div>
+
+              {/* Integration Status */}
+              <StatusSection title="Integration">
+                <StatusItem
+                  icon={Power}
+                  label="Enabled"
+                  status={status?.enabled ?? false}
+                  statusText={status?.enabled ? 'Enabled' : 'Disabled'}
+                />
+                <StatusItem
+                  icon={Server}
+                  label="copilot-api"
+                  status={status?.installed ?? false}
+                  statusText={status?.installed ? 'Installed' : 'Missing'}
+                />
+              </StatusSection>
+
+              {/* Authentication */}
+              <StatusSection title="Auth">
+                <StatusItem
+                  icon={Key}
+                  label="GitHub"
+                  status={status?.authenticated ?? false}
+                  statusText={status?.authenticated ? 'Connected' : 'Not Connected'}
+                />
+                {!status?.authenticated && status?.installed && (
+                  <Button
+                    size="sm"
+                    className="w-full mt-2"
+                    onClick={() => startAuth()}
+                    disabled={isAuthenticating}
+                  >
+                    {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
+                  </Button>
+                )}
+              </StatusSection>
+
+              {/* Daemon */}
+              <StatusSection title="Daemon">
+                <StatusItem
+                  icon={Cpu}
+                  label="Status"
+                  status={status?.daemon_running ?? false}
+                  statusText={status?.daemon_running ? 'Running' : 'Stopped'}
+                />
+                <div className="px-3 py-1 text-xs text-muted-foreground">
+                  Port: {status?.port ?? 4141}
+                </div>
+                {status?.authenticated && (
+                  <div className="px-1">
+                    {status?.daemon_running ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => stopDaemon()}
+                        disabled={isStoppingDaemon}
+                      >
+                        <PowerOff className="w-3.5 h-3.5 mr-1.5" />
+                        {isStoppingDaemon ? 'Stopping...' : 'Stop'}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => startDaemon()}
+                        disabled={isStartingDaemon}
+                      >
+                        <Power className="w-3.5 h-3.5 mr-1.5" />
+                        {isStartingDaemon ? 'Starting...' : 'Start'}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </StatusSection>
+
+              {/* Quick Status */}
+              <StatusSection title="Config">
+                <div className="px-3 py-2 rounded-lg bg-muted/50 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Model</span>
+                    <span className="font-mono truncate max-w-[100px] text-[10px]">
+                      {status?.model ?? 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Account</span>
+                    <Badge variant="secondary" className="text-[10px] h-4">
+                      {status?.account_type ?? 'individual'}
+                    </Badge>
+                  </div>
+                </div>
+              </StatusSection>
+            </div>
+          )}
+        </ScrollArea>
+
+        {/* Footer */}
+        <div className="p-3 border-t bg-background text-xs text-muted-foreground">
+          <div className="flex items-center justify-between">
+            <span>Proxy</span>
+            {status?.daemon_running ? (
+              <span className="flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-green-500" />
+                Active
+              </span>
+            ) : (
+              <span className="flex items-center gap-1">
+                <XCircle className="w-3 h-3 text-muted-foreground" />
+                Inactive
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
-      <CopilotStatusCard />
-      <CopilotConfigForm />
+      {/* Right Panel - Split-view Configuration Form */}
+      <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+        <CopilotConfigForm />
+      </div>
     </div>
   );
 }
