@@ -21,6 +21,9 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
+// Maximum events to display in the Connection Timeline to prevent performance issues
+const MAX_TIMELINE_EVENTS = 100;
+
 // Earthy, sophisticated color palette for connection lines - works in both light/dark themes
 const CONNECTION_COLORS = [
   '#3b3c36', // Charcoal Brown - urban mystery
@@ -398,7 +401,11 @@ export function AccountFlowViz({ providerData, onBack }: AccountFlowVizProps) {
   }, [accounts]);
 
   // Generate connection events for timeline
-  const connectionEvents = useMemo(() => generateConnectionEvents(accounts), [accounts]);
+  // Limit events to prevent UI lag with high request counts
+  const connectionEvents = useMemo(
+    () => generateConnectionEvents(accounts).slice(0, MAX_TIMELINE_EVENTS),
+    [accounts]
+  );
 
   // Calculate SVG paths for bezier curves
   const calculatePaths = useCallback(() => {
