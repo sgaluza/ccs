@@ -5,7 +5,6 @@
  */
 
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -159,14 +158,8 @@ export function CopilotPage() {
                 </ul>
               </div>
 
-              {/* Integration Status */}
-              <StatusSection title="Integration">
-                <StatusItem
-                  icon={Power}
-                  label="Enabled"
-                  status={status?.enabled ?? false}
-                  statusText={status?.enabled ? 'Enabled' : 'Disabled'}
-                />
+              {/* Setup - Binary first, then enabled status */}
+              <StatusSection title="Setup">
                 <StatusItem
                   icon={Server}
                   label="copilot-api"
@@ -199,40 +192,50 @@ export function CopilotPage() {
                     )}
                   </Button>
                 )}
-              </StatusSection>
-
-              {/* Authentication */}
-              <StatusSection title="Auth">
-                <StatusItem
-                  icon={Key}
-                  label="GitHub"
-                  status={status?.authenticated ?? false}
-                  statusText={status?.authenticated ? 'Connected' : 'Not Connected'}
-                />
-                {!status?.authenticated && status?.installed && (
-                  <Button
-                    size="sm"
-                    className="w-full mt-2"
-                    onClick={() => startAuth()}
-                    disabled={isAuthenticating}
-                  >
-                    {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
-                  </Button>
+                {status?.installed && (
+                  <StatusItem
+                    icon={Power}
+                    label="Integration"
+                    status={status?.enabled ?? false}
+                    statusText={status?.enabled ? 'Enabled' : 'Disabled'}
+                  />
                 )}
               </StatusSection>
 
-              {/* Daemon */}
-              <StatusSection title="Daemon">
-                <StatusItem
-                  icon={Cpu}
-                  label="Status"
-                  status={status?.daemon_running ?? false}
-                  statusText={status?.daemon_running ? 'Running' : 'Stopped'}
-                />
-                <div className="px-3 py-1 text-xs text-muted-foreground">
-                  Port: {status?.port ?? 4141}
-                </div>
-                {status?.authenticated && (
+              {/* Authentication - only show after binary installed */}
+              {status?.installed && (
+                <StatusSection title="Auth">
+                  <StatusItem
+                    icon={Key}
+                    label="GitHub"
+                    status={status?.authenticated ?? false}
+                    statusText={status?.authenticated ? 'Connected' : 'Not Connected'}
+                  />
+                  {!status?.authenticated && (
+                    <Button
+                      size="sm"
+                      className="w-full mt-2"
+                      onClick={() => startAuth()}
+                      disabled={isAuthenticating}
+                    >
+                      {isAuthenticating ? 'Authenticating...' : 'Authenticate'}
+                    </Button>
+                  )}
+                </StatusSection>
+              )}
+
+              {/* Daemon - only show after authenticated */}
+              {status?.authenticated && (
+                <StatusSection title="Daemon">
+                  <StatusItem
+                    icon={Cpu}
+                    label="Status"
+                    status={status?.daemon_running ?? false}
+                    statusText={status?.daemon_running ? 'Running' : 'Stopped'}
+                  />
+                  <div className="px-3 py-1 text-xs text-muted-foreground">
+                    Port: {status?.port ?? 4141}
+                  </div>
                   <div className="px-1">
                     {status?.daemon_running ? (
                       <Button
@@ -258,26 +261,8 @@ export function CopilotPage() {
                       </Button>
                     )}
                   </div>
-                )}
-              </StatusSection>
-
-              {/* Quick Status */}
-              <StatusSection title="Config">
-                <div className="px-3 py-2 rounded-lg bg-muted/50 space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Model</span>
-                    <span className="font-mono truncate max-w-[160px] text-[10px]">
-                      {status?.model ?? 'N/A'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Account</span>
-                    <Badge variant="secondary" className="text-[10px] h-4">
-                      {status?.account_type ?? 'individual'}
-                    </Badge>
-                  </div>
-                </div>
-              </StatusSection>
+                </StatusSection>
+              )}
             </div>
           )}
         </ScrollArea>
