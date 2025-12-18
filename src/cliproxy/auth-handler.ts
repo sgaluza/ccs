@@ -32,6 +32,16 @@ import {
   enhancedPreflightOAuthCheck,
   OAUTH_CALLBACK_PORTS as OAUTH_PORTS,
 } from '../management/oauth-port-diagnostics';
+import {
+  parseProjectList,
+  parseDefaultProject,
+  isProjectSelectionPrompt,
+  isProjectList,
+  generateSessionId,
+  requestProjectSelection,
+  type GCloudProject,
+  type ProjectSelectionPrompt,
+} from './project-selection-handler';
 
 /**
  * OAuth callback ports used by CLIProxyAPI (hardcoded in binary)
@@ -451,20 +461,8 @@ function getTimeoutTroubleshooting(provider: CLIProxyProvider, port: number | nu
   lines.push('  1. Check browser completed auth (should show success page)');
 
   if (port) {
-    if (process.platform === 'win32') {
-      lines.push(`  2. Verify port ${port} is reachable: curl http://localhost:${port}`);
-      lines.push('  3. Windows Firewall may block - run as Administrator:');
-      lines.push(
-        `     netsh advfirewall firewall add rule name="CCS OAuth" dir=in action=allow protocol=TCP localport=${port}`
-      );
-      lines.push(`  4. Try: ccs ${provider} --auth --verbose`);
-    } else if (process.platform === 'darwin') {
-      lines.push(`  2. Check for port conflicts: lsof -ti:${port}`);
-      lines.push(`  3. Try: ccs ${provider} --auth --verbose`);
-    } else {
-      lines.push(`  2. Check for port conflicts: lsof -ti:${port} or ss -tlnp | grep ${port}`);
-      lines.push(`  3. Try: ccs ${provider} --auth --verbose`);
-    }
+    lines.push(`  2. Check for port conflicts: lsof -ti:${port} or ss -tlnp | grep ${port}`);
+    lines.push(`  3. Try: ccs ${provider} --auth --verbose`);
   } else {
     lines.push(`  2. Try: ccs ${provider} --auth --verbose`);
   }
@@ -489,11 +487,14 @@ export async function triggerOAuth(
     account?: string;
     add?: boolean;
     nickname?: string;
+    /** If true, triggered from Web UI (enables project selection prompt) */
+    fromUI?: boolean;
   } = {}
 ): Promise<AccountInfo | null> {
   const oauthConfig = getOAuthConfig(provider);
-  const { verbose = false, add = false, nickname } = options;
+  const { verbose = false, add = false, nickname, fromUI = false } = options;
   const callbackPort = OAUTH_PORTS[provider];
+  const isCLI = !fromUI; // CLI mode = auto-select default project
 
   // Auto-detect headless if not explicitly set
   const headless = options.headless ?? isHeadlessEnvironment();
@@ -620,8 +621,9 @@ export async function triggerOAuth(
 
   return new Promise<AccountInfo | null>((resolve) => {
     // Spawn CLIProxyAPI with auth flag
+    // Use pipe for stdin to auto-respond to interactive prompts (e.g., project selection)
     const authProcess = spawn(binaryPath, args, {
-      stdio: ['inherit', 'pipe', 'pipe'],
+      stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
         CLI_PROXY_AUTH_DIR: tokenDir,
@@ -631,11 +633,62 @@ export async function triggerOAuth(
     let stderrData = '';
     let urlDisplayed = false;
     let browserOpened = false;
+    let projectPromptHandled = false;
+    let accumulatedOutput = ''; // Accumulate output to parse project list
+    let parsedProjects: GCloudProject[] = [];
+    const sessionId = generateSessionId(); // Unique session ID for this auth flow
     const startTime = Date.now();
 
-    authProcess.stdout?.on('data', (data: Buffer) => {
+    authProcess.stdout?.on('data', async (data: Buffer) => {
       const output = data.toString();
       log(`stdout: ${output.trim()}`);
+
+      // Accumulate output for project list parsing
+      accumulatedOutput += output;
+
+      // Parse project list when available
+      if (isProjectList(accumulatedOutput) && parsedProjects.length === 0) {
+        parsedProjects = parseProjectList(accumulatedOutput);
+        log(`Parsed ${parsedProjects.length} projects`);
+      }
+
+      // Handle project selection prompt
+      if (!projectPromptHandled && isProjectSelectionPrompt(output)) {
+        projectPromptHandled = true;
+
+        const defaultProjectId = parseDefaultProject(output) || '';
+
+        // If we have projects and this is a UI-triggered flow, request selection
+        if (parsedProjects.length > 0 && !isCLI) {
+          log(`Requesting project selection from UI (session: ${sessionId})`);
+
+          const prompt: ProjectSelectionPrompt = {
+            sessionId,
+            provider,
+            projects: parsedProjects,
+            defaultProjectId,
+            supportsAll: output.includes('ALL'),
+          };
+
+          try {
+            // Request selection from UI (with timeout fallback to default)
+            const selectedId = await requestProjectSelection(prompt);
+
+            // Write selection to stdin (empty = default, else project ID or ALL)
+            const response = selectedId || '';
+            log(`User selected: ${response || '(default)'}`);
+            authProcess.stdin?.write(response + '\n');
+          } catch {
+            // Fallback to default on error
+            log('Project selection failed, using default');
+            authProcess.stdin?.write('\n');
+          }
+        } else {
+          // CLI mode or no projects: auto-select default
+          log('CLI mode or no projects, auto-selecting default');
+          authProcess.stdin?.write('\n');
+        }
+      }
 
       // Detect when callback server starts or browser opens
       if (!browserOpened && (output.includes('listening') || output.includes('http'))) {

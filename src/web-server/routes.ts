@@ -17,6 +17,7 @@ import {
   initializeAccounts,
   triggerOAuth,
 } from '../cliproxy/auth-handler';
+import { submitProjectSelection, getPendingSelection } from '../cliproxy/project-selection-handler';
 import {
   fetchCliproxyStats,
   fetchCliproxyModels,
@@ -639,6 +640,7 @@ apiRoutes.post(
         add: true, // Always add mode from UI
         headless: false, // Force interactive mode
         nickname: nickname || undefined,
+        fromUI: true, // Enable project selection prompt in UI
       });
 
       if (account) {
@@ -657,6 +659,48 @@ apiRoutes.post(
       }
     } catch (error) {
       res.status(500).json({ error: (error as Error).message });
+    }
+  }
+);
+
+/**
+ * GET /api/cliproxy/auth/project-selection/:sessionId - Get pending project selection prompt
+ * Returns project list for user to select from during OAuth flow
+ */
+apiRoutes.get(
+  '/cliproxy/auth/project-selection/:sessionId',
+  (req: Request, res: Response): void => {
+    const { sessionId } = req.params;
+
+    const pending = getPendingSelection(sessionId);
+    if (pending) {
+      res.json(pending);
+    } else {
+      res.status(404).json({ error: 'No pending project selection for this session' });
+    }
+  }
+);
+
+/**
+ * POST /api/cliproxy/auth/project-selection/:sessionId - Submit project selection
+ * Submits user's project choice during OAuth flow
+ */
+apiRoutes.post(
+  '/cliproxy/auth/project-selection/:sessionId',
+  (req: Request, res: Response): void => {
+    const { sessionId } = req.params;
+    const { selectedId } = req.body;
+
+    if (!selectedId && selectedId !== '') {
+      res.status(400).json({ error: 'selectedId is required (use empty string for default)' });
+      return;
+    }
+
+    const success = submitProjectSelection({ sessionId, selectedId });
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(404).json({ error: 'No pending project selection for this session' });
     }
   }
 );

@@ -82,6 +82,9 @@ export function useWebSocket() {
       try {
         const message: WSMessage = JSON.parse(event.data);
         handleMessage(message);
+
+        // Dispatch custom event for other hooks to listen (e.g., project selection)
+        window.dispatchEvent(new CustomEvent('ws-message', { detail: message }));
       } catch {
         console.log('[WS] Invalid message');
       }

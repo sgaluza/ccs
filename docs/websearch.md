@@ -57,21 +57,19 @@ The **ultimate solution** for third-party WebSearch. Uses `gemini` CLI with OAut
 
 ### Requirements
 
-- `gemini` CLI installed and authenticated (`gemini auth login`)
+- `gemini` CLI installed and authenticated (run `gemini` to authenticate via browser)
 - OAuth authentication (no GEMINI_API_KEY needed)
 
 ### Installation
 
-The Gemini CLI is typically installed via:
+The Gemini CLI is installed via npm:
 ```bash
-pip install google-generativeai
-# or
-pipx install google-generativeai
+npm install -g @google/gemini-cli
 ```
 
-Then authenticate:
+Then authenticate by running gemini once (opens browser):
 ```bash
-gemini auth login
+gemini
 ```
 
 ## MCP Providers
@@ -176,8 +174,8 @@ CCS writes MCP configuration to `~/.claude/.mcp.json`. Example:
 
 ### Gemini CLI Issues
 
-1. **Not installed**: Install with `pip install google-generativeai`
-2. **Not authenticated**: Run `gemini auth login`
+1. **Not installed**: Install with `npm install -g @google/gemini-cli`
+2. **Not authenticated**: Run `gemini` to open browser for OAuth login
 3. **Timeout**: Increase timeout in config or via `CCS_GEMINI_TIMEOUT=90`
 4. **Skip Gemini**: Set `CCS_GEMINI_SKIP=1` to use MCP fallback only
 

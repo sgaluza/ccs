@@ -2,11 +2,16 @@
  * WebSocket Handler (Phase 04)
  *
  * Manages WebSocket connections, broadcasts file changes, and handles client messages.
+ * Also broadcasts project selection events during OAuth flows.
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
 import { createFileWatcher, FileChangeEvent } from './file-watcher';
 import { info, warn } from '../utils/ui';
+import {
+  projectSelectionEvents,
+  type ProjectSelectionPrompt,
+} from '../cliproxy/project-selection-handler';
 
 export interface WSMessage {
   type: string;
@@ -81,9 +86,51 @@ export function setupWebSocket(wss: WebSocketServer): { cleanup: () => void } {
     });
   });
 
+  // Listen for project selection events and broadcast to clients
+  const handleProjectSelectionRequired = (prompt: ProjectSelectionPrompt): void => {
+    console.log(info(`[WS] Broadcasting project selection prompt (session: ${prompt.sessionId})`));
+    broadcast({
+      type: 'projectSelectionRequired',
+      ...prompt,
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleProjectSelectionTimeout = (sessionId: string): void => {
+    console.log(info(`[WS] Project selection timed out (session: ${sessionId})`));
+    broadcast({
+      type: 'projectSelectionTimeout',
+      sessionId,
+      timestamp: Date.now(),
+    });
+  };
+
+  const handleProjectSelectionSubmitted = (response: {
+    sessionId: string;
+    selectedId: string;
+  }): void => {
+    console.log(info(`[WS] Project selection submitted (session: ${response.sessionId})`));
+    broadcast({
+      type: 'projectSelectionSubmitted',
+      ...response,
+      timestamp: Date.now(),
+    });
+  };
+
+  // Subscribe to project selection events
+  projectSelectionEvents.on('selection:required', handleProjectSelectionRequired);
+  projectSelectionEvents.on('selection:timeout', handleProjectSelectionTimeout);
+  projectSelectionEvents.on('selection:submitted', handleProjectSelectionSubmitted);
+
   // Cleanup function
   const cleanup = (): void => {
     watcher.close();
+
+    // Unsubscribe from project selection events
+    projectSelectionEvents.off('selection:required', handleProjectSelectionRequired);
+    projectSelectionEvents.off('selection:timeout', handleProjectSelectionTimeout);
+    projectSelectionEvents.off('selection:submitted', handleProjectSelectionSubmitted);
+
     clients.forEach((client) => {
       client.close(1001, 'Server shutting down');
     });

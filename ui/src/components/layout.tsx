@@ -11,6 +11,8 @@ import { LocalhostDisclaimer } from '@/components/localhost-disclaimer';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ClaudeKitBadge } from '@/components/claudekit-badge';
 import { SponsorButton } from '@/components/sponsor-button';
+import { ProjectSelectionDialog } from '@/components/project-selection-dialog';
+import { useProjectSelection } from '@/hooks/use-project-selection';
 
 function PageLoader() {
   return (
@@ -22,6 +24,8 @@ function PageLoader() {
 }
 
 export function Layout() {
+  const { isOpen, prompt, onSelect, onClose } = useProjectSelection();
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -46,6 +50,20 @@ export function Layout() {
         </div>
         <LocalhostDisclaimer />
       </main>
+
+      {/* Global project selection dialog for OAuth flows */}
+      {prompt && (
+        <ProjectSelectionDialog
+          open={isOpen}
+          onClose={onClose}
+          sessionId={prompt.sessionId}
+          provider={prompt.provider}
+          projects={prompt.projects}
+          defaultProjectId={prompt.defaultProjectId}
+          supportsAll={prompt.supportsAll}
+          onSelect={onSelect}
+        />
+      )}
     </SidebarProvider>
   );
 }
