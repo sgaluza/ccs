@@ -1,3 +1,9 @@
+## [6.6.2-dev.3](https://github.com/kaitranntt/ccs/compare/v6.6.2-dev.2...v6.6.2-dev.3) (2025-12-19)
+
+### Bug Fixes
+
+* **update-checker:** resolve dev channel update and duplicate comments ([b6b1817](https://github.com/kaitranntt/ccs/commit/b6b18173cc41788328ef1c8831de9527898f06a1))
+
 ## [6.6.2-dev.2](https://github.com/kaitranntt/ccs/compare/v6.6.2-dev.1...v6.6.2-dev.2) (2025-12-19)
 
 ### Bug Fixes
