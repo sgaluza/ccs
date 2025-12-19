@@ -136,6 +136,8 @@ export interface CliproxyErrorLog {
   name: string;
   size: number;
   modified: number;
+  /** Absolute path to the log file (injected by backend) */
+  absolutePath?: string;
 }
 
 /**

@@ -25,6 +25,7 @@ import {
   fetchCliproxyErrorLogs,
   fetchCliproxyErrorLogContent,
 } from '../cliproxy/stats-fetcher';
+import { getCliproxyWritablePath } from '../cliproxy/config-generator';
 import {
   listOpenAICompatProviders,
   getOpenAICompatProvider,
@@ -1446,7 +1447,14 @@ apiRoutes.get('/cliproxy/error-logs', async (_req: Request, res: Response): Prom
       return;
     }
 
-    res.json({ files });
+    // Inject absolute paths into each file entry
+    const logsDir = path.join(getCliproxyWritablePath(), 'logs');
+    const filesWithPaths = files.map((file) => ({
+      ...file,
+      absolutePath: path.join(logsDir, file.name),
+    }));
+
+    res.json({ files: filesWithPaths });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

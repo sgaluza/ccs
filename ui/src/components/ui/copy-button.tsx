@@ -3,19 +3,21 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { type VariantProps } from 'class-variance-authority';
+import { type buttonVariants } from '@/components/ui/button-variants';
 
 interface CopyButtonProps {
   value: string;
   className?: string;
-  variant?: 'default' | 'outline' | 'ghost' | 'secondary';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
+  variant?: VariantProps<typeof buttonVariants>['variant'];
+  size?: VariantProps<typeof buttonVariants>['size'];
   label?: string;
 }
 
 export function CopyButton({
   value,
   className,
-  variant = 'ghost',
+  variant = 'outline',
   size = 'icon',
   label = 'Copy to clipboard',
 }: CopyButtonProps) {
@@ -34,19 +36,16 @@ export function CopyButton({
           <Button
             size={size}
             variant={variant}
-            className={cn(
-              'h-6 w-6 relative z-10 text-foreground/70 hover:text-foreground',
-              className
-            )}
+            className={cn('relative z-10 text-muted-foreground hover:text-foreground', className)}
             onClick={(e) => {
               e.stopPropagation();
               onCopy();
             }}
           >
             {hasCopied ? (
-              <Check className="h-3 w-3 text-green-500" />
+              <Check className="h-3.5 w-3.5 text-green-500" />
             ) : (
-              <Copy className="h-3 w-3" />
+              <Copy className="h-3.5 w-3.5" />
             )}
             <span className="sr-only">{label}</span>
           </Button>

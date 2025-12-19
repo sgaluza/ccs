@@ -279,6 +279,8 @@ export interface CliproxyErrorLog {
   size: number;
   /** Last modified timestamp (Unix seconds) */
   modified: number;
+  /** Absolute path to the log file (injected by backend) */
+  absolutePath?: string;
 }
 
 /** Response from /v0/management/request-error-logs endpoint */
