@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { detectClaudeCli } from './utils/claude-detector';
-import { getSettingsPath } from './utils/config-manager';
+import { getSettingsPath, loadSettings } from './utils/config-manager';
 import { ErrorManager } from './utils/error-manager';
 import { execClaudeWithCLIProxy, CLIProxyProvider } from './cliproxy';
 import {
@@ -498,8 +498,17 @@ async function main(): Promise<void> {
         // Get global env vars (DISABLE_TELEMETRY, etc.) for third-party profiles
         const globalEnvConfig = getGlobalEnvConfig();
         const globalEnv = globalEnvConfig.enabled ? globalEnvConfig.env : {};
+
+        // CRITICAL: Load settings and explicitly set ANTHROPIC_* env vars
+        // to prevent inheriting stale values from previous CLIProxy sessions.
+        // Environment variables take precedence over --settings file values,
+        // so we must explicitly set them here to ensure correct routing.
+        const settings = loadSettings(expandedSettingsPath);
+        const settingsEnv = settings.env || {};
+
         const envVars: NodeJS.ProcessEnv = {
           ...globalEnv,
+          ...settingsEnv, // Explicitly inject all settings env vars
           ...webSearchEnv,
           CCS_PROFILE_TYPE: 'settings', // Signal to WebSearch hook this is a third-party provider
         };
