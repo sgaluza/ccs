@@ -1,3 +1,9 @@
+## [6.6.1-dev.1](https://github.com/kaitranntt/ccs/compare/v6.6.0...v6.6.1-dev.1) (2025-12-19)
+
+### Bug Fixes
+
+* **cliproxy:** register session on dashboard start and add port-based stop fallback ([a3b172c](https://github.com/kaitranntt/ccs/commit/a3b172cc437c4a00612667edf44f8aa3b3ffa1ae))
+
 ## [6.6.0](https://github.com/kaitranntt/ccs/compare/v6.5.0...v6.6.0) (2025-12-19)
 
 ### ⚠ BREAKING CHANGES
