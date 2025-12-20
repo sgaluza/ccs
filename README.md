@@ -62,17 +62,23 @@ The dashboard provides visual management for all account types:
 - **API Profiles**: Configure GLM, Kimi with your keys
 - **Health Monitor**: Real-time status across all profiles
 
-**Analytics (Light/Dark Theme)**
+**Analytics Dashboard**
 
-![Analytics Light](assets/screenshots/analytics-light.png)
+![Analytics](assets/screenshots/analytics.webp)
 
-![Analytics Dark](assets/screenshots/analytics.png)
+**Live Auth Monitor**
 
-**API Profiles & OAuth Providers**
+![Live Auth Monitor](assets/screenshots/live-auth-monitor.webp)
 
-![API Profiles](assets/screenshots/api_profiles.png)
+**CLI Proxy API & Copilot Integration**
 
-![CLIProxy](assets/screenshots/cliproxy.png)
+![CLIProxy API](assets/screenshots/cliproxyapi.webp)
+
+![Copilot API](assets/screenshots/copilot-api.webp)
+
+**WebSearch Fallback**
+
+![WebSearch](assets/screenshots/websearch.webp)
 
 <br>
 
