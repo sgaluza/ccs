@@ -12,3 +12,9 @@ export { ProfilesTable } from './profiles-table';
 // Profile editor (from subdirectory)
 export { ProfileEditor } from './editor';
 export type { Settings, SettingsResponse, ProfileEditorProps } from './editor';
+
+// OpenRouter components
+export { OpenRouterBadge } from './openrouter-badge';
+export { OpenRouterModelPicker } from './openrouter-model-picker';
+export { ModelTierMapping } from './model-tier-mapping';
+export type { TierMapping } from './model-tier-mapping';
