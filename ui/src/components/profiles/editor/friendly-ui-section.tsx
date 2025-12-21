@@ -104,14 +104,10 @@ export function FriendlyUISection({
   // State for collapsible sections
   const [showAllEnvVars, setShowAllEnvVars] = useState(false);
 
-  // For OpenRouter: keys managed by dedicated UI sections
+  // For OpenRouter: only hide API key (has dedicated input above)
+  // Show all other env vars in "Additional Variables" section
   const openRouterManagedKeys = new Set([
-    'ANTHROPIC_MODEL',
-    'ANTHROPIC_DEFAULT_OPUS_MODEL',
-    'ANTHROPIC_DEFAULT_SONNET_MODEL',
-    'ANTHROPIC_DEFAULT_HAIKU_MODEL',
     'ANTHROPIC_AUTH_TOKEN', // Managed by API Key section
-    'ANTHROPIC_BASE_URL', // Base URL shown in profile header
   ]);
 
   // Get non-managed env vars for display in "Additional Variables"
