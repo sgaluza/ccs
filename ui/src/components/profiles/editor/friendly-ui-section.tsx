@@ -111,6 +111,7 @@ export function FriendlyUISection({
     'ANTHROPIC_DEFAULT_SONNET_MODEL',
     'ANTHROPIC_DEFAULT_HAIKU_MODEL',
     'ANTHROPIC_AUTH_TOKEN', // Managed by API Key section
+    'ANTHROPIC_BASE_URL', // Base URL shown in profile header
   ]);
 
   // Get non-managed env vars for display in "Additional Variables"
