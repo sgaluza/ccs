@@ -1,0 +1,150 @@
+/**
+ * Remote Auth Fetcher
+ * Fetches and transforms auth data from remote CLIProxyAPI.
+ */
+
+import {
+  getProxyTarget,
+  buildProxyUrl,
+  buildProxyHeaders,
+  ProxyTarget,
+} from './proxy-target-resolver';
+
+/** Remote auth file from CLIProxyAPI /v0/management/auth-files */
+interface RemoteAuthFile {
+  id: string;
+  name: string;
+  type: string;
+  provider: string;
+  email?: string;
+  status: 'active' | 'disabled' | 'unavailable';
+  source: 'file' | 'memory';
+}
+
+/** Response from CLIProxyAPI auth-files endpoint */
+interface RemoteAuthFilesResponse {
+  files: RemoteAuthFile[];
+}
+
+/** Account info for UI display */
+export interface RemoteAccountInfo {
+  id: string;
+  email: string;
+  isDefault: boolean;
+  status: 'active' | 'disabled' | 'unavailable';
+}
+
+/** Auth status for a provider (UI format) */
+export interface RemoteAuthStatus {
+  provider: string;
+  displayName: string;
+  authenticated: boolean;
+  lastAuth: string | null;
+  tokenFiles: number;
+  accounts: RemoteAccountInfo[];
+  defaultAccount: string | null;
+  source: 'remote';
+}
+
+/** Map CLIProxyAPI provider names to CCS internal names */
+const PROVIDER_MAP: Record<string, string> = {
+  gemini: 'gemini',
+  antigravity: 'agy',
+  codex: 'codex',
+  qwen: 'qwen',
+  iflow: 'iflow',
+};
+
+/** Display names for providers */
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  gemini: 'Google Gemini',
+  agy: 'AntiGravity',
+  codex: 'Codex',
+  qwen: 'Qwen',
+  iflow: 'iFlow',
+};
+
+/**
+ * Fetch auth status from remote CLIProxyAPI
+ * @throws Error if remote is unreachable or returns error
+ */
+export async function fetchRemoteAuthStatus(target?: ProxyTarget): Promise<RemoteAuthStatus[]> {
+  const proxyTarget = target ?? getProxyTarget();
+
+  if (!proxyTarget.isRemote) {
+    throw new Error('fetchRemoteAuthStatus called but remote mode not enabled');
+  }
+
+  const url = buildProxyUrl(proxyTarget, '/v0/management/auth-files');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: buildProxyHeaders(proxyTarget),
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Authentication failed - check auth token in settings');
+      }
+      throw new Error(`Remote returned ${response.status}: ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as RemoteAuthFilesResponse;
+    return transformRemoteAuthFiles(data.files);
+  } catch (error) {
+    clearTimeout(timeoutId);
+
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Remote proxy connection timed out');
+    }
+    throw error;
+  }
+}
+
+/** Transform CLIProxyAPI auth files to CCS AuthStatus format */
+function transformRemoteAuthFiles(files: RemoteAuthFile[]): RemoteAuthStatus[] {
+  const byProvider = new Map<string, RemoteAuthFile[]>();
+
+  for (const file of files) {
+    const provider = PROVIDER_MAP[file.provider.toLowerCase()];
+    if (!provider) continue;
+
+    const existing = byProvider.get(provider);
+    if (existing) {
+      existing.push(file);
+    } else {
+      byProvider.set(provider, [file]);
+    }
+  }
+
+  const result: RemoteAuthStatus[] = [];
+
+  Array.from(byProvider.entries()).forEach(([provider, providerFiles]) => {
+    const activeFiles = providerFiles.filter((f) => f.status === 'active');
+    const accounts: RemoteAccountInfo[] = providerFiles.map((f, idx) => ({
+      id: f.id,
+      email: f.email || f.name,
+      isDefault: idx === 0,
+      status: f.status,
+    }));
+
+    result.push({
+      provider,
+      displayName: PROVIDER_DISPLAY_NAMES[provider] || provider,
+      authenticated: activeFiles.length > 0,
+      lastAuth: null,
+      tokenFiles: providerFiles.length,
+      accounts,
+      defaultAccount: accounts.find((a) => a.isDefault)?.id || null,
+      source: 'remote',
+    });
+  });
+
+  return result;
+}
