@@ -22,15 +22,15 @@ async function handleAutoUpdate(config: BinaryManagerConfig, verbose: boolean): 
   if (!updateResult.hasUpdate) return;
 
   const proxyRunning = await isCliproxyRunning(CLIPROXY_DEFAULT_PORT);
-  const updateMsg = `CLIProxyAPI update available: v${updateResult.currentVersion} -> v${updateResult.latestVersion}`;
+  const updateMsg = `CLIProxy Plus update available: v${updateResult.currentVersion} -> v${updateResult.latestVersion}`;
 
   if (proxyRunning) {
     console.log(info(updateMsg));
     console.log(info('Run "ccs cliproxy stop" then restart to apply update'));
-    log('Skipping update: CLIProxyAPI is currently running', verbose);
+    log('Skipping update: CLIProxy Plus is currently running', verbose);
   } else {
     console.log(info(updateMsg));
-    console.log(info('Updating CLIProxyAPI...'));
+    console.log(info('Updating CLIProxy Plus...'));
     deleteBinary(config.binPath, verbose);
     config.version = updateResult.latestVersion;
     await downloadAndInstall(config, verbose);

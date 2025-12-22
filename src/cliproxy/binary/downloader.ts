@@ -180,7 +180,7 @@ export function fetchJson(url: string, verbose = false): Promise<Record<string, 
   return new Promise((resolve, reject) => {
     const options = {
       headers: {
-        'User-Agent': 'CCS-CLIProxyAPI-Updater/1.0',
+        'User-Agent': 'CCS-CLIProxyPlus-Updater/1.0',
         Accept: 'application/vnd.github.v3+json',
       },
     };
