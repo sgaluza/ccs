@@ -438,7 +438,7 @@ async function showHelp(): Promise<void> {
   console.log(
     `  ${color('openrouter', 'command')}    OpenRouter - 349+ models (Claude, GPT, Gemini, Llama)`
   );
-  console.log(`  ${color('glm', 'command')}           GLM - Claude via Z.AI (GitHub Copilot)`);
+  console.log(`  ${color('glm', 'command')}           GLM - Claude via Z.AI`);
   console.log(`  ${color('glmt', 'command')}          GLMT - GLM with Thinking mode`);
   console.log(`  ${color('kimi', 'command')}          Kimi - Moonshot AI reasoning model`);
   console.log(`  ${color('foundry', 'command')}       Azure Foundry - Claude via Microsoft Azure`);

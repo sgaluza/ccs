@@ -412,6 +412,12 @@ const PRICING_REGISTRY: Record<string, ModelPricing> = {
   // ---------------------------------------------------------------------------
   // GLM Models (Zhipu AI / Z.AI) - Source: better-ccusage
   // ---------------------------------------------------------------------------
+  'glm-4.7': {
+    inputPerMillion: 0.6,
+    outputPerMillion: 2.2,
+    cacheCreationPerMillion: 0.0,
+    cacheReadPerMillion: 0.11,
+  },
   'glm-4.6': {
     inputPerMillion: 0.6,
     outputPerMillion: 2.2,
