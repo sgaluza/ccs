@@ -20,7 +20,15 @@ import { loadUnifiedConfig, isUnifiedMode } from '../config/unified-config-loade
 export type ProfileType = 'settings' | 'account' | 'cliproxy' | 'copilot' | 'default';
 
 /** CLIProxy profile names (OAuth-based, zero config) */
-export const CLIPROXY_PROFILES = ['gemini', 'codex', 'agy', 'qwen'] as const;
+export const CLIPROXY_PROFILES = [
+  'gemini',
+  'codex',
+  'agy',
+  'qwen',
+  'iflow',
+  'kiro',
+  'ghcp',
+] as const;
 export type CLIProxyProfileName = (typeof CLIPROXY_PROFILES)[number];
 
 export interface ProfileDetectionResult {

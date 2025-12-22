@@ -44,8 +44,9 @@ export function getCliproxyWritablePath(): string {
  * v1: Initial config (port, auth-dir, api-keys only)
  * v2: Full-featured config with dashboard, quota mgmt, simplified key
  * v3: Logging disabled by default (user opt-in via ~/.ccs/config.yaml)
+ * v4: Added Kiro (AWS) and GitHub Copilot providers
  */
-export const CLIPROXY_CONFIG_VERSION = 3;
+export const CLIPROXY_CONFIG_VERSION = 4;
 
 /** Provider display names (static metadata) */
 const PROVIDER_DISPLAY_NAMES: Record<CLIProxyProvider, string> = {
@@ -54,6 +55,8 @@ const PROVIDER_DISPLAY_NAMES: Record<CLIProxyProvider, string> = {
   agy: 'Antigravity',
   qwen: 'Qwen Code',
   iflow: 'iFlow',
+  kiro: 'Kiro (AWS)',
+  ghcp: 'GitHub Copilot (OAuth)',
 };
 
 /**

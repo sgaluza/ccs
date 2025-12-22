@@ -54,6 +54,8 @@ export function ProviderEditor({
       codex: ['openai'],
       qwen: ['alibaba', 'qwen'],
       iflow: ['iflow'],
+      kiro: ['kiro', 'aws'],
+      ghcp: ['github', 'copilot'],
     };
     const owners = ownerMap[provider.toLowerCase()] || [provider.toLowerCase()];
     return modelsData.models.filter((m) =>

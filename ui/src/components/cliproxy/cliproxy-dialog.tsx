@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { useCreateVariant, useCliproxyAuth } from '@/hooks/use-cliproxy';
 import { usePrivacy } from '@/contexts/privacy-context';
 
-const providers = ['gemini', 'codex', 'agy', 'qwen', 'iflow'] as const;
+const providers = ['gemini', 'codex', 'agy', 'qwen', 'iflow', 'kiro', 'ghcp'] as const;
 
 const schema = z.object({
   name: z
@@ -39,6 +39,8 @@ const providerOptions = [
   { value: 'agy', label: 'Antigravity' },
   { value: 'qwen', label: 'Alibaba Qwen' },
   { value: 'iflow', label: 'iFlow' },
+  { value: 'kiro', label: 'Kiro (AWS)' },
+  { value: 'ghcp', label: 'GitHub Copilot (OAuth)' },
 ];
 
 export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {

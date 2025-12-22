@@ -142,7 +142,7 @@ export default function ProxySection() {
       <ScrollArea className="flex-1">
         <div className="p-5 space-y-6">
           <p className="text-sm text-muted-foreground">
-            Configure local or remote CLIProxyAPI connection for proxy-based profiles
+            Configure local or remote CLIProxy Plus connection for proxy-based profiles
           </p>
 
           {/* Mode Toggle - Card based selection */}
@@ -166,7 +166,7 @@ export default function ProxySection() {
                   <span className="font-medium">Local</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Run CLIProxyAPI binary on this machine
+                  Run CLIProxy Plus binary on this machine
                 </p>
               </button>
 
@@ -187,7 +187,7 @@ export default function ProxySection() {
                   <span className="font-medium">Remote</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Connect to a remote CLIProxyAPI server
+                  Connect to a remote CLIProxy Plus server
                 </p>
               </button>
             </div>

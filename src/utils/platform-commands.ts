@@ -32,13 +32,13 @@ export function getCatCommand(filePath: string): string {
 }
 
 /**
- * Get platform-specific command to kill CLIProxy processes
+ * Get platform-specific command to kill CLIProxy Plus processes
  */
 export function getKillCLIProxyCommand(): string {
   if (isWindows) {
-    return 'taskkill /F /IM cli-proxy-api.exe';
+    return 'taskkill /F /IM cli-proxy-api-plus.exe';
   }
-  return 'pkill -f cli-proxy-api';
+  return 'pkill -f cli-proxy-api-plus';
 }
 
 /**
@@ -81,7 +81,7 @@ export function killProcessByPid(pid: number, verbose = false): boolean {
 }
 
 /**
- * Kill all CLIProxy processes (cross-platform)
+ * Kill all CLIProxy Plus processes (cross-platform)
  * @returns number of processes killed
  */
 export function killAllCLIProxyProcesses(verbose = false): number {
@@ -91,12 +91,12 @@ export function killAllCLIProxyProcesses(verbose = false): number {
     if (isWindows) {
       // Windows: taskkill by image name
       // Use /T to kill child processes too
-      execSync('taskkill /F /IM cli-proxy-api.exe /T 2>nul', { stdio: 'pipe' });
+      execSync('taskkill /F /IM cli-proxy-api-plus.exe /T 2>nul', { stdio: 'pipe' });
       killed++;
     } else {
       // Unix: pkill with pattern matching
       try {
-        execSync('pkill -9 -f cli-proxy-api', { stdio: 'pipe' });
+        execSync('pkill -9 -f cli-proxy-api-plus', { stdio: 'pipe' });
         killed++;
       } catch {
         // pkill returns non-zero if no processes matched - that's OK
@@ -107,7 +107,7 @@ export function killAllCLIProxyProcesses(verbose = false): number {
   }
 
   if (verbose && killed > 0) {
-    console.error(`[cleanup] Killed ${killed} CLIProxy process(es)`);
+    console.error(`[cleanup] Killed ${killed} CLIProxy Plus process(es)`);
   }
 
   return killed;

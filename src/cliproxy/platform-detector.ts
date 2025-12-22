@@ -8,10 +8,11 @@
 import { PlatformInfo, SupportedOS, SupportedArch, ArchiveExtension } from './types';
 
 /**
- * CLIProxyAPI fallback version (used when GitHub API unavailable)
+ * CLIProxyAPIPlus fallback version (used when GitHub API unavailable)
  * Auto-update fetches latest from GitHub; this is only a safety net
+ * Note: CLIProxyAPIPlus uses v6.6.X-0 suffix pattern
  */
-export const CLIPROXY_FALLBACK_VERSION = '6.5.53';
+export const CLIPROXY_FALLBACK_VERSION = '6.6.40-0';
 
 /** @deprecated Use CLIPROXY_FALLBACK_VERSION instead */
 export const CLIPROXY_VERSION = CLIPROXY_FALLBACK_VERSION;
@@ -56,7 +57,7 @@ export function detectPlatform(version: string = CLIPROXY_FALLBACK_VERSION): Pla
   }
 
   const extension: ArchiveExtension = os === 'windows' ? 'zip' : 'tar.gz';
-  const binaryName = `CLIProxyAPI_${version}_${os}_${arch}.${extension}`;
+  const binaryName = `CLIProxyAPIPlus_${version}_${os}_${arch}.${extension}`;
 
   return {
     os,
@@ -69,11 +70,11 @@ export function detectPlatform(version: string = CLIPROXY_FALLBACK_VERSION): Pla
 /**
  * Get executable name based on platform
  * @returns Binary executable name (with .exe on Windows)
- * Note: The actual binary inside the archive is named 'cli-proxy-api'
+ * Note: The actual binary inside the archive is named 'cli-proxy-api-plus'
  */
 export function getExecutableName(): string {
   const platform = detectPlatform();
-  return platform.os === 'windows' ? 'cli-proxy-api.exe' : 'cli-proxy-api';
+  return platform.os === 'windows' ? 'cli-proxy-api-plus.exe' : 'cli-proxy-api-plus';
 }
 
 /**
@@ -82,7 +83,7 @@ export function getExecutableName(): string {
  */
 export function getArchiveBinaryName(): string {
   const platform = detectPlatform();
-  return platform.os === 'windows' ? 'cli-proxy-api.exe' : 'cli-proxy-api';
+  return platform.os === 'windows' ? 'cli-proxy-api-plus.exe' : 'cli-proxy-api-plus';
 }
 
 /**
@@ -92,7 +93,7 @@ export function getArchiveBinaryName(): string {
  */
 export function getDownloadUrl(version: string = CLIPROXY_FALLBACK_VERSION): string {
   const platform = detectPlatform(version);
-  const baseUrl = `https://github.com/router-for-me/CLIProxyAPI/releases/download/v${version}`;
+  const baseUrl = `https://github.com/router-for-me/CLIProxyAPIPlus/releases/download/v${version}`;
   return `${baseUrl}/${platform.binaryName}`;
 }
 
@@ -102,7 +103,7 @@ export function getDownloadUrl(version: string = CLIPROXY_FALLBACK_VERSION): str
  * @returns Full URL to checksums.txt
  */
 export function getChecksumsUrl(version: string = CLIPROXY_FALLBACK_VERSION): string {
-  return `https://github.com/router-for-me/CLIProxyAPI/releases/download/v${version}/checksums.txt`;
+  return `https://github.com/router-for-me/CLIProxyAPIPlus/releases/download/v${version}/checksums.txt`;
 }
 
 /**

@@ -32,7 +32,7 @@ export async function downloadAndInstall(
 
   fs.mkdirSync(config.binPath, { recursive: true });
   const archivePath = path.join(config.binPath, `cliproxy-archive.${platform.extension}`);
-  const spinner = new ProgressIndicator(`Downloading CLIProxyAPI v${config.version}`);
+  const spinner = new ProgressIndicator(`Downloading CLIProxy Plus v${config.version}`);
   spinner.start();
 
   try {
@@ -64,7 +64,7 @@ export async function downloadAndInstall(
 
     spinner.update('Extracting binary');
     await extractArchive(archivePath, config.binPath, platform.extension, verbose);
-    spinner.succeed('CLIProxyAPI ready');
+    spinner.succeed('CLIProxy Plus ready');
     fs.unlinkSync(archivePath);
 
     const binaryPath = path.join(config.binPath, getExecutableName());
@@ -74,7 +74,7 @@ export async function downloadAndInstall(
     }
 
     writeInstalledVersion(config.binPath, config.version);
-    console.log(ok(`CLIProxyAPI v${config.version} installed successfully`));
+    console.log(ok(`CLIProxy Plus v${config.version} installed successfully`));
   } catch (error) {
     spinner.fail('Installation failed');
     throw error;

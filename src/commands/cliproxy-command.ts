@@ -102,7 +102,7 @@ function formatModelOption(model: ModelEntry): string {
 async function handleCreate(args: string[]): Promise<void> {
   await initUI();
   const parsedArgs = parseProfileArgs(args);
-  console.log(header('Create CLIProxy Variant'));
+  console.log(header('Create CLIProxy Plus Variant'));
   console.log('');
 
   // Step 1: Profile name
@@ -241,7 +241,7 @@ async function handleCreate(args: string[]): Promise<void> {
 
   // Create variant
   console.log('');
-  console.log(info('Creating CLIProxy variant...'));
+  console.log(info('Creating CLIProxy Plus variant...'));
   const result = createVariant(name, provider, model, account);
 
   if (!result.success) {
@@ -423,7 +423,7 @@ async function showStatus(verbose: boolean): Promise<void> {
   const status = getBinaryStatus();
 
   console.log('');
-  console.log(color('CLIProxyAPI Status', 'primary'));
+  console.log(color('CLIProxy Plus Status', 'primary'));
   console.log('');
 
   if (status.installed) {
@@ -471,13 +471,13 @@ async function showStatus(verbose: boolean): Promise<void> {
 }
 
 async function handleInstallVersion(version: string, verbose: boolean): Promise<void> {
-  console.log(info(`Installing CLIProxyAPI v${version}...`));
+  console.log(info(`Installing CLIProxy Plus v${version}...`));
   console.log('');
 
   const result = await installVersion(version, verbose);
   if (!result.success) {
     console.error('');
-    console.error(fail(`Failed to install CLIProxyAPI v${version}`));
+    console.error(fail(`Failed to install CLIProxy Plus v${version}`));
     console.error(`    ${result.error}`);
     console.error('');
     console.error('Possible causes:');
@@ -486,12 +486,12 @@ async function handleInstallVersion(version: string, verbose: boolean): Promise<
     console.error('  3. GitHub API rate limiting');
     console.error('');
     console.error('Check available versions at:');
-    console.error('  https://github.com/router-for-me/CLIProxyAPI/releases');
+    console.error('  https://github.com/router-for-me/CLIProxyAPIPlus/releases');
     process.exit(1);
   }
 
   console.log('');
-  console.log(ok(`CLIProxyAPI v${version} installed (pinned)`));
+  console.log(ok(`CLIProxy Plus v${version} installed (pinned)`));
   console.log('');
   console.log(dim('This version will be used until you run:'));
   console.log(
@@ -501,7 +501,7 @@ async function handleInstallVersion(version: string, verbose: boolean): Promise<
 }
 
 async function handleInstallLatest(verbose: boolean): Promise<void> {
-  console.log(info('Fetching latest CLIProxyAPI version...'));
+  console.log(info('Fetching latest CLIProxy Plus version...'));
 
   const result = await installLatest(verbose);
   if (!result.success) {
@@ -515,7 +515,7 @@ async function handleInstallLatest(verbose: boolean): Promise<void> {
   }
 
   console.log('');
-  console.log(ok(`CLIProxyAPI updated to v${result.version}`));
+  console.log(ok(`CLIProxy Plus updated to v${result.version}`));
   console.log(dim('Auto-update is now enabled.'));
   console.log('');
 }
@@ -569,7 +569,7 @@ async function showHelp(): Promise<void> {
   console.log(subheader('Notes:'));
   console.log(`  Default fallback version: ${color(CLIPROXY_FALLBACK_VERSION, 'info')}`);
   console.log(
-    `  Releases: ${color('https://github.com/router-for-me/CLIProxyAPI/releases', 'path')}`
+    `  Releases: ${color('https://github.com/router-for-me/CLIProxyAPIPlus/releases', 'path')}`
   );
   console.log('');
 }

@@ -25,10 +25,10 @@ import {
   ensureBinary,
 } from './binary';
 
-/** Default configuration */
+/** Default configuration (uses CLIProxyAPIPlus fork with Kiro + Copilot support) */
 const DEFAULT_CONFIG: BinaryManagerConfig = {
   version: CLIPROXY_FALLBACK_VERSION,
-  releaseUrl: 'https://github.com/router-for-me/CLIProxyAPI/releases/download',
+  releaseUrl: 'https://github.com/router-for-me/CLIProxyAPIPlus/releases/download',
   binPath: getBinDir(),
   maxRetries: 3,
   verbose: false,
@@ -110,7 +110,7 @@ export async function installCliproxyVersion(version: string, verbose = false): 
   const manager = new BinaryManager({ version, verbose, forceVersion: true });
   if (manager.isBinaryInstalled()) {
     if (verbose)
-      console.log(info(`Removing existing CLIProxyAPI v${getInstalledCliproxyVersion()}`));
+      console.log(info(`Removing existing CLIProxy Plus v${getInstalledCliproxyVersion()}`));
     manager.deleteBinary();
   }
   await manager.ensureBinary();

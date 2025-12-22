@@ -71,7 +71,7 @@ export function CliproxyStatsOverview({ className }: CliproxyStatsOverviewProps)
               Session Statistics
             </h2>
             <p className="text-sm text-muted-foreground">
-              Real-time usage metrics from CLIProxyAPI
+              Real-time usage metrics from CLIProxy Plus
             </p>
           </div>
           <Badge variant="secondary" className="w-fit gap-1.5">

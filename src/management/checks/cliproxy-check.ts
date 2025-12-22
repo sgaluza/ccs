@@ -1,5 +1,5 @@
 /**
- * CLIProxy Health Checks - Binary, config, auth, and port status
+ * CLIProxy Plus Health Checks - Binary, config, auth, and port status
  */
 
 import * as fs from 'fs';
@@ -21,28 +21,26 @@ import { HealthCheck, IHealthChecker, createSpinner } from './types';
 const ora = createSpinner();
 
 /**
- * Check CLIProxy binary installation
+ * Check CLIProxy Plus binary installation
  */
 export class CLIProxyBinaryChecker implements IHealthChecker {
-  name = 'CLIProxy Binary';
+  name = 'CLIProxy Plus Binary';
 
   run(results: HealthCheck): void {
-    const spinner = ora('Checking CLIProxy binary').start();
+    const spinner = ora('Checking CLIProxy Plus binary').start();
 
     if (isCLIProxyInstalled()) {
       const binaryPath = getCLIProxyPath();
       const installedVersion = getInstalledCliproxyVersion();
       spinner.succeed();
-      console.log(`  ${ok('CLIProxy Binary'.padEnd(22))}  v${installedVersion}`);
+      console.log(`  ${ok('CLIProxy Plus'.padEnd(22))}  v${installedVersion}`);
       results.addCheck('CLIProxy Binary', 'success', undefined, undefined, {
         status: 'OK',
         info: `v${installedVersion} (${binaryPath})`,
       });
     } else {
       spinner.info();
-      console.log(
-        `  ${info('CLIProxy Binary'.padEnd(22))}  Not installed (downloads on first use)`
-      );
+      console.log(`  ${info('CLIProxy Plus'.padEnd(22))}  Not installed (downloads on first use)`);
       results.addCheck(
         'CLIProxy Binary',
         'success',

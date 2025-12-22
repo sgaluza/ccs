@@ -66,8 +66,8 @@ class Doctor {
     runSymlinkChecks(this.results);
     console.log('');
 
-    // Group 6: CLIProxy (OAuth profiles)
-    console.log(header('CLIPROXY (OAUTH PROFILES)'));
+    // Group 6: CLIProxy Plus (OAuth profiles)
+    console.log(header('CLIPROXY PLUS (OAUTH PROFILES)'));
     await runCLIProxyChecks(this.results);
     console.log('');
 

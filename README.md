@@ -89,7 +89,8 @@ The dashboard provides visual management for all account types:
 | **Claude** | Subscription | `ccs` | Default, strategic planning |
 | **Gemini** | OAuth | `ccs gemini` | Zero-config, fast iteration |
 | **Codex** | OAuth | `ccs codex` | Code generation |
-| **Copilot** | OAuth | `ccs copilot` | GitHub Copilot models |
+| **Copilot** | OAuth | `ccs copilot` or `ccs ghcp` | GitHub Copilot models |
+| **Kiro** | OAuth | `ccs kiro` | AWS CodeWhisperer (Claude-powered) |
 | **Antigravity** | OAuth | `ccs agy` | Alternative routing |
 | **OpenRouter** | API Key | `ccs openrouter` | 300+ models, unified API |
 | **GLM** | API Key | `ccs glm` | Cost-optimized execution |
@@ -102,7 +103,8 @@ The dashboard provides visual management for all account types:
 > **OAuth providers** authenticate via browser on first run. Tokens are cached in `~/.ccs/cliproxy/auth/`.
 
 **Powered by:**
-- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) - OAuth proxy for Gemini, Codex, Antigravity
+- [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus) - Extended OAuth proxy with Kiro ([@fuko2935](https://github.com/fuko2935), [@Ravens2121](https://github.com/Ravens2121)) and Copilot ([@em4go](https://github.com/em4go)) support
+- [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) - Core OAuth proxy for Gemini, Codex, Antigravity
 - [copilot-api](https://github.com/ericc-ch/copilot-api) - GitHub Copilot API integration
 
 > [!TIP]
@@ -116,8 +118,11 @@ The dashboard provides visual management for all account types:
 
 ```bash
 ccs           # Default Claude session
-ccs agy       # Antigravity (OAuth)
 ccs gemini    # Gemini (OAuth)
+ccs codex     # OpenAI Codex (OAuth)
+ccs kiro      # Kiro/AWS CodeWhisperer (OAuth)
+ccs ghcp      # GitHub Copilot (OAuth device flow)
+ccs agy       # Antigravity (OAuth)
 ccs glm       # GLM (API key)
 ```
 

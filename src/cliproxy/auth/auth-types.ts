@@ -16,12 +16,16 @@ import { AccountInfo } from '../account-manager';
  * - Codex:  Authorization Code Flow with local callback server on port 1455
  * - Agy:    Authorization Code Flow with local callback server on port 51121
  * - Qwen:   Device Code Flow (polling-based, NO callback port needed)
+ * - Kiro:   Authorization Code Flow with local callback server on port 9876
+ * - GHCP:   Device Code Flow (polling-based, NO callback port needed)
  */
 export const OAUTH_CALLBACK_PORTS: Partial<Record<CLIProxyProvider, number>> = {
   gemini: 8085,
+  kiro: 9876,
   // codex uses 1455
   // agy uses 51121
   // qwen uses Device Code Flow - no callback port needed
+  // ghcp uses Device Code Flow - no callback port needed
 };
 
 /**
@@ -100,6 +104,20 @@ export const OAUTH_CONFIGS: Record<CLIProxyProvider, ProviderOAuthConfig> = {
     scopes: ['phone', 'profile', 'email'],
     authFlag: '--iflow-login',
   },
+  kiro: {
+    provider: 'kiro',
+    displayName: 'Kiro (AWS)',
+    authUrl: 'https://oidc.us-east-1.amazonaws.com',
+    scopes: ['codewhisperer:completions', 'codewhisperer:conversations'],
+    authFlag: '--kiro-login',
+  },
+  ghcp: {
+    provider: 'ghcp',
+    displayName: 'GitHub Copilot (OAuth)',
+    authUrl: 'https://github.com/login/device/code',
+    scopes: ['copilot'],
+    authFlag: '--github-copilot-login',
+  },
 };
 
 /**
@@ -113,6 +131,8 @@ export const PROVIDER_AUTH_PREFIXES: Record<CLIProxyProvider, string[]> = {
   agy: ['antigravity-', 'agy-'],
   qwen: ['qwen-'],
   iflow: ['iflow-'],
+  kiro: ['kiro-', 'aws-', 'codewhisperer-'],
+  ghcp: ['github-copilot-', 'copilot-', 'gh-'],
 };
 
 /**
@@ -125,6 +145,8 @@ export const PROVIDER_TYPE_VALUES: Record<CLIProxyProvider, string[]> = {
   agy: ['antigravity'],
   qwen: ['qwen'],
   iflow: ['iflow'],
+  kiro: ['kiro', 'codewhisperer'],
+  ghcp: ['github-copilot', 'copilot'],
 };
 
 /**

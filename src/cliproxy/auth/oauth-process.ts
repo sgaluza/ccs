@@ -174,7 +174,7 @@ function handleTokenNotFound(provider: CLIProxyProvider, callbackPort: number | 
 /** Handle process exit with error */
 function handleProcessError(code: number | null, state: ProcessState, headless: boolean): void {
   console.log('');
-  console.log(fail(`CLIProxyAPI auth exited with code ${code}`));
+  console.log(fail(`CLIProxy Plus auth exited with code ${code}`));
   if (state.stderrData && !state.urlDisplayed) {
     console.log(`    ${state.stderrData.trim().split('\n')[0]}`);
   }

@@ -242,7 +242,7 @@ export async function ensureCliproxyService(
         started: false,
         alreadyRunning: false,
         port,
-        error: `CLIProxy failed to start within 5s on port ${port}`,
+        error: `CLIProxy Plus failed to start within 5s on port ${port}`,
       };
     }
 

@@ -147,7 +147,7 @@ export function ProxyStatusWidget() {
               isRunning ? 'bg-green-500 animate-pulse' : 'bg-muted-foreground/30'
             )}
           />
-          <span className="text-sm font-medium">CLIProxy Service</span>
+          <span className="text-sm font-medium">CLIProxy Plus</span>
           {hasUpdate && (
             <Badge
               variant="secondary"

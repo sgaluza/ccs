@@ -1,12 +1,13 @@
 /**
  * OAuth Handler for CLIProxyAPI
  *
- * Manages OAuth authentication flow for CLIProxy providers (Gemini, Codex, Antigravity).
+ * Manages OAuth authentication flow for CLIProxy providers (Gemini, Codex, Antigravity, Kiro, Copilot).
  * CLIProxyAPI handles OAuth internally - we just need to:
  * 1. Check if auth exists (token files in CCS auth directory)
  * 2. Trigger OAuth flow by spawning binary with auth flag
  * 3. Auto-detect headless environments (SSH, no DISPLAY)
  * 4. Use --no-browser flag for headless, display OAuth URL for manual auth
+ * 5. Handle Device Code flows for Copilot/Qwen (no callback server)
  */
 
 import * as fs from 'fs';
@@ -118,6 +119,7 @@ async function prepareBinary(
  * Trigger OAuth flow for provider
  * Auto-detects headless environment and uses --no-browser flag accordingly
  * Shows real-time step-by-step progress for better user feedback
+ * Handles both Authorization Code (callback server) and Device Code (polling) flows
  */
 export async function triggerOAuth(
   provider: CLIProxyProvider,
@@ -128,6 +130,7 @@ export async function triggerOAuth(
   const callbackPort = OAUTH_PORTS[provider];
   const isCLI = !fromUI;
   const headless = options.headless ?? isHeadlessEnvironment();
+  const isDeviceCodeFlow = callbackPort === null;
 
   // Check for existing accounts
   const existingAccounts = getProviderAccounts(provider);
@@ -145,8 +148,8 @@ export async function triggerOAuth(
     }
   }
 
-  // Pre-flight checks
-  if (!(await runPreflightChecks(provider, oauthConfig))) {
+  // Pre-flight checks (skip for device code flows which don't need callback ports)
+  if (!isDeviceCodeFlow && !(await runPreflightChecks(provider, oauthConfig))) {
     return null;
   }
 
@@ -158,7 +161,7 @@ export async function triggerOAuth(
 
   const { binaryPath, tokenDir, configPath } = prepared;
 
-  // Free callback port if needed
+  // Free callback port if needed (only for authorization code flows)
   const localCallbackPort = OAUTH_CALLBACK_PORTS[provider];
   if (localCallbackPort) {
     const killed = killProcessOnPort(localCallbackPort, verbose);
@@ -173,19 +176,25 @@ export async function triggerOAuth(
     args.push('--no-browser');
   }
 
-  // Show callback server step
-  showStep(2, 4, 'progress', `Starting callback server on port ${callbackPort || 'N/A'}...`);
+  // Show step based on flow type
+  if (isDeviceCodeFlow) {
+    showStep(2, 4, 'progress', `Starting ${oauthConfig.displayName} Device Code flow...`);
+    console.log('');
+    console.log(info('Device Code Flow - follow the instructions below'));
+  } else {
+    showStep(2, 4, 'progress', `Starting callback server on port ${callbackPort}...`);
 
-  // Show headless instructions
-  if (headless) {
-    console.log('');
-    console.log(warn('PORT FORWARDING REQUIRED'));
-    console.log(`    OAuth callback uses localhost:${callbackPort} which must be reachable.`);
-    console.log('    Run this on your LOCAL machine:');
-    console.log(
-      `    ${color(`ssh -L ${callbackPort}:localhost:${callbackPort} <USER>@<HOST>`, 'command')}`
-    );
-    console.log('');
+    // Show headless instructions (only for authorization code flows)
+    if (headless) {
+      console.log('');
+      console.log(warn('PORT FORWARDING REQUIRED'));
+      console.log(`    OAuth callback uses localhost:${callbackPort} which must be reachable.`);
+      console.log('    Run this on your LOCAL machine:');
+      console.log(
+        `    ${color(`ssh -L ${callbackPort}:localhost:${callbackPort} <USER>@<HOST>`, 'command')}`
+      );
+      console.log('');
+    }
   }
 
   // Execute OAuth process

@@ -32,7 +32,7 @@ const handleStatsRequest = async (_req: Request, res: Response): Promise<void> =
     const running = await isCliproxyRunning();
     if (!running) {
       res.status(503).json({
-        error: 'CLIProxyAPI not running',
+        error: 'CLIProxy Plus not running',
         message: 'Start a CLIProxy session (gemini, codex, agy) to collect stats',
       });
       return;
@@ -43,7 +43,7 @@ const handleStatsRequest = async (_req: Request, res: Response): Promise<void> =
     if (!stats) {
       res.status(503).json({
         error: 'Stats unavailable',
-        message: 'CLIProxyAPI is running but stats endpoint not responding',
+        message: 'CLIProxy Plus is running but stats endpoint not responding',
       });
       return;
     }
@@ -164,7 +164,7 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
     const running = await isCliproxyRunning();
     if (!running) {
       res.status(503).json({
-        error: 'CLIProxyAPI not running',
+        error: 'CLIProxy Plus not running',
         message: 'Start a CLIProxy session (gemini, codex, agy) to fetch available models',
       });
       return;
@@ -175,7 +175,7 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
     if (!modelsResponse) {
       res.status(503).json({
         error: 'Models unavailable',
-        message: 'CLIProxyAPI is running but /v1/models endpoint not responding',
+        message: 'CLIProxy Plus is running but /v1/models endpoint not responding',
       });
       return;
     }
@@ -197,7 +197,7 @@ router.get('/error-logs', async (_req: Request, res: Response): Promise<void> =>
     const running = await isCliproxyRunning();
     if (!running) {
       res.status(503).json({
-        error: 'CLIProxyAPI not running',
+        error: 'CLIProxy Plus not running',
         message: 'Start a CLIProxy session to view error logs',
       });
       return;
@@ -207,7 +207,7 @@ router.get('/error-logs', async (_req: Request, res: Response): Promise<void> =>
     if (files === null) {
       res.status(503).json({
         error: 'Error logs unavailable',
-        message: 'CLIProxyAPI is running but error logs endpoint not responding',
+        message: 'CLIProxy Plus is running but error logs endpoint not responding',
       });
       return;
     }
@@ -248,7 +248,7 @@ router.get('/error-logs/:name', async (req: Request, res: Response): Promise<voi
   try {
     const running = await isCliproxyRunning();
     if (!running) {
-      res.status(503).json({ error: 'CLIProxyAPI not running' });
+      res.status(503).json({ error: 'CLIProxy Plus not running' });
       return;
     }
 

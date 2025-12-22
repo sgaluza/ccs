@@ -28,7 +28,15 @@ import type { CLIProxyProvider } from '../../cliproxy/types';
 const router = Router();
 
 // Valid providers list
-const validProviders: CLIProxyProvider[] = ['gemini', 'codex', 'agy', 'qwen', 'iflow'];
+const validProviders: CLIProxyProvider[] = [
+  'gemini',
+  'codex',
+  'agy',
+  'qwen',
+  'iflow',
+  'kiro',
+  'ghcp',
+];
 
 /**
  * GET /api/cliproxy/auth - Get auth status for built-in CLIProxy profiles
@@ -57,6 +65,8 @@ router.get('/', async (_req: Request, res: Response): Promise<void> => {
       codex: 'codex',
       qwen: 'qwen',
       iflow: 'iflow',
+      kiro: 'kiro',
+      copilot: 'ghcp', // CLIProxyAPI returns 'copilot', we map to 'ghcp'
     };
 
     // Update lastUsedAt for providers with recent activity
