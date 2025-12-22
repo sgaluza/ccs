@@ -2,7 +2,7 @@
 
 Last Updated: 2025-12-21
 
-Comprehensive overview of the modularized CCS codebase structure following the Phase 9 modularization effort (Settings, Analytics, Auth Monitor splits + Test Infrastructure).
+Comprehensive overview of the modularized CCS codebase structure following the Phase 9 modularization effort (Settings, Analytics, Auth Monitor splits + Test Infrastructure) and v7.1 Remote CLIProxy feature.
 
 ## Repository Structure
 
@@ -79,6 +79,9 @@ src/
 │   ├── service-manager.ts    # Background service
 │   ├── proxy-detector.ts     # Running proxy detection
 │   ├── startup-lock.ts       # Race condition prevention
+│   ├── remote-proxy-client.ts    # Remote proxy health checks (NEW v7.1)
+│   ├── proxy-config-resolver.ts  # CLI/env/config merging (NEW v7.1)
+│   ├── types.ts              # ResolvedProxyConfig for local/remote modes
 │   └── [more files...]
 │
 ├── copilot/                  # GitHub Copilot integration
@@ -161,6 +164,7 @@ src/
 | Auth | `auth/`, `cliproxy/auth/` | Authentication across providers |
 | Config | `config/`, `types/` | Configuration & type definitions |
 | Providers | `cliproxy/`, `copilot/`, `glmt/` | Provider integrations |
+| Remote Proxy | `cliproxy/remote-*.ts`, `proxy-config-resolver.ts` | Remote CLIProxy support (v7.1) |
 | Services | `web-server/`, `api/` | HTTP server, API services |
 | Utilities | `utils/`, `management/` | Helpers, diagnostics |
 
@@ -462,12 +466,14 @@ tests/
 
 | Metric | Value |
 |--------|-------|
-| Total Tests | 497 |
-| Passing | 497 |
-| Skipped | 2 |
-| Failed | 0 |
+| CLI Tests | 539 |
+| UI Tests | 99 |
+| Total Tests | 638 |
+| Passing | 612 |
+| Skipped | 6 |
+| Failed | 0 (CLI), 26 (UI - jsdom setup) |
 | Coverage Threshold | 90% |
-| Test Files | 29 |
+| Test Files | 38 |
 
 ---
 

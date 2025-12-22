@@ -580,6 +580,26 @@ interface Config { ... }
 export interface Config { ... }
 ```
 
+### 5. Config Priority Pattern
+
+When resolving configuration from multiple sources, follow this priority order:
+
+```typescript
+// proxy-config-resolver.ts pattern
+// Priority: CLI flags > Environment variables > config.yaml > defaults
+
+const resolved = {
+  ...DEFAULT_CONFIG,                    // 4. Defaults (lowest)
+  ...yamlConfig,                        // 3. config.yaml
+  ...envConfig,                         // 2. Environment variables
+  ...cliFlags,                          // 1. CLI flags (highest)
+};
+```
+
+This pattern is used in:
+- `src/cliproxy/proxy-config-resolver.ts` - Remote proxy config
+- `src/config/unified-config-loader.ts` - Main config loading
+
 ---
 
 ## Related Documentation

@@ -17,16 +17,18 @@ All major modularization work is complete. The codebase evolved from monolithic 
 | 3 | CLIProxy | `src/cliproxy/` with auth/, binary/, services/ subdirs |
 | 4 | Utils/Errors | `src/utils/ui/`, `src/errors/`, `src/management/` |
 | 5 | UI Components | 5 monster files split into modular dirs (54+ modules) |
-| 6 | Settings Page | `pages/settings/` (1,781→20 files) |
-| 7 | Analytics Page | `pages/analytics/` (420→8 files) |
-| 8 | Auth Monitor | `monitoring/auth-monitor/` (465→8 files) |
-| 9 | Test Infrastructure | 99 UI tests + 497 CLI tests, 90% coverage |
+| 6 | Settings Page | `pages/settings/` (1,781->20 files) |
+| 7 | Analytics Page | `pages/analytics/` (420->8 files) |
+| 8 | Auth Monitor | `monitoring/auth-monitor/` (465->8 files) |
+| 9 | Test Infrastructure | 99 UI tests + 539 CLI tests, 90% coverage |
+| 10 | Remote CLIProxy | `proxy-config-resolver.ts`, `remote-proxy-client.ts` |
 
 **Metrics Achieved**:
-- Files >500 lines: 12 → 5 (-58%)
-- UI files >200 lines: 28 → 8 (-71%)
-- Barrel exports: 5 → 39 (+680%)
-- Test coverage: 0% → 90%
+- Files >500 lines: 12 -> 5 (-58%)
+- UI files >200 lines: 28 -> 8 (-71%)
+- Barrel exports: 5 -> 39 (+680%)
+- Test coverage: 0% -> 90%
+- Total tests: 638 (539 CLI + 99 UI)
 
 ---
 
@@ -59,7 +61,7 @@ All major modularization work is complete. The codebase evolved from monolithic 
 
 | Issue | Title | Type | Status |
 |-------|-------|------|--------|
-| #142 | Configure with available CLIProxyAPI | enhancement | **IN PROGRESS** |
+| #142 | Configure with available CLIProxyAPI | enhancement | **COMPLETE** (v7.1) |
 | #157 | Support for Kiro auth from CLIProxyAPIPlus | enhancement | - |
 | #123 | Add More Models | enhancement | Ongoing |
 | #114 | OpenCode Zen Free model + Auto Rotation API Key | enhancement | - |
@@ -157,6 +159,7 @@ worktrees:
 | Milestone | Status | Target |
 |-----------|--------|--------|
 | Modularization (Phases 1-9) | COMPLETE | - |
+| Remote CLIProxy Support (#142) | COMPLETE | v7.1 |
 | Critical Bug Fixes (#158, #155, #124) | PLANNED | Q1 2026 |
 | Multiple CLIProxyAPI Instances | PLANNED | Q1 2026 |
 | Git Worktree Support | PLANNED | Q1 2026 |

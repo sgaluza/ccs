@@ -13,6 +13,8 @@ CCS is a CLI wrapper that enables seamless switching between multiple Claude acc
 1. **CLI Application** (`src/`) - Node.js TypeScript CLI
 2. **Dashboard UI** (`ui/`) - React web application served by Express
 
+CCS v7.1 adds support for both **local** and **remote** CLIProxyAPI instances.
+
 ```
 +===========================================================================+
 |                              CCS System                                    |
@@ -30,10 +32,10 @@ CCS is a CLI wrapper that enables seamless switching between multiple Claude acc
 |   +------------------+      +-----------------+      |  Gemini/etc)   |   |
 |                                    |                 +----------------+   |
 |                                    v                                      |
-|                             +-----------------+                           |
-|                             |   CLIProxyAPI   |                           |
-|                             |   (Binary)      |                           |
-|                             +-----------------+                           |
+|                        +---------------------+                            |
+|                        |    CLIProxyAPI      |                            |
+|                        |  (Local or Remote)  |                            |
+|                        +---------------------+                            |
 |                                                                           |
 +===========================================================================+
 ```
@@ -348,6 +350,65 @@ CCS is a CLI wrapper that enables seamless switching between multiple Claude acc
   +------------------+
   |   GLM API        |  Z.AI / Kimi API
   +------------------+
+```
+
+### Remote CLIProxy Flow (v7.1)
+
+```
++===========================================================================+
+|                    Remote CLIProxy Architecture                           |
++===========================================================================+
+
+  Config Resolution (proxy-config-resolver.ts)
+        |
+        +---> Priority: CLI flags > ENV vars > config.yaml > defaults
+        |
+        v
+  +------------------+
+  | ResolvedProxyConfig |
+  | mode: local|remote |
+  +------------------+
+        |
+        +---> [mode = local] ---> Spawn local CLIProxyAPI binary
+        |                              |
+        |                              v
+        |                        localhost:8317
+        |
+        +---> [mode = remote] ---> Connect to remote server
+                                       |
+                                       v
+                                 +------------------+
+                                 | Health Check     |  remote-proxy-client.ts
+                                 | /v1/models       |  2s timeout
+                                 +------------------+
+                                       |
+                                       +---> [reachable] ---> Use remote
+                                       |                           |
+                                       |                           v
+                                       |                      protocol://host:port
+                                       |
+                                       +---> [unreachable] ---> Fallback decision
+                                                                     |
+                                       +-----------------------------+
+                                       |
+                                       +---> [fallbackEnabled] ---> Start local
+                                       |
+                                       +---> [remoteOnly] ---> Fail with error
+
+  CLI Flags:
+    --proxy-host <host>         Remote hostname/IP
+    --proxy-port <port>         Port (default: 8317 HTTP, 443 HTTPS)
+    --proxy-protocol <proto>    http or https
+    --proxy-auth-token <token>  Bearer authentication
+    --local-proxy               Force local mode
+    --remote-only               Fail if remote unreachable
+
+  Environment Variables:
+    CCS_PROXY_HOST              Remote hostname
+    CCS_PROXY_PORT              Remote port
+    CCS_PROXY_PROTOCOL          Protocol (http/https)
+    CCS_PROXY_AUTH_TOKEN        Auth token
+    CCS_PROXY_FALLBACK_ENABLED  Enable fallback (true/false)
 ```
 
 ---

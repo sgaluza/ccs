@@ -8,9 +8,9 @@ Last Updated: 2025-12-21
 
 **Tagline**: The universal AI profile manager for Claude Code
 
-**Description**: CLI wrapper enabling seamless switching between multiple Claude accounts and alternative AI providers (GLM, Gemini, Codex, OpenRouter) with a React-based dashboard for configuration management.
+**Description**: CLI wrapper enabling seamless switching between multiple Claude accounts and alternative AI providers (GLM, Gemini, Codex, OpenRouter) with a React-based dashboard for configuration management. Supports both local and remote CLIProxyAPI instances.
 
-**Current Version**: v7.x (OpenRouter integration added)
+**Current Version**: v7.1.x (Remote CLIProxy routing, OpenRouter integration)
 
 ---
 
@@ -90,6 +90,14 @@ CCS provides:
 - Support Gemini CLI, OpenCode, Grok providers
 - Graceful fallback chain
 
+### FR-008: Remote CLIProxy Support
+- Connect to remote CLIProxyAPI instances
+- CLI flags for proxy configuration (--proxy-host, --proxy-port, etc.)
+- Environment variable configuration (CCS_PROXY_HOST, etc.)
+- Fallback to local proxy when remote unreachable
+- Protocol-based default ports (443 for HTTPS, 8317 for HTTP)
+- Dashboard UI for remote server configuration and testing
+
 ---
 
 ## Non-Functional Requirements
@@ -167,7 +175,7 @@ CCS provides:
 | Startup time | < 100ms | Achieved |
 | Dashboard load | < 2s | Achieved |
 | Error rate | < 1% | Achieved |
-| Test coverage | > 90% | 90% (497 tests) |
+| Test coverage | > 90% | 90% (539 CLI + 99 UI tests) |
 | File size compliance | 100% < 200 lines | 95% |
 
 ---
@@ -191,7 +199,16 @@ CCS provides:
 - [x] Settings page modularization (20 files)
 - [x] Analytics page modularization (8 files)
 - [x] Auth monitor modularization (8 files)
-- [x] Comprehensive test infrastructure (497 tests)
+- [x] Comprehensive test infrastructure (539 CLI + 99 UI tests)
+
+### v7.1 Release (Complete)
+- [x] Remote CLIProxy routing support
+- [x] CLI flags for remote proxy (--proxy-host, --proxy-port, etc.)
+- [x] Environment variables for proxy config (CCS_PROXY_*)
+- [x] Dashboard remote proxy configuration UI
+- [x] Connection testing with latency display
+- [x] Fallback to local when remote unreachable
+- [x] Protocol-based default ports (HTTPS:443, HTTP:8317)
 
 ### v8.0 Release (Planned - Q1 2026)
 - [ ] Multiple CLIProxyAPI instances (load balancing, failover)

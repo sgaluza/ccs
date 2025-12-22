@@ -255,6 +255,37 @@ See [docs/websearch.md](./docs/websearch.md) for detailed configuration and trou
 
 <br>
 
+## Remote CLIProxy
+
+CCS v7.x supports connecting to remote CLIProxyAPI instances, enabling:
+- **Team sharing**: One CLIProxyAPI server for multiple developers
+- **Cost optimization**: Centralized API key management
+- **Network isolation**: Keep API credentials on a secure server
+
+### Quick Setup
+
+Configure via dashboard (**Settings > CLIProxy Server**) or CLI flags:
+
+```bash
+ccs gemini --proxy-host 192.168.1.100 --proxy-port 8317
+ccs codex --proxy-host proxy.example.com --proxy-protocol https
+```
+
+### CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--proxy-host` | Remote proxy hostname or IP |
+| `--proxy-port` | Remote proxy port (default: 8317 for HTTP, 443 for HTTPS) |
+| `--proxy-protocol` | `http` or `https` (default: http) |
+| `--proxy-auth-token` | Bearer token for authentication |
+| `--local-proxy` | Force local mode, ignore remote config |
+| `--remote-only` | Fail if remote unreachable (no fallback) |
+
+See [Remote Proxy documentation](https://docs.ccs.kaitran.ca/features/remote-proxy) for detailed setup.
+
+<br>
+
 ## Documentation
 
 | Topic | Link |
