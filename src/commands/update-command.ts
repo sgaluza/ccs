@@ -221,6 +221,7 @@ async function performNpmUpdate(
         console.log(ok(`${isReinstall ? 'Reinstall' : 'Update'} successful!`));
         console.log('');
         console.log(`Run ${color('ccs --version', 'command')} to verify`);
+        console.log(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
         console.log('');
       } else {
         console.log('');

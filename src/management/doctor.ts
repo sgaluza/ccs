@@ -2,7 +2,7 @@
  * CCS Health Check and Diagnostics - Main Orchestrator
  */
 
-import { initUI, header, box, table, color, ok, fail, warn } from '../utils/ui';
+import { initUI, header, box, table, color, ok, fail, warn, info } from '../utils/ui';
 import packageJson from '../../package.json';
 import {
   HealthCheck,
@@ -135,6 +135,8 @@ class Doctor {
     // Final status
     if (this.results.isHealthy() && !this.results.hasWarnings()) {
       console.log(ok('All checks passed! Installation is healthy.'));
+      console.log('');
+      console.log(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
     } else if (this.results.hasErrors()) {
       console.log(fail('Installation has errors. Run suggested fixes above.'));
     } else {
@@ -143,6 +145,8 @@ class Doctor {
           `Installation healthy (${this.results.warnings.length} warning${this.results.warnings.length !== 1 ? 's' : ''})`
         )
       );
+      console.log('');
+      console.log(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
     }
 
     console.log('');

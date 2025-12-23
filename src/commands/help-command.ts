@@ -89,14 +89,16 @@ export async function handleHelpCommand(): Promise<void> {
   // Initialize UI (if not already)
   await initUI();
 
-  // Hero box with ASCII art logo
+  // Hero box with ASCII art logo and config hint
   // Each letter: C=╔═╗/║ /╚═╝, C=╔═╗/║ /╚═╝, S=╔═╗/╚═╗/╚═╝
   const logo = `
 ╔═╗ ╔═╗ ╔═╗
 ║   ║   ╚═╗  v${VERSION}
 ╚═╝ ╚═╝ ╚═╝
 
-Claude Code Profile & Model Switcher`.trim();
+Claude Code Profile & Model Switcher
+
+Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   console.log(
     box(logo, {
@@ -286,6 +288,7 @@ Claude Code Profile & Model Switcher`.trim();
     `  $ ${color('ccs gemini', 'command')}              ${dim('# OAuth (browser opens first time)')}`
   );
   console.log(`  $ ${color('ccs glm "implement API"', 'command')} ${dim('# API key model')}`);
+  console.log(`  $ ${color('ccs config', 'command')}              ${dim('# Open web dashboard')}`);
   console.log('');
 
   // Update examples

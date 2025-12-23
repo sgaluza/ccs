@@ -1,4 +1,4 @@
-import { initUI, header, color, dim, errorBox } from './ui';
+import { initUI, header, color, dim, info, errorBox } from './ui';
 import { ERROR_CODES, getErrorDocUrl, ErrorCode } from './error-codes';
 import { getPortCheckCommand, getKillPidCommand } from './platform-commands';
 
@@ -155,6 +155,8 @@ export class ErrorManager {
     console.error('  Create a new account profile:');
     console.error(`    ${color('ccs auth create <name>', 'command')}`);
     console.error('');
+    console.error(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
+    console.error('');
 
     this.showErrorCode(ERROR_CODES.PROFILE_NOT_FOUND);
   }
@@ -207,6 +209,8 @@ export class ErrorManager {
     console.error(`  ${color(`ccs ${provider} --auth --headless`, 'command')}`);
     console.error('');
     console.error(dim('This displays manual authentication steps.'));
+    console.error('');
+    console.error(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
     console.error('');
   }
 
@@ -282,6 +286,8 @@ export class ErrorManager {
     console.error('');
     console.error(dim('This will open a browser for OAuth login.'));
     console.error(dim('After login, you can use the profile normally.'));
+    console.error('');
+    console.error(info(`Tip: Use ${color('ccs config', 'command')} for web-based configuration`));
     console.error('');
   }
 }
