@@ -694,9 +694,10 @@ export async function execClaudeWithCLIProxy(
 
   // 7. Execute Claude CLI with proxied environment
   // Use remote or local env vars based on mode
-  // When remote is configured (even if using local), pass config for URL rewriting
+  // IMPORTANT: Only pass remoteRewriteConfig when ACTUALLY using remote proxy
+  // If remote auth failed and we fell back to local, we must use local auth
   const remoteRewriteConfig =
-    proxyConfig.mode === 'remote' && proxyConfig.host
+    useRemoteProxy && proxyConfig.host
       ? {
           host: proxyConfig.host,
           port: proxyConfig.port,
