@@ -3,7 +3,7 @@
  * Settings section for CLIProxyAPI configuration (local/remote)
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -12,6 +12,7 @@ import { RefreshCw, CheckCircle2, AlertCircle, Laptop, Cloud } from 'lucide-reac
 import { useProxyConfig, useRawConfig } from '../../hooks';
 import { LocalProxyCard } from './local-proxy-card';
 import { RemoteProxyCard } from './remote-proxy-card';
+import { api } from '@/lib/api-client';
 
 export default function ProxySection() {
   const {
@@ -37,11 +38,54 @@ export default function ProxySection() {
 
   const { fetchRawConfig } = useRawConfig();
 
+  // Kiro provider settings state
+  const [kiroNoIncognito, setKiroNoIncognito] = useState(false);
+  const [kiroSettingsLoading, setKiroSettingsLoading] = useState(true);
+  const [kiroSaving, setKiroSaving] = useState(false);
+
+  // Fetch Kiro settings from unified config
+  const fetchKiroSettings = useCallback(async () => {
+    try {
+      setKiroSettingsLoading(true);
+      const unifiedConfig = await api.config.get();
+      const cliproxyConfig = unifiedConfig.cliproxy as { kiro_no_incognito?: boolean } | undefined;
+      setKiroNoIncognito(cliproxyConfig?.kiro_no_incognito ?? false);
+    } catch {
+      // Config may not exist yet, use default
+      setKiroNoIncognito(false);
+    } finally {
+      setKiroSettingsLoading(false);
+    }
+  }, []);
+
+  // Save Kiro no-incognito setting
+  const saveKiroNoIncognito = useCallback(async (enabled: boolean) => {
+    setKiroNoIncognito(enabled); // Optimistic update
+    setKiroSaving(true);
+    try {
+      const unifiedConfig = await api.config.get();
+      const existingCliproxy = (unifiedConfig.cliproxy ?? {}) as Record<string, unknown>;
+      await api.config.update({
+        ...unifiedConfig,
+        cliproxy: {
+          ...existingCliproxy,
+          kiro_no_incognito: enabled,
+        },
+      });
+    } catch {
+      // Revert on error
+      setKiroNoIncognito(!enabled);
+    } finally {
+      setKiroSaving(false);
+    }
+  }, []);
+
   // Load data on mount
   useEffect(() => {
     fetchConfig();
     fetchRawConfig();
-  }, [fetchConfig, fetchRawConfig]);
+    fetchKiroSettings();
+  }, [fetchConfig, fetchRawConfig, fetchKiroSettings]);
 
   if (loading || !config) {
     return (
@@ -265,6 +309,27 @@ export default function ProxySection() {
               onSaveConfig={saveConfig}
             />
           )}
+
+          {/* Provider Settings */}
+          <div className="space-y-3">
+            <h3 className="text-base font-medium">Provider Settings</h3>
+            <div className="space-y-3 p-4 rounded-lg border bg-muted/30">
+              {/* Kiro: Use normal browser */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm">Kiro: Use normal browser</p>
+                  <p className="text-xs text-muted-foreground">
+                    Save AWS login credentials (disable incognito mode)
+                  </p>
+                </div>
+                <Switch
+                  checked={kiroNoIncognito}
+                  onCheckedChange={saveKiroNoIncognito}
+                  disabled={kiroSaving || kiroSettingsLoading}
+                />
+              </div>
+            </div>
+          </div>
         </div>
       </ScrollArea>
 
@@ -276,6 +341,7 @@ export default function ProxySection() {
           onClick={() => {
             fetchConfig();
             fetchRawConfig();
+            fetchKiroSettings();
           }}
           disabled={loading || saving}
           className="w-full"

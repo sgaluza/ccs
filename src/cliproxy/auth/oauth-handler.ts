@@ -202,7 +202,7 @@ export async function triggerOAuth(
   }
 
   // Execute OAuth process
-  return executeOAuthProcess({
+  const account = await executeOAuthProcess({
     provider,
     binaryPath,
     args,
@@ -214,6 +214,16 @@ export async function triggerOAuth(
     isCLI,
     nickname,
   });
+
+  // Show hint for Kiro users about --no-incognito option (first-time auth only)
+  if (account && provider === 'kiro' && !noIncognito) {
+    console.log('');
+    console.log(info('Tip: To save your AWS login credentials for future sessions:'));
+    console.log('       Use: ccs kiro --no-incognito');
+    console.log('       Or enable "Kiro: Use normal browser" in: ccs config');
+  }
+
+  return account;
 }
 
 /**
