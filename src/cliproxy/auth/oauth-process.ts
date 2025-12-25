@@ -175,8 +175,8 @@ async function handleStdout(
     state.browserOpened = true;
   }
 
-  // Display OAuth URLs in headless mode (for non-device-code flows)
-  if (!isDeviceCodeFlow && options.headless && !state.urlDisplayed) {
+  // Display OAuth URL for all modes (enables VS Code terminal URL detection popup)
+  if (!isDeviceCodeFlow && !state.urlDisplayed) {
     const urlMatch = output.match(/https?:\/\/[^\s]+/);
     if (urlMatch) {
       console.log('');
