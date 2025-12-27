@@ -82,4 +82,50 @@ router.post('/default', (req: Request, res: Response): void => {
   }
 });
 
+/**
+ * DELETE /api/accounts/reset-default - Reset to CCS default
+ */
+router.delete('/reset-default', (_req: Request, res: Response): void => {
+  try {
+    if (isUnifiedMode()) {
+      registry.clearDefaultUnified();
+    } else {
+      registry.clearDefaultProfile();
+    }
+    res.json({ success: true, default: null });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
+/**
+ * DELETE /api/accounts/:name - Delete an account
+ */
+router.delete('/:name', (req: Request, res: Response): void => {
+  try {
+    const { name } = req.params;
+
+    if (!name) {
+      res.status(400).json({ error: 'Missing account name' });
+      return;
+    }
+
+    // Check if trying to delete default
+    const currentDefault = registry.getDefaultUnified() ?? registry.getDefaultProfile();
+    if (name === currentDefault) {
+      res
+        .status(400)
+        .json({ error: 'Cannot delete the default account. Set a different default first.' });
+      return;
+    }
+
+    // Delete the profile
+    registry.deleteProfile(name);
+
+    res.json({ success: true, deleted: name });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+});
+
 export default router;

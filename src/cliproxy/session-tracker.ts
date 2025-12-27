@@ -27,6 +27,8 @@ interface SessionLock {
   pid: number;
   sessions: string[];
   startedAt: string;
+  /** CLIProxy version running (added for version mismatch detection) */
+  version?: string;
 }
 
 /** Generate unique session ID */
@@ -126,6 +128,23 @@ function isProcessRunning(pid: number): boolean {
 }
 
 /**
+ * Wait for a process to exit within a timeout.
+ * @param pid Process ID to wait for
+ * @param timeoutMs Maximum time to wait in milliseconds
+ * @returns true if process exited, false if timeout
+ */
+async function waitForProcessExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (!isProcessRunning(pid)) {
+      return true; // Process exited
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return false; // Timeout
+}
+
+/**
  * Check if there's an existing proxy running that we can reuse.
  * Returns the existing lock if proxy is healthy, null otherwise.
  */
@@ -153,9 +172,12 @@ export function getExistingProxy(port: number): SessionLock | null {
 /**
  * Register a new session with the proxy.
  * Call this when starting a new CCS session that will use an existing proxy.
+ * @param port Port the proxy is running on
+ * @param proxyPid PID of the proxy process
+ * @param version Optional CLIProxy version (stored when spawning new proxy)
  * @returns Session ID for this session
  */
-export function registerSession(port: number, proxyPid: number): string {
+export function registerSession(port: number, proxyPid: number, version?: string): string {
   const sessionId = generateSessionId();
   const existingLock = readSessionLockForPort(port);
 
@@ -170,6 +192,7 @@ export function registerSession(port: number, proxyPid: number): string {
       pid: proxyPid,
       sessions: [sessionId],
       startedAt: new Date().toISOString(),
+      version,
     };
     writeSessionLockForPort(newLock);
   }
@@ -315,6 +338,19 @@ export async function stopProxy(port: number = CLIPROXY_DEFAULT_PORT): Promise<{
     // Found CLIProxy running without session lock - kill it
     try {
       process.kill(portProcess.pid, 'SIGTERM');
+
+      // Wait for graceful shutdown
+      const exited = await waitForProcessExit(portProcess.pid, 3000);
+      if (!exited) {
+        // Escalate to SIGKILL
+        try {
+          process.kill(portProcess.pid, 'SIGKILL');
+          await waitForProcessExit(portProcess.pid, 1000);
+        } catch {
+          // Process may have exited between check and kill
+        }
+      }
+
       return { stopped: true, pid: portProcess.pid, sessionCount: 0 };
     } catch (err) {
       const error = err as NodeJS.ErrnoException;
@@ -337,6 +373,18 @@ export async function stopProxy(port: number = CLIPROXY_DEFAULT_PORT): Promise<{
   try {
     // Kill the proxy process
     process.kill(pid, 'SIGTERM');
+
+    // Wait for graceful shutdown
+    const exited = await waitForProcessExit(pid, 3000);
+    if (!exited) {
+      // Escalate to SIGKILL
+      try {
+        process.kill(pid, 'SIGKILL');
+        await waitForProcessExit(pid, 1000);
+      } catch {
+        // Process may have exited between check and kill
+      }
+    }
 
     // Clean up session lock
     deleteSessionLockForPort(port);
@@ -362,6 +410,7 @@ export function getProxyStatus(port: number = CLIPROXY_DEFAULT_PORT): {
   pid?: number;
   sessionCount?: number;
   startedAt?: string;
+  version?: string;
 } {
   const lock = readSessionLockForPort(port);
 
@@ -381,5 +430,26 @@ export function getProxyStatus(port: number = CLIPROXY_DEFAULT_PORT): {
     pid: lock.pid,
     sessionCount: lock.sessions.length,
     startedAt: lock.startedAt,
+    version: lock.version,
   };
+}
+
+/**
+ * Get the version of the running proxy from session lock.
+ * @param port Port to check (defaults to CLIPROXY_DEFAULT_PORT)
+ * @returns Version string if available, null otherwise
+ */
+export function getRunningProxyVersion(port: number = CLIPROXY_DEFAULT_PORT): string | null {
+  const lock = readSessionLockForPort(port);
+  if (!lock) {
+    return null;
+  }
+
+  // Verify proxy is still running
+  if (!isProcessRunning(lock.pid)) {
+    deleteSessionLockForPort(port);
+    return null;
+  }
+
+  return lock.version ?? null;
 }

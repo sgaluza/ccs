@@ -17,7 +17,7 @@ import * as net from 'net';
 import { ProgressIndicator } from '../utils/progress-indicator';
 import { ok, fail, info, warn } from '../utils/ui';
 import { escapeShellArg } from '../utils/shell-executor';
-import { ensureCLIProxyBinary } from './binary-manager';
+import { ensureCLIProxyBinary, getInstalledCliproxyVersion } from './binary-manager';
 import {
   generateConfig,
   getEffectiveEnvVars,
@@ -48,7 +48,12 @@ import {
   installWebSearchHook,
   displayWebSearchStatus,
 } from '../utils/websearch-manager';
-import { registerSession, unregisterSession, cleanupOrphanedSessions } from './session-tracker';
+import {
+  registerSession,
+  unregisterSession,
+  cleanupOrphanedSessions,
+  stopProxy,
+} from './session-tracker';
 import { detectRunningProxy, waitForProxyHealthy, reclaimOrphanedProxy } from './proxy-detector';
 import { withStartupLock } from './startup-lock';
 import { loadOrCreateUnifiedConfig } from '../config/unified-config-loader';
@@ -250,6 +255,8 @@ export async function execClaudeWithCLIProxy(
   const forceConfig = argsWithoutProxy.includes('--config');
   const addAccount = argsWithoutProxy.includes('--add');
   const showAccounts = argsWithoutProxy.includes('--accounts');
+  // Kiro-specific: --import to import token from Kiro IDE directly
+  const forceImport = argsWithoutProxy.includes('--import');
   // Kiro-specific: browser mode for OAuth
   // Default to normal browser (noIncognito=true) for reliability - incognito often fails on Linux
   // --incognito flag opts into incognito mode, --no-incognito is legacy (now default)
@@ -362,6 +369,38 @@ export async function execClaudeWithCLIProxy(
     process.exit(0);
   }
 
+  // Handle --import: import token from Kiro IDE directly (Kiro only)
+  if (forceImport) {
+    if (provider !== 'kiro') {
+      console.error(fail('--import is only available for Kiro'));
+      console.error(`    Run "ccs ${provider} --auth" to authenticate`);
+      process.exit(1);
+    }
+    // Validate flag conflicts
+    if (forceAuth) {
+      console.error(fail('Cannot use --import with --auth'));
+      console.error('    --import: Import existing token from Kiro IDE');
+      console.error('    --auth: Trigger new OAuth flow in browser');
+      process.exit(1);
+    }
+    if (forceLogout) {
+      console.error(fail('Cannot use --import with --logout'));
+      process.exit(1);
+    }
+    const { triggerOAuth } = await import('./auth-handler');
+    const authSuccess = await triggerOAuth(provider, {
+      verbose,
+      import: true,
+      ...(setNickname ? { nickname: setNickname } : {}),
+    });
+    if (!authSuccess) {
+      console.error(fail('Failed to import Kiro token from IDE'));
+      console.error('    Make sure you are logged into Kiro IDE first');
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
   // 3. Ensure OAuth completed (if provider requires it)
   if (providerConfig.requiresOAuth) {
     log(`Checking authentication for ${provider}`);
@@ -429,8 +468,32 @@ export async function execClaudeWithCLIProxy(
     // Use startup lock to coordinate with other CCS processes
     await withStartupLock(async () => {
       // Detect running proxy using multiple methods (HTTP, session-lock, port-process)
-      const proxyStatus = await detectRunningProxy(cfg.port);
+      let proxyStatus = await detectRunningProxy(cfg.port);
       log(`Proxy detection: ${JSON.stringify(proxyStatus)}`);
+
+      // Check for version mismatch - restart proxy if installed version differs from running
+      if (proxyStatus.running && proxyStatus.verified && proxyStatus.version) {
+        const installedVersion = getInstalledCliproxyVersion();
+        if (installedVersion !== proxyStatus.version) {
+          console.log(
+            warn(
+              `Version mismatch: running v${proxyStatus.version}, installed v${installedVersion}. Restarting proxy...`
+            )
+          );
+          log(`Stopping outdated proxy (PID: ${proxyStatus.pid ?? 'unknown'})...`);
+          const stopResult = await stopProxy(cfg.port);
+          if (stopResult.stopped) {
+            log(`Stopped outdated proxy successfully`);
+          } else {
+            log(`Stop proxy result: ${stopResult.error ?? 'unknown error'}`);
+          }
+          // Wait for port to be released
+          await new Promise((r) => setTimeout(r, 500));
+          // Re-detect proxy status (should now be not running)
+          proxyStatus = await detectRunningProxy(cfg.port);
+          log(`Re-detection after version mismatch restart: ${JSON.stringify(proxyStatus)}`);
+        }
+      }
 
       if (proxyStatus.running && proxyStatus.verified) {
         // Healthy proxy found - join it
@@ -542,9 +605,12 @@ export async function execClaudeWithCLIProxy(
         throw new Error(`CLIProxy startup failed: ${err.message}`);
       }
 
-      // Register this session with the new proxy
-      sessionId = registerSession(cfg.port, proxy.pid as number);
-      log(`Registered session ${sessionId} with new proxy (PID ${proxy.pid})`);
+      // Register this session with the new proxy, including the installed version
+      const installedVersion = getInstalledCliproxyVersion();
+      sessionId = registerSession(cfg.port, proxy.pid as number, installedVersion);
+      log(
+        `Registered session ${sessionId} with new proxy (PID ${proxy.pid}, version ${installedVersion})`
+      );
     });
   }
 
@@ -604,6 +670,7 @@ export async function execClaudeWithCLIProxy(
     '--nickname',
     '--incognito',
     '--no-incognito',
+    '--import',
     // Proxy flags are handled by resolveProxyConfig, but list for documentation
     ...PROXY_CLI_FLAGS,
   ];

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { initUI, box, color, dim, sectionHeader, subheader } from '../utils/ui';
+import { isUnifiedMode } from '../config/unified-config-loader';
 
 // Get version from package.json (same as version-command.ts)
 const VERSION = JSON.parse(
@@ -173,6 +174,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs <provider> --config', 'Change model (agy, gemini)'],
       ['ccs <provider> --logout', 'Clear authentication'],
       ['ccs <provider> --headless', 'Headless auth (for SSH)'],
+      ['ccs kiro --import', 'Import token from Kiro IDE'],
       ['ccs kiro --incognito', 'Use incognito browser (default: normal)'],
       ['ccs codex "explain code"', 'Use with prompt'],
     ]
@@ -234,7 +236,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   // Configuration
   printConfigSection('Configuration', [
-    ['Config File:', '~/.ccs/config.json'],
+    ['Config File:', isUnifiedMode() ? '~/.ccs/config.yaml' : '~/.ccs/config.json'],
     ['Profiles:', '~/.ccs/profiles.json'],
     ['Instances:', '~/.ccs/instances/'],
     ['Settings:', '~/.ccs/*.settings.json'],

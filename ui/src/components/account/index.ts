@@ -5,6 +5,7 @@
 // Main components
 export { AccountsTable } from './accounts-table';
 export { AddAccountDialog } from './add-account-dialog';
+export { CreateAuthProfileDialog } from './create-auth-profile-dialog';
 
 // Flow visualization (from subdirectory)
 export { AccountFlowViz } from './flow-viz';

@@ -331,6 +331,12 @@ export const api = {
           method: 'POST',
           body: JSON.stringify({ nickname }),
         }),
+      /** Import Kiro token from Kiro IDE (Kiro only) */
+      kiroImport: () =>
+        request<{ success: boolean; account: OAuthAccount | null; error?: string }>(
+          '/cliproxy/auth/kiro/import',
+          { method: 'POST' }
+        ),
     },
     // Error logs
     errorLogs: {
@@ -351,6 +357,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name }),
       }),
+    resetDefault: () => request('/accounts/reset-default', { method: 'DELETE' }),
+    delete: (name: string) => request(`/accounts/${name}`, { method: 'DELETE' }),
   },
   // Unified config API
   config: {

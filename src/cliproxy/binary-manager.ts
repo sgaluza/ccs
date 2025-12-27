@@ -5,10 +5,12 @@
  * Pattern: Mirrors npm install behavior (fast check, download only when needed)
  */
 
-import { info } from '../utils/ui';
-import { getBinDir } from './config-generator';
+import { info, warn } from '../utils/ui';
+import { getBinDir, CLIPROXY_DEFAULT_PORT } from './config-generator';
 import { BinaryInfo, BinaryManagerConfig } from './types';
 import { CLIPROXY_FALLBACK_VERSION } from './platform-detector';
+import { isProxyRunning, stopProxy } from './services/proxy-lifecycle-service';
+import { waitForPortFree } from '../utils/port-utils';
 import {
   UpdateCheckResult,
   checkForUpdates,
@@ -108,12 +110,32 @@ export function getInstalledCliproxyVersion(): string {
 /** Install a specific version of CLIProxyAPI */
 export async function installCliproxyVersion(version: string, verbose = false): Promise<void> {
   const manager = new BinaryManager({ version, verbose, forceVersion: true });
+
+  // Check if proxy is running and stop it first
+  if (isProxyRunning()) {
+    if (verbose) console.log(info('Stopping running CLIProxy before update...'));
+    const result = await stopProxy();
+    if (result.stopped) {
+      // Wait for port to be fully released
+      const portFree = await waitForPortFree(CLIPROXY_DEFAULT_PORT, 5000);
+      if (!portFree && verbose) {
+        console.log(warn('Port did not free up in time, proceeding anyway...'));
+      }
+    } else if (verbose && result.error) {
+      console.log(warn(`Could not stop proxy: ${result.error}`));
+    }
+  }
+
   if (manager.isBinaryInstalled()) {
     if (verbose)
       console.log(info(`Removing existing CLIProxy Plus v${getInstalledCliproxyVersion()}`));
     manager.deleteBinary();
   }
   await manager.ensureBinary();
+
+  if (verbose) {
+    console.log(info('New version will be active on next CLIProxy command'));
+  }
 }
 
 /** Fetch the latest CLIProxyAPI version from GitHub API */

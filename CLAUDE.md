@@ -8,10 +8,22 @@ CLI wrapper for instant switching between multiple Claude accounts and alternati
 
 ## Design Principles (ENFORCE STRICTLY)
 
+### Technical Excellence
 - **YAGNI**: No features "just in case"
 - **KISS**: Simple bash/PowerShell/Node.js only
-- **DRY**: One source of truth (config.json)
-- **CLI-First**: All features must have CLI interface
+- **DRY**: One source of truth (config.yaml)
+
+### User Experience (EQUALLY IMPORTANT)
+- **CLI-Complete**: All features MUST have CLI interface
+- **Dashboard-Parity**: Configuration features MUST also have Dashboard interface
+- **Execution is CLI**: Running profiles happens via terminal, not dashboard buttons
+- **UX > Brevity**: Error messages and help text prioritize user success over terseness
+- **Progressive Disclosure**: Simple by default, power features accessible but not overwhelming
+
+### When Principles Conflict
+- **UX > YAGNI** for user-facing features (if users need it, it's not "just in case")
+- **KISS applies to BOTH** code AND user experience (simple journey, not just simple code)
+- **DRY applies to BOTH** code AND interface patterns (consistent behavior across CLI/Dashboard)
 
 ## Common Mistakes (AVOID)
 
@@ -89,6 +101,20 @@ bun run validate            # Step 3: Final check (must pass)
 4. **Cross-platform parity** - bash/PowerShell/Node.js must behave identically
 5. **CLI documentation** - ALL changes MUST update `--help` in src/ccs.ts, lib/ccs, lib/ccs.ps1
 6. **Idempotent** - All install operations safe to run multiple times
+7. **Dashboard parity** - Configuration features MUST work in both CLI and Dashboard
+
+## Feature Interface Requirements
+
+| Feature Type | CLI | Dashboard | Example |
+|--------------|-----|-----------|---------|
+| Profile creation | ✓ | ✓ | `ccs auth create`, Dashboard "Add Account" |
+| Profile switching | ✓ | ✓ | `ccs <profile>` (execution is CLI-only) |
+| API key config | ✓ | ✓ | `ccs api create`, Dashboard API Profiles |
+| Health check | ✓ | ✓ | `ccs doctor`, Dashboard Live Monitor |
+| OAuth auth flow | ✓ | ✓ | Browser opens from CLI or Dashboard |
+| Analytics/monitoring | ✗ | ✓ | Dashboard Analytics (visual by nature) |
+| WebSearch config | ✓ | ✓ | CLI flags, Dashboard Settings |
+| Remote proxy config | ✓ | ✓ | CLI flags, Dashboard Settings |
 
 ## File Structure
 

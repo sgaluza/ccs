@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { Config, isConfig, Settings, isSettings } from '../types';
+import { Config, isConfig, Settings, isSettings, CLIProxyVariantsConfig } from '../types';
 import { expandPath, error } from './helpers';
 import { info } from './ui';
 import { isUnifiedMode, loadOrCreateUnifiedConfig } from '../config/unified-config-loader';
@@ -27,10 +27,24 @@ export function getCcsDir(): string {
 }
 
 /**
- * Get config file path
+ * Get config file path (legacy JSON path)
+ * @deprecated Use getActiveConfigPath() for mode-aware config path
  */
 export function getConfigPath(): string {
   return process.env.CCS_CONFIG || path.join(getCcsHome(), '.ccs', 'config.json');
+}
+
+/**
+ * Get the active config file path based on current mode.
+ * Returns config.yaml in unified mode, config.json in legacy mode.
+ * @returns Path to the active config file
+ */
+export function getActiveConfigPath(): string {
+  const ccsDir = getCcsDir();
+  if (isUnifiedMode()) {
+    return path.join(ccsDir, 'config.yaml');
+  }
+  return path.join(ccsDir, 'config.json');
 }
 
 /**
@@ -83,6 +97,69 @@ export function readConfig(): Config {
 }
 
 /**
+ * Load config safely with unified mode support.
+ * Returns Config with profiles from unified config.yaml or legacy config.json.
+ * Throws on error (catchable) instead of process.exit.
+ * Use this in web server routes where try/catch is needed.
+ */
+export function loadConfigSafe(): Config {
+  // Unified mode: extract profiles from config.yaml
+  if (isUnifiedMode()) {
+    const unifiedConfig = loadOrCreateUnifiedConfig();
+
+    // Convert unified profiles to legacy format for compatibility
+    const profiles: Record<string, string> = {};
+    for (const [name, profile] of Object.entries(unifiedConfig.profiles)) {
+      if (profile.settings) {
+        profiles[name] = profile.settings;
+      }
+    }
+
+    // Convert unified cliproxy variants to legacy format
+    let cliproxy: CLIProxyVariantsConfig | undefined;
+    if (unifiedConfig.cliproxy?.variants) {
+      cliproxy = {};
+      for (const [name, variant] of Object.entries(unifiedConfig.cliproxy.variants)) {
+        cliproxy[name] = {
+          provider: variant.provider,
+          settings: variant.settings,
+          account: variant.account,
+          port: variant.port,
+        };
+      }
+    }
+
+    return {
+      profiles,
+      cliproxy,
+    };
+  }
+
+  // Legacy mode: read config.json
+  const configPath = getConfigPath();
+
+  if (!fs.existsSync(configPath)) {
+    // Return empty config for graceful degradation (matches unified mode behavior)
+    return { profiles: {} };
+  }
+
+  const raw = fs.readFileSync(configPath, 'utf8');
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Malformed JSON in config: ${configPath} - ${(e as Error).message}`);
+  }
+
+  if (!isConfig(parsed)) {
+    throw new Error(`Invalid config format: ${configPath}`);
+  }
+
+  return parsed;
+}
+
+/**
  * Get settings path for profile.
  * In unified mode (config.yaml exists), reads from config.yaml first,
  * then falls back to config.json for backward compatibility.
@@ -106,19 +183,24 @@ export function getSettingsPath(profile: string): string {
 
     // If not found in unified config, try legacy config.json as fallback
     if (!settingsPath) {
-      try {
-        const legacyConfig = loadConfig();
-        if (legacyConfig.profiles[profile]) {
-          settingsPath = legacyConfig.profiles[profile];
-          // Merge legacy profiles into available list (avoid duplicates)
-          for (const p of Object.keys(legacyConfig.profiles)) {
-            if (!availableProfiles.includes(p)) {
-              availableProfiles.push(p);
+      // Use inline safe logic - loadConfig() calls process.exit() which cannot be caught
+      const configPath = getConfigPath();
+      if (fs.existsSync(configPath)) {
+        try {
+          const raw = fs.readFileSync(configPath, 'utf8');
+          const legacyConfig: unknown = JSON.parse(raw);
+          if (isConfig(legacyConfig) && legacyConfig.profiles[profile]) {
+            settingsPath = legacyConfig.profiles[profile];
+            // Merge legacy profiles into available list (avoid duplicates)
+            for (const p of Object.keys(legacyConfig.profiles)) {
+              if (!availableProfiles.includes(p)) {
+                availableProfiles.push(p);
+              }
             }
           }
+        } catch {
+          // Legacy config is invalid JSON - that's OK in unified mode
         }
-      } catch {
-        // Legacy config doesn't exist or is invalid - that's OK in unified mode
       }
     }
   } else {

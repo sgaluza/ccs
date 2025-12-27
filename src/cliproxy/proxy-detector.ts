@@ -15,7 +15,7 @@
  * Solves race conditions between cliproxy-executor.ts and service-manager.ts
  */
 
-import { getExistingProxy, registerSession } from './session-tracker';
+import { getExistingProxy, registerSession, getRunningProxyVersion } from './session-tracker';
 import { isCliproxyRunning } from './stats-fetcher';
 import { getPortProcess, isCLIProxyProcess, PortProcess } from '../utils/port-utils';
 
@@ -38,6 +38,8 @@ export interface ProxyStatus {
   blocker?: PortProcess;
   /** Number of active sessions (if session-lock found) */
   sessionCount?: number;
+  /** Version of the running proxy (from session lock) */
+  version?: string;
 }
 
 /** Optional logger function for verbose output */
@@ -86,13 +88,19 @@ export async function detectRunningProxy(
       }
     }
 
-    log(`HTTP check passed, proxy healthy (PID: ${pid ?? 'unknown'})`);
+    // Get version from session lock
+    const runningVersion = getRunningProxyVersion(port);
+
+    log(
+      `HTTP check passed, proxy healthy (PID: ${pid ?? 'unknown'}, version: ${runningVersion ?? 'unknown'})`
+    );
     return {
       running: true,
       verified: true,
       method: 'http',
       pid,
       sessionCount: lock?.sessions?.length,
+      version: runningVersion ?? undefined,
     };
   }
   log('HTTP check failed, proxy not responding');
@@ -103,13 +111,17 @@ export async function detectRunningProxy(
   if (lock) {
     // Session lock exists - proxy might be starting up
     // The lock validates PID is running, so proxy exists but not ready
-    log(`Session lock found: PID ${lock.pid}, ${lock.sessions.length} sessions`);
+    const lockVersion = getRunningProxyVersion(port);
+    log(
+      `Session lock found: PID ${lock.pid}, ${lock.sessions.length} sessions, version: ${lockVersion ?? 'unknown'}`
+    );
     return {
       running: true,
       verified: false,
       method: 'session-lock',
       pid: lock.pid,
       sessionCount: lock.sessions.length,
+      version: lockVersion ?? undefined,
     };
   }
   log('No session lock found');

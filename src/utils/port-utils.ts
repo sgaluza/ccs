@@ -182,6 +182,32 @@ export interface BindingTestResult {
 }
 
 /**
+ * Wait for a port to become free (no process listening)
+ * @param port Port number to wait for
+ * @param timeoutMs Maximum time to wait in milliseconds (default: 5000)
+ * @param pollIntervalMs Interval between checks in milliseconds (default: 200)
+ * @returns True if port became free, false if timeout
+ */
+export async function waitForPortFree(
+  port: number,
+  timeoutMs = 5000,
+  pollIntervalMs = 200
+): Promise<boolean> {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeoutMs) {
+    const process = await getPortProcess(port);
+    if (!process) {
+      return true; // Port is free
+    }
+    // Wait before next check
+    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+  }
+
+  return false; // Timeout reached
+}
+
+/**
  * Test if we can bind to localhost on a specific port
  * This verifies network stack is working and port is actually available
  */
