@@ -1,8 +1,9 @@
 /**
  * Accounts Table Component
- * Phase 03: REST API Routes & CRUD
+ * Dashboard parity: Full CRUD for auth profiles
  */
 
+import { useState } from 'react';
 import { useReactTable, getCoreRowModel, flexRender, type ColumnDef } from '@tanstack/react-table';
 import {
   Table,
@@ -13,17 +14,35 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Check } from 'lucide-react';
-import { useSetDefaultAccount } from '@/hooks/use-accounts';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Check, Trash2, RotateCcw } from 'lucide-react';
+import {
+  useSetDefaultAccount,
+  useDeleteAccount,
+  useResetDefaultAccount,
+} from '@/hooks/use-accounts';
 import type { Account } from '@/lib/api-client';
 
 interface AccountsTableProps {
   data: Account[];
   defaultAccount: string | null;
+  onRefresh?: () => void;
 }
 
 export function AccountsTable({ data, defaultAccount }: AccountsTableProps) {
   const setDefaultMutation = useSetDefaultAccount();
+  const deleteMutation = useDeleteAccount();
+  const resetDefaultMutation = useResetDefaultAccount();
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const columns: ColumnDef<Account>[] = [
     {
@@ -71,20 +90,34 @@ export function AccountsTable({ data, defaultAccount }: AccountsTableProps) {
     {
       id: 'actions',
       header: 'Actions',
-      size: 100,
+      size: 180,
       cell: ({ row }) => {
         const isDefault = row.original.name === defaultAccount;
+        const isPending = setDefaultMutation.isPending || deleteMutation.isPending;
+
         return (
-          <Button
-            variant={isDefault ? 'secondary' : 'default'}
-            size="sm"
-            className="h-8 px-2 w-full"
-            disabled={isDefault || setDefaultMutation.isPending}
-            onClick={() => setDefaultMutation.mutate(row.original.name)}
-          >
-            <Check className={`w-3 h-3 mr-1.5 ${isDefault ? 'opacity-50' : ''}`} />
-            {isDefault ? 'Active' : 'Set Default'}
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant={isDefault ? 'secondary' : 'default'}
+              size="sm"
+              className="h-8 px-2"
+              disabled={isDefault || isPending}
+              onClick={() => setDefaultMutation.mutate(row.original.name)}
+            >
+              <Check className={`w-3 h-3 mr-1 ${isDefault ? 'opacity-50' : ''}`} />
+              {isDefault ? 'Active' : 'Set Default'}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+              disabled={isDefault || isPending}
+              onClick={() => setDeleteTarget(row.original.name)}
+              title={isDefault ? 'Cannot delete default account' : 'Delete account'}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
         );
       },
     },
@@ -100,51 +133,97 @@ export function AccountsTable({ data, defaultAccount }: AccountsTableProps) {
   if (data.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No accounts found. Use <code className="text-sm bg-muted px-1 rounded">ccs login</code> to
-        add accounts.
+        No accounts found. Use{' '}
+        <code className="text-sm bg-muted px-1 rounded">ccs auth create</code> to add accounts.
       </div>
     );
   }
 
   return (
-    <div className="border rounded-md">
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                const widthClass =
-                  {
-                    name: 'w-[200px]',
-                    type: 'w-[100px]',
-                    created: 'w-[150px]',
-                    last_used: 'w-[150px]',
-                    actions: 'w-[100px]',
-                  }[header.id] || 'w-auto';
+    <>
+      <div className="space-y-4">
+        <div className="border rounded-md">
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const widthClass =
+                      {
+                        name: 'w-[200px]',
+                        type: 'w-[100px]',
+                        created: 'w-[150px]',
+                        last_used: 'w-[150px]',
+                        actions: 'w-[180px]',
+                      }[header.id] || 'w-auto';
 
-                return (
-                  <TableHead key={header.id} className={widthClass}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows.map((row) => (
-            <TableRow key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
+                    return (
+                      <TableHead key={header.id} className={widthClass}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(header.column.columnDef.header, header.getContext())}
+                      </TableHead>
+                    );
+                  })}
+                </TableRow>
               ))}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Reset default button */}
+        {defaultAccount && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => resetDefaultMutation.mutate()}
+              disabled={resetDefaultMutation.isPending}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset to CCS Default
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Account</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete the account &quot;{deleteTarget}&quot;? This will
+              remove the profile and all its session data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteMutation.mutate(deleteTarget);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

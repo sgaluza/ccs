@@ -351,6 +351,8 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name }),
       }),
+    resetDefault: () => request('/accounts/reset-default', { method: 'DELETE' }),
+    delete: (name: string) => request(`/accounts/${name}`, { method: 'DELETE' }),
   },
   // Unified config API
   config: {
