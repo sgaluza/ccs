@@ -26,8 +26,14 @@ interface ProviderSettings {
 /**
  * Validate port is a valid positive integer (1-65535).
  * Returns default port if invalid.
+ *
+ * @param port - Port number to validate
+ * @returns Valid port or CLIPROXY_DEFAULT_PORT (8317) if invalid
  */
-function validatePort(port: number): number {
+export function validatePort(port: number | undefined): number {
+  if (port === undefined || port === null) {
+    return CLIPROXY_DEFAULT_PORT;
+  }
   if (!Number.isFinite(port) || port < 1 || port > 65535 || !Number.isInteger(port)) {
     return CLIPROXY_DEFAULT_PORT;
   }

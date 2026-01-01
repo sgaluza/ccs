@@ -8,7 +8,7 @@
  */
 
 import { ResolvedProxyConfig } from './types';
-import { CLIPROXY_DEFAULT_PORT } from './config-generator';
+import { CLIPROXY_DEFAULT_PORT, validatePort } from './config-generator';
 
 /** CLI flags for proxy configuration */
 export const PROXY_CLI_FLAGS = [
@@ -276,10 +276,12 @@ export function resolveProxyConfig(
   resolved.host = cliFlags.host ?? envConfig.host ?? yamlConfig.remote?.host;
 
   // Merge port: CLI > ENV > config.yaml (remote or local) > default
+  // Validate YAML-sourced ports before use (CLI/ENV already validated during parse)
+  const yamlPort = resolved.mode === 'remote' ? yamlConfig.remote?.port : yamlConfig.local?.port;
   resolved.port =
     cliFlags.port ??
     envConfig.port ??
-    (resolved.mode === 'remote' ? yamlConfig.remote?.port : yamlConfig.local?.port) ??
+    (yamlPort !== undefined ? validatePort(yamlPort) : undefined) ??
     DEFAULT_PROXY_CONFIG.port;
 
   // Merge protocol: CLI > ENV > config.yaml > default

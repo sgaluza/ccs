@@ -26,6 +26,7 @@ import {
   ensureProviderSettings,
   CLIPROXY_DEFAULT_PORT,
   getCliproxyWritablePath,
+  validatePort,
 } from './config-generator';
 import { checkRemoteProxy } from './remote-proxy-client';
 import { isAuthenticated } from './auth-handler';
@@ -121,7 +122,11 @@ export async function execClaudeWithCLIProxy(
   args: string[],
   config: Partial<ExecutorConfig> = {}
 ): Promise<void> {
-  const cfg = { ...DEFAULT_CONFIG, ...config };
+  // Filter out undefined values to prevent overwriting defaults
+  const filteredConfig = Object.fromEntries(
+    Object.entries(config).filter(([, v]) => v !== undefined)
+  ) as Partial<ExecutorConfig>;
+  const cfg = { ...DEFAULT_CONFIG, ...filteredConfig };
   const verbose = cfg.verbose || args.includes('--verbose') || args.includes('-v');
 
   const log = (msg: string) => {
@@ -167,6 +172,9 @@ export async function execClaudeWithCLIProxy(
   } else if (proxyConfig.port !== CLIPROXY_DEFAULT_PORT) {
     cfg.port = proxyConfig.port;
   }
+
+  // Final port validation - ensure valid port after all resolution
+  cfg.port = validatePort(cfg.port);
 
   log(`Proxy mode: ${proxyConfig.mode}`);
   if (proxyConfig.mode === 'remote') {

@@ -18,6 +18,7 @@
 import { getExistingProxy, registerSession, getRunningProxyVersion } from './session-tracker';
 import { isCliproxyRunning } from './stats-fetcher';
 import { getPortProcess, isCLIProxyProcess, PortProcess } from '../utils/port-utils';
+import { CLIPROXY_DEFAULT_PORT } from './config-generator';
 
 /** Detection method used to find the proxy */
 export type DetectionMethod = 'http' | 'session-lock' | 'port-process' | 'http-retry';
@@ -61,27 +62,31 @@ const noopLog: LogFn = () => {};
  * @returns ProxyStatus with detection details
  */
 export async function detectRunningProxy(
-  port: number,
+  port: number = CLIPROXY_DEFAULT_PORT,
   verbose: boolean = false
 ): Promise<ProxyStatus> {
   const log: LogFn = verbose ? (msg) => console.error(`[proxy-detector] ${msg}`) : noopLog;
 
-  log(`Detecting proxy on port ${port}...`);
+  // Validate port - fallback to default if invalid
+  const validPort =
+    port && Number.isFinite(port) && port >= 1 && port <= 65535 ? port : CLIPROXY_DEFAULT_PORT;
+
+  log(`Detecting proxy on port ${validPort}...`);
 
   // 1. First: HTTP health check (fastest, most reliable)
   log('Trying HTTP health check...');
-  const healthy = await isCliproxyRunning(port);
+  const healthy = await isCliproxyRunning(validPort);
   if (healthy) {
     // Proxy is running and responsive
     // Try to get PID from session lock if available
-    const lock = getExistingProxy(port);
+    const lock = getExistingProxy(validPort);
     let pid = lock?.pid;
 
     // If no PID from session lock, try port-process detection
     // This handles orphaned proxies (running but no sessions.json)
     if (!pid) {
       log('No PID from session lock, checking port process...');
-      const portProcess = await getPortProcess(port);
+      const portProcess = await getPortProcess(validPort);
       if (portProcess) {
         pid = portProcess.pid;
         log(`Got PID from port process: ${pid}`);
@@ -89,7 +94,7 @@ export async function detectRunningProxy(
     }
 
     // Get version from session lock
-    const runningVersion = getRunningProxyVersion(port);
+    const runningVersion = getRunningProxyVersion(validPort);
 
     log(
       `HTTP check passed, proxy healthy (PID: ${pid ?? 'unknown'}, version: ${runningVersion ?? 'unknown'})`
@@ -107,11 +112,11 @@ export async function detectRunningProxy(
 
   // 2. Second: Check session lock file
   log('Checking session lock file...');
-  const lock = getExistingProxy(port);
+  const lock = getExistingProxy(validPort);
   if (lock) {
     // Session lock exists - proxy might be starting up
     // The lock validates PID is running, so proxy exists but not ready
-    const lockVersion = getRunningProxyVersion(port);
+    const lockVersion = getRunningProxyVersion(validPort);
     log(
       `Session lock found: PID ${lock.pid}, ${lock.sessions.length} sessions, version: ${lockVersion ?? 'unknown'}`
     );
@@ -128,7 +133,7 @@ export async function detectRunningProxy(
 
   // 3. Third: Check port process (fallback for orphaned/untracked proxy)
   log('Checking port process...');
-  const portProcess = await getPortProcess(port);
+  const portProcess = await getPortProcess(validPort);
   if (portProcess) {
     log(`Port occupied by: ${portProcess.processName} (PID ${portProcess.pid})`);
 
@@ -136,7 +141,7 @@ export async function detectRunningProxy(
     if (isCLIProxyProcess(portProcess)) {
       log('Process name matches CLIProxy, retrying HTTP...');
       // Looks like CLIProxy by name - verify with HTTP
-      const retryHealth = await isCliproxyRunning(port);
+      const retryHealth = await isCliproxyRunning(validPort);
       if (retryHealth) {
         log('HTTP retry passed, proxy is healthy');
         return {
@@ -159,7 +164,7 @@ export async function detectRunningProxy(
     // Process name doesn't match (or Windows returned PID-XXXXX)
     // Do one more HTTP check to be sure it's not ours
     log('Process name unrecognized, final HTTP check (Windows PID-XXXXX case)...');
-    const finalHealthCheck = await isCliproxyRunning(port);
+    const finalHealthCheck = await isCliproxyRunning(validPort);
     if (finalHealthCheck) {
       // It IS our proxy, just with unrecognized name (Windows case)
       log('Final HTTP check passed, reclaiming proxy with unrecognized name');
