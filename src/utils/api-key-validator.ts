@@ -26,47 +26,44 @@ const DEFAULT_PLACEHOLDERS = [
   '',
 ];
 
-/**
- * Validate GLM API key with quick health check
- *
- * @param apiKey - The ANTHROPIC_AUTH_TOKEN value
- * @param baseUrl - Optional base URL (defaults to Z.AI)
- * @param timeoutMs - Timeout in milliseconds (default 2000)
- */
-export async function validateGlmKey(
+interface ProviderConfig {
+  name: string;
+  profile: string;
+  defaultBaseUrl: string;
+  path: string;
+  displayName: string;
+  dashboardUrl: string;
+}
+
+async function validateProviderKey(
   apiKey: string,
+  config: ProviderConfig,
   baseUrl?: string,
   timeoutMs = 2000
 ): Promise<ValidationResult> {
-  // Skip if disabled
   if (process.env.CCS_SKIP_PREFLIGHT === '1') {
     return { valid: true };
   }
 
-  // Basic format check - detect placeholders
   if (!apiKey || DEFAULT_PLACEHOLDERS.includes(apiKey.toUpperCase())) {
     return {
       valid: false,
       error: 'API key not configured',
       suggestion:
-        'Set ANTHROPIC_AUTH_TOKEN in ~/.ccs/glm.settings.json\n' +
-        'Or run: ccs config -> API Profiles -> GLM',
+        `Set ANTHROPIC_AUTH_TOKEN in ~/.ccs/${config.profile}.settings.json\n` +
+        `Or run: ccs config -> API Profiles -> ${config.name}`,
     };
   }
 
-  // Determine validation endpoint
-  // Z.AI uses /api/anthropic path, we can test with a minimal request
-  const targetBase = baseUrl || 'https://api.z.ai';
+  const targetBase = baseUrl || config.defaultBaseUrl;
   let url: URL;
   try {
-    url = new URL('/api/anthropic/v1/models', targetBase);
+    url = new URL(config.path, targetBase);
   } catch {
-    // Invalid URL - fail-open
     return { valid: true };
   }
 
   return new Promise((resolve) => {
-    // Determine protocol - use http module for http:// URLs
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
     const defaultPort = isHttps ? 443 : 80;
@@ -90,16 +87,14 @@ export async function validateGlmKey(
       } else if (res.statusCode === 401 || res.statusCode === 403) {
         resolve({
           valid: false,
-          error: 'API key rejected by Z.AI',
+          error: `API key rejected by ${config.displayName}`,
           suggestion:
-            'Your key may have expired. To fix:\n' +
-            '  1. Go to Z.AI dashboard and regenerate your API key\n' +
-            '  2. Update ~/.ccs/glm.settings.json with the new key\n' +
-            '  3. Or run: ccs config -> API Profiles -> GLM',
+            `Your key may have expired. To fix:\n` +
+            `  1. Go to ${config.dashboardUrl} and regenerate your API key\n` +
+            `  2. Update ~/.ccs/${config.profile}.settings.json with new key\n` +
+            `  3. Or run: ccs config -> API Profiles -> ${config.name}`,
         });
       } else {
-        // Other errors (404, 500, etc.) - fail-open, let Claude CLI handle
-        // Debug log for diagnostics when CCS_DEBUG is set
         if (process.env.CCS_DEBUG === '1') {
           console.error(
             `[CCS-Preflight] Unexpected status ${res.statusCode} from ${url.href} - fail-open`
@@ -108,21 +103,16 @@ export async function validateGlmKey(
         resolve({ valid: true });
       }
 
-      // Consume response body to free resources
       res.resume();
     });
 
     req.on('error', () => {
       clearTimeout(timeoutId);
-      // Network error - fail-open
       resolve({ valid: true });
     });
 
-    // Set timeout after request is created so we can destroy it on timeout
     const timeoutId = setTimeout(() => {
-      // Abort request to prevent TCP connection leak
       req.destroy();
-      // Fail-open on timeout - let Claude CLI handle it
       resolve({ valid: true });
     }, timeoutMs);
 
@@ -130,106 +120,42 @@ export async function validateGlmKey(
   });
 }
 
-/**
- * Validate MiniMax API key with quick health check
- *
- * @param apiKey - The ANTHROPIC_AUTH_TOKEN value
- * @param baseUrl - Optional base URL (defaults to MiniMax)
- * @param timeoutMs - Timeout in milliseconds (default 2000)
- */
+export async function validateGlmKey(
+  apiKey: string,
+  baseUrl?: string,
+  timeoutMs?: number
+): Promise<ValidationResult> {
+  return validateProviderKey(
+    apiKey,
+    {
+      name: 'GLM',
+      profile: 'glm',
+      defaultBaseUrl: 'https://api.z.ai',
+      path: '/api/anthropic/v1/models',
+      displayName: 'Z.AI',
+      dashboardUrl: 'Z.AI dashboard',
+    },
+    baseUrl,
+    timeoutMs
+  );
+}
+
 export async function validateMiniMaxKey(
   apiKey: string,
   baseUrl?: string,
-  timeoutMs = 2000
+  timeoutMs?: number
 ): Promise<ValidationResult> {
-  // Skip if disabled
-  if (process.env.CCS_SKIP_PREFLIGHT === '1') {
-    return { valid: true };
-  }
-
-  // Basic format check - detect placeholders
-  if (!apiKey || DEFAULT_PLACEHOLDERS.includes(apiKey.toUpperCase())) {
-    return {
-      valid: false,
-      error: 'API key not configured',
-      suggestion:
-        'Set ANTHROPIC_AUTH_TOKEN in ~/.ccs/mm.settings.json\n' +
-        'Or run: ccs config -> API Profiles -> MiniMax',
-    };
-  }
-
-  // Determine validation endpoint
-  // MiniMax uses /anthropic path, we can test with a minimal request
-  const targetBase = baseUrl || 'https://api.minimax.io';
-  let url: URL;
-  try {
-    url = new URL('/anthropic/v1/models', targetBase);
-  } catch {
-    // Invalid URL - fail-open
-    return { valid: true };
-  }
-
-  return new Promise((resolve) => {
-    // Determine protocol - use http module for http:// URLs
-    const isHttps = url.protocol === 'https:';
-    const httpModule = isHttps ? https : http;
-    const defaultPort = isHttps ? 443 : 80;
-
-    const options: https.RequestOptions = {
-      hostname: url.hostname,
-      port: url.port || defaultPort,
-      path: url.pathname,
-      method: 'GET',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'User-Agent': 'CCS-Preflight/1.0',
-      },
-    };
-
-    const req = httpModule.request(options, (res) => {
-      clearTimeout(timeoutId);
-
-      if (res.statusCode === 200) {
-        resolve({ valid: true });
-      } else if (res.statusCode === 401 || res.statusCode === 403) {
-        resolve({
-          valid: false,
-          error: 'API key rejected by MiniMax',
-          suggestion:
-            'Your key may have expired. To fix:\n' +
-            '  1. Go to platform.minimax.io and regenerate your API key\n' +
-            '  2. Update ~/.ccs/mm.settings.json with new key\n' +
-            '  3. Or run: ccs config -> API Profiles -> MiniMax',
-        });
-      } else {
-        // Other errors (404, 500, etc.) - fail-open, let Claude CLI handle
-        // Debug log for diagnostics when CCS_DEBUG is set
-        if (process.env.CCS_DEBUG === '1') {
-          console.error(
-            `[CCS-Preflight] Unexpected status ${res.statusCode} from ${url.href} - fail-open`
-          );
-        }
-        resolve({ valid: true });
-      }
-
-      // Consume response body to free resources
-      res.resume();
-    });
-
-    req.on('error', () => {
-      clearTimeout(timeoutId);
-      // Network error - fail-open
-      resolve({ valid: true });
-    });
-
-    // Set timeout after request is created so we can destroy it on timeout
-    const timeoutId = setTimeout(() => {
-      // Abort request to prevent TCP connection leak
-      req.destroy();
-      // Fail-open on timeout - let Claude CLI handle it
-      resolve({ valid: true });
-    }, timeoutMs);
-
-    req.end();
-  });
+  return validateProviderKey(
+    apiKey,
+    {
+      name: 'MiniMax',
+      profile: 'mm',
+      defaultBaseUrl: 'https://api.minimax.io',
+      path: '/anthropic/v1/models',
+      displayName: 'MiniMax',
+      dashboardUrl: 'platform.minimax.io',
+    },
+    baseUrl,
+    timeoutMs
+  );
 }
