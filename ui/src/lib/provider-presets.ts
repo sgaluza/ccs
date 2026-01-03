@@ -106,7 +106,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     badge: '1M context',
     defaultModel: 'MiniMax-M2.1',
     requiresApiKey: true,
-    apiKeyPlaceholder: 'YOUR_MINIMAX_API_KEY',
+    apiKeyPlaceholder: 'YOUR_MINIMAX_API_KEY_HERE',
     apiKeyHint: 'Get your API key at platform.minimax.io',
     category: 'alternative',
   },

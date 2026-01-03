@@ -64,6 +64,13 @@ async function validateProviderKey(
   }
 
   return new Promise((resolve) => {
+    let resolved = false;
+    const safeResolve = (result: ValidationResult) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(result);
+    };
+
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
     const defaultPort = isHttps ? 443 : 80;
@@ -83,9 +90,9 @@ async function validateProviderKey(
       clearTimeout(timeoutId);
 
       if (res.statusCode === 200) {
-        resolve({ valid: true });
+        safeResolve({ valid: true });
       } else if (res.statusCode === 401 || res.statusCode === 403) {
-        resolve({
+        safeResolve({
           valid: false,
           error: `API key rejected by ${config.displayName}`,
           suggestion:
@@ -100,7 +107,7 @@ async function validateProviderKey(
             `[CCS-Preflight] Unexpected status ${res.statusCode} from ${url.href} - fail-open`
           );
         }
-        resolve({ valid: true });
+        safeResolve({ valid: true });
       }
 
       res.resume();
@@ -108,12 +115,12 @@ async function validateProviderKey(
 
     req.on('error', () => {
       clearTimeout(timeoutId);
-      resolve({ valid: true });
+      safeResolve({ valid: true });
     });
 
     const timeoutId = setTimeout(() => {
       req.destroy();
-      resolve({ valid: true });
+      safeResolve({ valid: true });
     }, timeoutMs);
 
     req.end();

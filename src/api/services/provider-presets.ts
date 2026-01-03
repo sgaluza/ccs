@@ -105,7 +105,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     baseUrl: 'https://api.minimax.io/anthropic',
     defaultProfileName: 'mm',
     defaultModel: 'MiniMax-M2.1',
-    apiKeyPlaceholder: 'YOUR_MINIMAX_API_KEY',
+    apiKeyPlaceholder: 'YOUR_MINIMAX_API_KEY_HERE',
     apiKeyHint: 'Get your API key at platform.minimax.io',
     category: 'alternative',
   },
