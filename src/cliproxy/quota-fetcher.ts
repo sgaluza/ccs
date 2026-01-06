@@ -125,14 +125,15 @@ export function detectTier(quotaResult: QuotaResult): AccountTier {
   const modelNames = quotaResult.models.map((m) => m.name.toLowerCase());
 
   // Ultra indicators: experimental, preview, ultra in name
-  const ultraIndicators = ['ultra', 'experimental', 'preview', '2.5-pro', '3-ultra'];
+  // Note: 2.5-pro is a standard pro model, not ultra
+  const ultraIndicators = ['ultra', 'experimental', 'preview', '3-ultra'];
   const hasUltra = modelNames.some((name) =>
     ultraIndicators.some((indicator) => name.includes(indicator))
   );
 
   if (hasUltra) return 'ultra';
 
-  // Pro indicators: gemini-2.0, gemini-3, pro models
+  // Pro indicators: gemini-2.x, gemini-3, pro models (includes 2.5-pro)
   const proIndicators = ['gemini-2', 'gemini-3', '-pro'];
   const hasPro = modelNames.some((name) =>
     proIndicators.some((indicator) => name.includes(indicator))
