@@ -81,8 +81,8 @@ export interface OAuthAccount {
   paused?: boolean;
   /** ISO timestamp when account was paused */
   pausedAt?: string;
-  /** Account tier: free, pro, ultra */
-  tier?: 'free' | 'pro' | 'ultra' | 'unknown';
+  /** Account tier: free or paid (Pro/Ultra combined) */
+  tier?: 'free' | 'paid' | 'unknown';
 }
 
 export interface AuthStatus {

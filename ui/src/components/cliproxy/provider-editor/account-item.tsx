@@ -148,8 +148,7 @@ export function AccountItem({
                   variant="outline"
                   className={cn(
                     'text-[10px] h-4 px-1.5 uppercase',
-                    account.tier === 'ultra' && 'border-purple-500 text-purple-600',
-                    account.tier === 'pro' && 'border-blue-500 text-blue-600',
+                    account.tier === 'paid' && 'border-blue-500 text-blue-600',
                     account.tier === 'free' && 'border-gray-400 text-gray-500'
                   )}
                 >

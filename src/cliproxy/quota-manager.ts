@@ -199,7 +199,7 @@ export async function findHealthyAccount(
   exclude: string[]
 ): Promise<{ id: string; tier: string; lastQuota: number } | null> {
   const config = loadOrCreateUnifiedConfig();
-  const tierPriority = config.quota_management?.auto?.tier_priority ?? ['ultra', 'pro'];
+  const tierPriority = config.quota_management?.auto?.tier_priority ?? ['paid'];
   const threshold = config.quota_management?.auto?.exhaustion_threshold ?? 5;
 
   const accounts = getProviderAccounts(provider);
@@ -224,7 +224,7 @@ export async function findHealthyAccount(
 
       return {
         id: account.id,
-        tier: account.tier || 'pro',
+        tier: account.tier || 'paid',
         lastQuota: avgQuota,
       };
     })

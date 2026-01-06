@@ -356,7 +356,7 @@ export interface AutoQuotaConfig {
   preflight_check: boolean;
   /** Quota percentage below which account is "exhausted" (default: 5) */
   exhaustion_threshold: number;
-  /** Tier priority for failover, highest to lowest (default: ['ultra', 'pro']) */
+  /** Tier priority for failover, highest to lowest (default: ['paid']) */
   tier_priority: string[];
   /** Minutes to skip exhausted account before retry (default: 5) */
   cooldown_minutes: number;
@@ -402,7 +402,7 @@ export interface QuotaManagementConfig {
 export const DEFAULT_AUTO_QUOTA_CONFIG: AutoQuotaConfig = {
   preflight_check: true,
   exhaustion_threshold: 5,
-  tier_priority: ['ultra', 'pro'],
+  tier_priority: ['paid'],
   cooldown_minutes: 5,
 };
 

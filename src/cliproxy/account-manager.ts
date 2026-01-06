@@ -14,8 +14,8 @@ import { CLIProxyProvider } from './types';
 import { getCliproxyDir, getAuthDir } from './config-generator';
 import { PROVIDER_TYPE_VALUES } from './auth/auth-types';
 
-/** Account tier for quota management */
-export type AccountTier = 'free' | 'pro' | 'ultra' | 'unknown';
+/** Account tier for quota management (free vs paid - no Pro/Ultra distinction needed) */
+export type AccountTier = 'free' | 'paid' | 'unknown';
 
 /**
  * Providers that typically have empty email in OAuth token files.
@@ -45,7 +45,7 @@ export interface AccountInfo {
   paused?: boolean;
   /** ISO timestamp when paused */
   pausedAt?: string;
-  /** Account tier: free, pro, ultra */
+  /** Account tier: free or paid (Pro/Ultra combined) */
   tier?: AccountTier;
 }
 
