@@ -11,16 +11,40 @@ export interface CustomAdapterConfig {
 }
 
 /**
- * Custom adapter for user-defined transformations
- * Uses configurable transformation functions
+ * Custom adapter for user-defined transformations.
+ * Uses configurable transformation functions.
+ *
+ * ⚠️ SECURITY WARNING ⚠️
+ * This adapter uses `new Function()` to execute user-provided JavaScript code.
+ * Only use with TRUSTED configuration sources. Malicious config.yaml files
+ * could execute arbitrary code on your machine.
+ *
+ * This adapter is NOT registered by default and must be explicitly created.
  */
 export class CustomAdapter implements ProviderAdapter {
   readonly adapterType = 'custom' as const;
 
   private config: CustomAdapterConfig;
+  private warnedUser = false;
 
   constructor(config: CustomAdapterConfig = {}) {
     this.config = config;
+
+    // Warn user about security implications if custom transforms are defined
+    if (config.transformRequest || config.transformResponse) {
+      this.emitSecurityWarning();
+    }
+  }
+
+  private emitSecurityWarning(): void {
+    if (this.warnedUser) return;
+    this.warnedUser = true;
+
+    console.warn(
+      '\n[!] SECURITY WARNING: CustomAdapter is executing user-defined JavaScript code.\n' +
+        '    Only use configurations from TRUSTED sources.\n' +
+        '    Malicious config files could execute arbitrary code on your machine.\n'
+    );
   }
 
   transformRequest(

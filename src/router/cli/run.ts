@@ -10,6 +10,7 @@ import { getAllProviders } from '../providers/registry';
 interface RunOptions {
   debug?: boolean;
   port?: number;
+  quiet?: boolean;
 }
 
 /**
@@ -57,7 +58,7 @@ export async function runCommand(profileName: string, options: RunOptions = {}):
 
   // Start router server
   console.log(`[i] Starting router on port ${port}...`);
-  const { stop } = startRouter(profile, profileName, port);
+  const { stop } = startRouter(profile, profileName, port, { quiet: options.quiet });
 
   // Get environment variables for Claude CLI
   const env = {
@@ -101,6 +102,7 @@ export const runCommandConfig = {
   description: 'Run Claude CLI with router profile',
   options: [
     { flag: '--debug', description: 'Show routing debug info' },
+    { flag: '--quiet', description: 'Suppress request logging' },
     { flag: '--port <port>', description: 'Router port (default: 9400)' },
   ],
   action: runCommand,

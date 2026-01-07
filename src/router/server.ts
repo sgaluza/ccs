@@ -19,19 +19,30 @@ interface RouterVariables {
 
 type RouterContext = Context<{ Variables: RouterVariables }>;
 
+export interface RouterServerOptions {
+  /** Suppress request logging (default: false) */
+  quiet?: boolean;
+}
+
 /**
  * Create router HTTP server
  */
-export function createRouterServer(profile: RouterProfile, profileName: string) {
+export function createRouterServer(
+  profile: RouterProfile,
+  profileName: string,
+  options: RouterServerOptions = {}
+) {
   const app = new Hono<{ Variables: RouterVariables }>();
 
-  // Request logging middleware
-  app.use('*', async (c: RouterContext, next: Next) => {
-    const start = Date.now();
-    await next();
-    const duration = Date.now() - start;
-    console.log(`[Router] ${c.req.method} ${c.req.path} - ${c.res.status} (${duration}ms)`);
-  });
+  // Request logging middleware (skip if quiet mode)
+  if (!options.quiet) {
+    app.use('*', async (c: RouterContext, next: Next) => {
+      const start = Date.now();
+      await next();
+      const duration = Date.now() - start;
+      console.log(`[Router] ${c.req.method} ${c.req.path} - ${c.res.status} (${duration}ms)`);
+    });
+  }
 
   // Store profile in context
   app.use('*', async (c: RouterContext, next: Next) => {
@@ -238,9 +249,10 @@ async function handleStreamingRequest(
 export function startRouter(
   profile: RouterProfile,
   profileName: string,
-  port: number = 9400
+  port: number = 9400,
+  options: RouterServerOptions = {}
 ): { stop: () => void } {
-  const app = createRouterServer(profile, profileName);
+  const app = createRouterServer(profile, profileName, options);
 
   // Use globalThis.Bun for Bun runtime
   const BunRuntime = globalThis.Bun;
