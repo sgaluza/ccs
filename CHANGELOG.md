@@ -1,3 +1,35 @@
+## [7.15.0](https://github.com/kaitranntt/ccs/compare/v7.14.0...v7.15.0) (2026-01-06)
+
+### Features
+
+* **api:** add pause/resume account endpoints ([c13003d](https://github.com/kaitranntt/ccs/commit/c13003d940a217d22b2b5a027815053ef93d9046)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+* **cli:** add pause, resume, status subcommands ([cfd8dd9](https://github.com/kaitranntt/ccs/commit/cfd8dd974e875b858f78bb73e74e44062b72d38e)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+* **cliproxy:** add hybrid quota management core ([11ffca3](https://github.com/kaitranntt/ccs/commit/11ffca33bdeb30b2b3631295ca64a17a480d8954)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+* **cliproxy:** integrate pre-flight quota check ([10e3eec](https://github.com/kaitranntt/ccs/commit/10e3eec16f46b3318dfef5d33dc903cfbf9cae1d)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+* **ui:** add pause/resume API hooks ([b92a35d](https://github.com/kaitranntt/ccs/commit/b92a35d09b203427a105bc28a487302c8a726f21)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+* **ui:** add pause/resume toggle and tier badges ([4ad7292](https://github.com/kaitranntt/ccs/commit/4ad7292700c991e1d2f8478da4d6ed33ce14982d)), closes [#282](https://github.com/kaitranntt/ccs/issues/282)
+
+### Bug Fixes
+
+* **cliproxy:** harden nickname validation and race condition handling ([5970e70](https://github.com/kaitranntt/ccs/commit/5970e70e2641e7d77b6f77d9624cd6990a1b81ba))
+* **cliproxy:** prevent race in promptNickname close handler ([107e281](https://github.com/kaitranntt/ccs/commit/107e2813f96624c105bab7d227336b0779648f12))
+* **cliproxy:** update lastUsedAt on normal execution ([b55cd79](https://github.com/kaitranntt/ccs/commit/b55cd795ab5da18ea5363aa378712b467a17bf22))
+* **cliproxy:** use nickname as accountId for kiro/ghcp providers ([d96c67b](https://github.com/kaitranntt/ccs/commit/d96c67ba810fb933f4a26bf43b6c011e44ed5d47)), closes [#258](https://github.com/kaitranntt/ccs/issues/258) [#267](https://github.com/kaitranntt/ccs/issues/267)
+* **quota:** address edge cases from code review ([a32fdc8](https://github.com/kaitranntt/ccs/commit/a32fdc8cfb2160771762ca07c62c30905a817d1d)), closes [#30](https://github.com/kaitranntt/ccs/issues/30) [#31](https://github.com/kaitranntt/ccs/issues/31) [#8](https://github.com/kaitranntt/ccs/issues/8) [#26](https://github.com/kaitranntt/ccs/issues/26)
+* **quota:** correct tier detection - remove 2.5-pro from ultra indicators ([0af185f](https://github.com/kaitranntt/ccs/commit/0af185f6a0b40d3a10215ba183f583b25a3d9967))
+* **quota:** handle 'standard-tier' as free in tier mapping ([a5f1472](https://github.com/kaitranntt/ccs/commit/a5f1472047fc7e70329d066b41a5ba051b412051))
+* **quota:** use API tier detection instead of model-based heuristics ([aad0d44](https://github.com/kaitranntt/ccs/commit/aad0d44069b78f395285e3b71c0a9563b7abe4eb))
+
+### Documentation
+
+* **CLAUDE.md:** add help location reference and documentation requirements ([113cc06](https://github.com/kaitranntt/ccs/commit/113cc06add969879148d4541fe0517b1046c74f3))
+* **cli:** add cliproxy pause/resume/status to --help ([4b7328b](https://github.com/kaitranntt/ccs/commit/4b7328b3880a3fa1d71a21f6b73616968cd8737a))
+* update documentation for CCS v7.14.x with quota management ([ec4c2c2](https://github.com/kaitranntt/ccs/commit/ec4c2c2f7b5314d4d45968805126f581da7db3d7))
+
+### Code Refactoring
+
+* **quota:** simplify AccountTier to free|paid|unknown ([db071e2](https://github.com/kaitranntt/ccs/commit/db071e2ff2de3c880651445f1f9094a4a43bec74))
+
 ## [7.14.0](https://github.com/kaitranntt/ccs/compare/v7.13.1...v7.14.0) (2026-01-06)
 
 ### Features
