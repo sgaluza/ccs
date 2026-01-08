@@ -12,6 +12,7 @@ import {
   saveUnifiedConfig,
   getGlobalEnvConfig,
   getThinkingConfig,
+  getConfigYamlPath,
 } from '../../config/unified-config-loader';
 import type { ThinkingConfig } from '../../config/unified-config-types';
 import {
@@ -233,12 +234,20 @@ router.put('/global-env', (req: Request, res: Response): void => {
 
 /**
  * GET /api/thinking - Get thinking budget configuration
- * Returns the thinking section from config.yaml
+ * Returns the thinking section from config.yaml with mtime for optimistic locking
  */
 router.get('/thinking', (_req: Request, res: Response): void => {
   try {
     const config = getThinkingConfig();
-    res.json({ config });
+    // W4: Include mtime for optimistic locking
+    let lastModified: number | undefined;
+    try {
+      const stats = fs.statSync(getConfigYamlPath());
+      lastModified = stats.mtimeMs;
+    } catch {
+      // File may not exist yet
+    }
+    res.json({ config, lastModified });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
@@ -247,10 +256,30 @@ router.get('/thinking', (_req: Request, res: Response): void => {
 /**
  * PUT /api/thinking - Update thinking budget configuration
  * Updates the thinking section in config.yaml
+ * Supports optimistic locking via lastModified field
  */
 router.put('/thinking', (req: Request, res: Response): void => {
   try {
-    const updates = req.body as Partial<ThinkingConfig>;
+    const { lastModified, ...updates } = req.body as Partial<ThinkingConfig> & {
+      lastModified?: number;
+    };
+
+    // W4: Optimistic locking - check if file was modified since last read
+    if (lastModified !== undefined) {
+      try {
+        const stats = fs.statSync(getConfigYamlPath());
+        if (stats.mtimeMs > lastModified) {
+          res.status(409).json({
+            error: 'Config was modified by another process. Please refresh and try again.',
+            currentMtime: stats.mtimeMs,
+          });
+          return;
+        }
+      } catch {
+        // File may not exist yet, allow creation
+      }
+    }
+
     const config = loadOrCreateUnifiedConfig();
 
     // Validate mode if provided
@@ -353,7 +382,17 @@ router.put('/thinking', (req: Request, res: Response): void => {
     };
 
     saveUnifiedConfig(config);
-    res.json({ success: true, config: config.thinking });
+
+    // W4: Return new mtime for subsequent requests
+    let newMtime: number | undefined;
+    try {
+      const stats = fs.statSync(getConfigYamlPath());
+      newMtime = stats.mtimeMs;
+    } catch {
+      // Ignore
+    }
+
+    res.json({ success: true, config: config.thinking, lastModified: newMtime });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }
