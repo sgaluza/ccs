@@ -51,6 +51,9 @@ jobs:
       REVIEW_MODEL: gemini-claude-opus-4-5-thinking
 
     steps:
+      - name: Clear Claude install locks
+        run: rm -rf ~/.local/state/claude/locks/* 2>/dev/null || true
+
       - name: Generate App Token
         id: app-token
         uses: actions/create-github-app-token@v1
