@@ -230,6 +230,8 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['ccs doctor', 'Run health check and diagnostics'],
     ['ccs cleanup', 'Remove old CLIProxy logs'],
     ['ccs config', 'Open web configuration dashboard'],
+    ['ccs config auth setup', 'Configure dashboard login'],
+    ['ccs config auth show', 'Show dashboard auth status'],
     ['ccs config --port 3000', 'Use specific port'],
     ['ccs sync', 'Sync delegation commands and skills'],
     ['ccs update', 'Update CCS to latest version'],
