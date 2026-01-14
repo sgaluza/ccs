@@ -60,10 +60,19 @@ export default function ProxySection() {
     }
   };
 
-  // Log when debug mode changes
+  // Log when debug mode changes (sanitize sensitive fields)
   useEffect(() => {
-    if (debugMode) {
-      console.log('[CCS Debug] Debug mode enabled - proxy config:', config);
+    if (debugMode && config) {
+      // Sanitize config before logging to prevent credential exposure
+      const sanitizedConfig = {
+        ...config,
+        remote: {
+          ...config.remote,
+          auth_token: config.remote.auth_token ? '[REDACTED]' : undefined,
+          management_key: config.remote.management_key ? '[REDACTED]' : undefined,
+        },
+      };
+      console.log('[CCS Debug] Debug mode enabled - proxy config:', sanitizedConfig);
     }
   }, [debugMode, config]);
 

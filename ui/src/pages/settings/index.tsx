@@ -3,7 +3,15 @@
  * Main entry point with lazy-loaded sections and URL tab persistence
  */
 
-import { lazy, Suspense, startTransition, useEffect, Component, type ReactNode } from 'react';
+import {
+  lazy,
+  Suspense,
+  startTransition,
+  useEffect,
+  Component,
+  type ReactNode,
+  type ComponentType,
+} from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, FileCode, Copy, Check, GripVertical, AlertCircle } from 'lucide-react';
@@ -14,12 +22,34 @@ import { TabNavigation } from './components/tab-navigation';
 import { SectionSkeleton } from './components/section-skeleton';
 import type { SettingsTab } from './types';
 
-// Lazy-loaded sections
-const WebSearchSection = lazy(() => import('./sections/websearch'));
-const GlobalEnvSection = lazy(() => import('./sections/globalenv-section'));
-const ProxySection = lazy(() => import('./sections/proxy'));
-const AuthSection = lazy(() => import('./sections/auth-section'));
-const BackupsSection = lazy(() => import('./sections/backups-section'));
+/**
+ * Retry wrapper for dynamic imports with exponential backoff
+ * Handles temporary network failures gracefully
+ */
+function retryImport<T extends ComponentType<unknown>>(
+  importFn: () => Promise<{ default: T }>,
+  retries = 3,
+  delay = 1000
+): Promise<{ default: T }> {
+  return importFn().catch((error: Error) => {
+    if (retries <= 0) throw error;
+    return new Promise((resolve) => setTimeout(resolve, delay)).then(() =>
+      retryImport(importFn, retries - 1, delay * 2)
+    );
+  });
+}
+
+/** Lazy load with automatic retry on failure */
+function lazyWithRetry<T extends ComponentType<unknown>>(importFn: () => Promise<{ default: T }>) {
+  return lazy(() => retryImport(importFn));
+}
+
+// Lazy-loaded sections with retry capability
+const WebSearchSection = lazyWithRetry(() => import('./sections/websearch'));
+const GlobalEnvSection = lazyWithRetry(() => import('./sections/globalenv-section'));
+const ProxySection = lazyWithRetry(() => import('./sections/proxy'));
+const AuthSection = lazyWithRetry(() => import('./sections/auth-section'));
+const BackupsSection = lazyWithRetry(() => import('./sections/backups-section'));
 
 // Error Boundary for lazy-loaded sections
 class SectionErrorBoundary extends Component<

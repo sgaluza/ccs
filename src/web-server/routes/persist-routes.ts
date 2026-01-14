@@ -15,8 +15,36 @@ interface BackupFile {
   date: Date;
 }
 
-/** Simple in-memory mutex for restore operations */
-let restoreLock = false;
+/**
+ * Async mutex for restore operations - prevents race conditions
+ * Uses a Promise queue pattern for atomic lock acquisition
+ */
+class RestoreMutex {
+  private locked = false;
+  private queue: Array<() => void> = [];
+
+  async acquire(): Promise<boolean> {
+    if (this.locked) {
+      // Already locked - add to queue and wait
+      return new Promise((resolve) => {
+        this.queue.push(() => resolve(false)); // Return false = was queued, reject
+      });
+    }
+    this.locked = true;
+    return true;
+  }
+
+  release(): void {
+    const next = this.queue.shift();
+    if (next) {
+      next(); // Signal queued request to fail
+    } else {
+      this.locked = false;
+    }
+  }
+}
+
+const restoreMutex = new RestoreMutex();
 
 /** Get Claude settings.json path */
 function getClaudeSettingsPath(): string {
@@ -87,14 +115,13 @@ router.get('/backups', (_req: Request, res: Response): void => {
  * POST /api/persist/restore - Restore from a backup
  * Body: { timestamp?: string } - If not provided, restores latest
  */
-router.post('/restore', (req: Request, res: Response): void => {
-  // Check concurrent restore lock
-  if (restoreLock) {
+router.post('/restore', async (req: Request, res: Response): Promise<void> => {
+  // Atomic mutex acquisition - prevents race conditions
+  const acquired = await restoreMutex.acquire();
+  if (!acquired) {
     res.status(409).json({ error: 'Restore already in progress' });
     return;
   }
-
-  restoreLock = true;
 
   try {
     const { timestamp } = req.body;
@@ -118,7 +145,7 @@ router.post('/restore', (req: Request, res: Response): void => {
       backup = found;
     }
 
-    // Security checks
+    // Security: reject symlinks to prevent path traversal attacks
     if (isSymlink(backup.path)) {
       res.status(400).json({ error: 'Backup file is a symlink - refusing for security' });
       return;
@@ -130,29 +157,57 @@ router.post('/restore', (req: Request, res: Response): void => {
       return;
     }
 
-    // Read and validate backup JSON (do this once atomically)
+    // Read backup content securely using file descriptor to prevent TOCTOU
+    // Open with O_NOFOLLOW equivalent check then read atomically
     let backupContent: string;
+    let fd: number | undefined;
     try {
-      backupContent = fs.readFileSync(backup.path, 'utf8');
+      // Verify not symlink immediately before open
+      const stats = fs.lstatSync(backup.path);
+      if (stats.isSymbolicLink()) {
+        res
+          .status(400)
+          .json({ error: 'Backup became symlink during read - refusing for security' });
+        return;
+      }
+      // Open file descriptor for atomic read
+      fd = fs.openSync(backup.path, 'r');
+      const buffer = Buffer.alloc(stats.size);
+      fs.readSync(fd, buffer, 0, stats.size, 0);
+      backupContent = buffer.toString('utf8');
+
       const parsed = JSON.parse(backupContent);
       if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         res.status(400).json({ error: 'Backup file is corrupted' });
         return;
       }
-    } catch {
+    } catch (err) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code === 'ENOENT') {
+        res.status(404).json({ error: 'Backup was deleted during restore' });
+        return;
+      }
       res.status(400).json({ error: 'Backup file is corrupted or invalid JSON' });
       return;
+    } finally {
+      if (fd !== undefined) {
+        try {
+          fs.closeSync(fd);
+        } catch {
+          // Ignore close errors
+        }
+      }
     }
 
     // Atomic restore with rollback capability
     const settingsDir = path.dirname(settingsPath);
     const tempPath = path.join(settingsDir, 'settings.json.restore-tmp');
-    const backupPath = path.join(settingsDir, 'settings.json.rollback-tmp');
+    const rollbackPath = path.join(settingsDir, 'settings.json.rollback-tmp');
 
     try {
       // Step 1: Backup current settings for rollback
       if (fs.existsSync(settingsPath)) {
-        fs.copyFileSync(settingsPath, backupPath);
+        fs.copyFileSync(settingsPath, rollbackPath);
       }
 
       // Step 2: Write validated content to temp file
@@ -162,8 +217,8 @@ router.post('/restore', (req: Request, res: Response): void => {
       fs.renameSync(tempPath, settingsPath);
 
       // Step 4: Cleanup rollback backup on success
-      if (fs.existsSync(backupPath)) {
-        fs.unlinkSync(backupPath);
+      if (fs.existsSync(rollbackPath)) {
+        fs.unlinkSync(rollbackPath);
       }
 
       res.json({
@@ -174,21 +229,25 @@ router.post('/restore', (req: Request, res: Response): void => {
     } catch (error) {
       // Rollback on failure
       try {
-        if (fs.existsSync(backupPath)) {
-          fs.renameSync(backupPath, settingsPath);
+        if (fs.existsSync(rollbackPath)) {
+          fs.renameSync(rollbackPath, settingsPath);
         }
         if (fs.existsSync(tempPath)) {
           fs.unlinkSync(tempPath);
         }
-      } catch {
-        // Ignore cleanup errors
+      } catch (rollbackErr) {
+        console.error('[persist-routes] Rollback failed:', rollbackErr);
+        res.status(500).json({
+          error: 'Restore failed and rollback unsuccessful - manual recovery may be needed',
+        });
+        return;
       }
       throw error;
     }
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   } finally {
-    restoreLock = false;
+    restoreMutex.release();
   }
 });
 

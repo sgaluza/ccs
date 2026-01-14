@@ -10,6 +10,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { RefreshCw, CheckCircle2, AlertCircle, RotateCcw, Clock, Archive } from 'lucide-react';
 import { useRawConfig } from '../hooks';
 
@@ -35,6 +45,7 @@ export default function BackupsSection() {
   const [restoring, setRestoring] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [confirmRestore, setConfirmRestore] = useState<string | null>(null); // Confirmation dialog state
 
   // Fetch backups
   const fetchBackups = useCallback(async () => {
@@ -226,7 +237,7 @@ export default function BackupsSection() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => restoreBackup(backup.timestamp)}
+                      onClick={() => setConfirmRestore(backup.timestamp)}
                       disabled={restoring !== null}
                       className="gap-2 shrink-0"
                     >
@@ -259,6 +270,35 @@ export default function BackupsSection() {
           Refresh
         </Button>
       </div>
+
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={!!confirmRestore} onOpenChange={() => setConfirmRestore(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will replace your current settings with backup from{' '}
+              <code className="font-mono bg-muted px-1.5 py-0.5 rounded text-foreground">
+                {confirmRestore}
+              </code>
+              . This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmRestore) {
+                  restoreBackup(confirmRestore);
+                }
+                setConfirmRestore(null);
+              }}
+            >
+              Restore
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
