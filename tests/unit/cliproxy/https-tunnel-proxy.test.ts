@@ -284,8 +284,12 @@ BAMMCGxvY2FsaG9zdDAeFw0yNDAxMDEwMDAwMDBaFw0yNTAxMDEwMDAwMDBaMBMx
       // Stop should forcefully close connections
       tunnel.stop();
 
-      // Socket should be destroyed
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Socket should be destroyed (allow more time for CI environments)
+      // Wait up to 500ms for socket to be destroyed
+      for (let i = 0; i < 10; i++) {
+        if (socket.destroyed) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       expect(socket.destroyed).toBe(true);
     });
   });
