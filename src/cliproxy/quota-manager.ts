@@ -176,15 +176,15 @@ export interface PreflightResult {
   /** Reason for switch or failure */
   reason?: string;
   /** Average quota percentage of selected account */
-  quotaPercent?: number;
+  quotaPercent?: number | null;
 }
 
 /**
  * Calculate average quota percentage from models
  */
-function calculateAverageQuota(quota: QuotaResult): number {
+function calculateAverageQuota(quota: QuotaResult): number | null {
   if (!quota.success || quota.models.length === 0) {
-    return 100; // Assume OK if no data
+    return null; // No data available
   }
   const total = quota.models.reduce((sum, m) => sum + m.percentage, 0);
   return total / quota.models.length;
@@ -220,7 +220,7 @@ export async function findHealthyAccount(
         quota = await fetchQuotaWithDedup(provider, account.id);
       }
 
-      const avgQuota = calculateAverageQuota(quota);
+      const avgQuota = calculateAverageQuota(quota) ?? 0;
 
       return {
         id: account.id,
@@ -336,7 +336,7 @@ export async function preflightCheck(provider: CLIProxyProvider): Promise<Prefli
   }
 
   // Calculate average quota
-  const avgQuota = calculateAverageQuota(quota);
+  const avgQuota = calculateAverageQuota(quota) ?? 0;
   const threshold = quotaConfig.auto?.exhaustion_threshold ?? 5;
 
   if (avgQuota < threshold) {
@@ -352,7 +352,7 @@ export async function preflightCheck(provider: CLIProxyProvider): Promise<Prefli
   return {
     proceed: true,
     accountId: defaultAccount.id,
-    quotaPercent: avgQuota,
+    quotaPercent: calculateAverageQuota(quota),
   };
 }
 
@@ -363,7 +363,7 @@ export async function preflightCheck(provider: CLIProxyProvider): Promise<Prefli
 export async function getQuotaStatus(provider: CLIProxyProvider): Promise<{
   accounts: Array<{
     account: AccountInfo;
-    quota: number;
+    quota: number | null;
     paused: boolean;
     onCooldown: boolean;
     isDefault: boolean;
@@ -379,7 +379,7 @@ export async function getQuotaStatus(provider: CLIProxyProvider): Promise<{
         quota = await fetchQuotaWithDedup(provider, account.id);
       }
 
-      const avgQuota = quota ? calculateAverageQuota(quota) : 100;
+      const avgQuota = quota ? calculateAverageQuota(quota) : null;
 
       return {
         account,
