@@ -1,3 +1,12 @@
+## [7.20.1](https://github.com/kaitranntt/ccs/compare/v7.20.0...v7.20.1) (2026-01-14)
+
+### Bug Fixes
+
+* **ci:** expand ai-review allowedTools to prevent token waste ([ac7b324](https://github.com/kaitranntt/ccs/commit/ac7b324d4989883c7a8e92030891e51bfc040cc3))
+* **cliproxy:** address PR review feedback ([04c9b08](https://github.com/kaitranntt/ccs/commit/04c9b087ca3466c4b2871a777906f87b19566d3c))
+* **cliproxy:** return null for unknown quota, add verbose diagnostics ([1ac1941](https://github.com/kaitranntt/ccs/commit/1ac19415ce835df15f3fcefbb698f12ec89ec5e9))
+* **deps:** add express-rate-limit to production dependencies ([d9631be](https://github.com/kaitranntt/ccs/commit/d9631be81a018d9e007f241bcb6b928664cc6991)), closes [#333](https://github.com/kaitranntt/ccs/issues/333)
+
 ## [7.20.0](https://github.com/kaitranntt/ccs/compare/v7.19.2...v7.20.0) (2026-01-14)
 
 ### Features
