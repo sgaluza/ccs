@@ -60,6 +60,7 @@ import { detectRunningProxy, waitForProxyHealthy, reclaimOrphanedProxy } from '.
 import { withStartupLock } from './startup-lock';
 import { loadOrCreateUnifiedConfig } from '../config/unified-config-loader';
 import { preflightCheck } from './quota-manager';
+import { HttpsTunnelProxy } from './https-tunnel-proxy';
 
 /** Default executor configuration */
 const DEFAULT_CONFIG: ExecutorConfig = {
@@ -693,17 +694,56 @@ export async function execClaudeWithCLIProxy(
         }
       : undefined;
 
+  // For HTTPS remote, we need a local HTTP tunnel since Claude Code doesn't support
+  // HTTPS in ANTHROPIC_BASE_URL directly (undici limitation)
+  let httpsTunnel: HttpsTunnelProxy | null = null;
+  let tunnelPort: number | null = null;
+
+  if (useRemoteProxy && proxyConfig.protocol === 'https' && proxyConfig.host) {
+    try {
+      httpsTunnel = new HttpsTunnelProxy({
+        remoteHost: proxyConfig.host,
+        remotePort: proxyConfig.port,
+        authToken: proxyConfig.authToken,
+        verbose,
+        allowSelfSigned: proxyConfig.allowSelfSigned ?? false,
+      });
+      tunnelPort = await httpsTunnel.start();
+      log(
+        `HTTPS tunnel started on port ${tunnelPort} → https://${proxyConfig.host}:${proxyConfig.port}`
+      );
+    } catch (error) {
+      const err = error as Error;
+      console.error(warn(`Failed to start HTTPS tunnel: ${err.message}`));
+      throw new Error(`HTTPS tunnel startup failed: ${err.message}`);
+    }
+  }
+
+  // Build env vars - use tunnel port for HTTPS remote, direct URL otherwise
   const envVars = useRemoteProxy
-    ? getRemoteEnvVars(
-        provider,
-        {
-          host: proxyConfig.host ?? 'localhost',
-          port: proxyConfig.port,
-          protocol: proxyConfig.protocol,
-          authToken: proxyConfig.authToken,
-        },
-        cfg.customSettingsPath
-      )
+    ? httpsTunnel && tunnelPort
+      ? // HTTPS remote via local tunnel - use HTTP to tunnel
+        getRemoteEnvVars(
+          provider,
+          {
+            host: '127.0.0.1',
+            port: tunnelPort,
+            protocol: 'http', // Tunnel speaks HTTP locally
+            authToken: proxyConfig.authToken,
+          },
+          cfg.customSettingsPath
+        )
+      : // HTTP remote - direct connection
+        getRemoteEnvVars(
+          provider,
+          {
+            host: proxyConfig.host ?? 'localhost',
+            port: proxyConfig.port,
+            protocol: proxyConfig.protocol,
+            authToken: proxyConfig.authToken,
+          },
+          cfg.customSettingsPath
+        )
     : getEffectiveEnvVars(provider, cfg.port, cfg.customSettingsPath, remoteRewriteConfig);
 
   // Codex-only: inject OpenAI reasoning effort based on tier model mapping.
@@ -722,6 +762,9 @@ export async function execClaudeWithCLIProxy(
         const traceEnabled =
           process.env.CCS_CODEX_REASONING_TRACE === '1' ||
           process.env.CCS_CODEX_REASONING_TRACE === 'true';
+        // For remote proxy mode, strip /api/provider/codex prefix from paths
+        // because remote CLIProxyAPI uses root paths (/v1/messages), not provider-prefixed
+        const stripPathPrefix = useRemoteProxy ? '/api/provider/codex' : undefined;
         codexReasoningProxy = new CodexReasoningProxy({
           upstreamBaseUrl: envVars.ANTHROPIC_BASE_URL,
           verbose,
@@ -735,6 +778,7 @@ export async function execClaudeWithCLIProxy(
             sonnetModel: envVars.ANTHROPIC_DEFAULT_SONNET_MODEL,
             haikuModel: envVars.ANTHROPIC_DEFAULT_HAIKU_MODEL,
           },
+          stripPathPrefix,
         });
         codexReasoningPort = await codexReasoningProxy.start();
         log(
@@ -837,6 +881,10 @@ export async function execClaudeWithCLIProxy(
       codexReasoningProxy.stop();
     }
 
+    if (httpsTunnel) {
+      httpsTunnel.stop();
+    }
+
     // Unregister this session (proxy keeps running for persistence) - only for local mode
     if (sessionId) {
       unregisterSession(sessionId, sessionPort);
@@ -857,6 +905,10 @@ export async function execClaudeWithCLIProxy(
       codexReasoningProxy.stop();
     }
 
+    if (httpsTunnel) {
+      httpsTunnel.stop();
+    }
+
     // Unregister session, proxy keeps running (local mode only)
     if (sessionId) {
       unregisterSession(sessionId, sessionPort);
@@ -870,6 +922,10 @@ export async function execClaudeWithCLIProxy(
 
     if (codexReasoningProxy) {
       codexReasoningProxy.stop();
+    }
+
+    if (httpsTunnel) {
+      httpsTunnel.stop();
     }
 
     // Unregister session, proxy keeps running (local mode only)
