@@ -1,3 +1,16 @@
+## [7.26.2](https://github.com/kaitranntt/ccs/compare/v7.26.1...v7.26.2) (2026-01-23)
+
+### Bug Fixes
+
+* display correct project names in session stats ([8ee87c7](https://github.com/kaitranntt/ccs/commit/8ee87c7452d3b3f71d4dd15031350fdcb2c4a8dc)), closes [#348](https://github.com/kaitranntt/ccs/issues/348) [#103](https://github.com/kaitranntt/ccs/issues/103)
+* **glmt:** respect user-configured model instead of hardcoding glm-4.6 ([bd343f3](https://github.com/kaitranntt/ccs/commit/bd343f3f028bf1c5b0648a7566291fa4b94a09c3)), closes [#358](https://github.com/kaitranntt/ccs/issues/358)
+* resolve test import paths and vi.mock hoisting issues ([84ec434](https://github.com/kaitranntt/ccs/commit/84ec43430d666ffd26505431d76fd1a8d1d4aaae))
+* **ui:** display correct project names in session stats ([01f9610](https://github.com/kaitranntt/ccs/commit/01f96104e65ae02f7a20bad44730922a61b21c02)), closes [#348](https://github.com/kaitranntt/ccs/issues/348) [#103](https://github.com/kaitranntt/ccs/issues/103)
+
+### Tests
+
+* add project name display tests ([c5911dd](https://github.com/kaitranntt/ccs/commit/c5911dde38fedea1eb231a85de96c92dd79aec4e)), closes [#348](https://github.com/kaitranntt/ccs/issues/348) [#103](https://github.com/kaitranntt/ccs/issues/103)
+
 ## [7.26.1](https://github.com/kaitranntt/ccs/compare/v7.26.0...v7.26.1) (2026-01-23)
 
 ### Bug Fixes
