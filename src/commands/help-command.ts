@@ -127,6 +127,8 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs glm', 'GLM 4.6 (API key required)'],
       ['ccs glmt', 'GLM with thinking mode'],
       ['ccs kimi', 'Kimi for Coding (API key)'],
+      ['ccs ollama', 'Local Ollama (http://localhost:11434)'],
+      ['ccs ollama-cloud', 'Ollama Cloud (API key required)'],
       ['', ''], // Spacer
       ['ccs api create', 'Create custom API profile'],
       ['ccs api remove', 'Remove an API profile'],
@@ -172,6 +174,10 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs <provider> --accounts', 'List all accounts'],
       ['ccs <provider> --use <name>', 'Switch to account'],
       ['ccs <provider> --config', 'Change model (agy, gemini)'],
+      [
+        'ccs <provider> --thinking <value>',
+        'Set thinking budget (low/medium/high/xhigh/auto/off or number)',
+      ],
       ['ccs <provider> --logout', 'Clear authentication'],
       ['ccs <provider> --headless', 'Headless auth (for SSH)'],
       ['ccs kiro --import', 'Import token from Kiro IDE'],
@@ -280,6 +286,20 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['--local-proxy', 'Force local mode, ignore remote config'],
     ['--remote-only', 'Fail if remote unreachable (no fallback)'],
     ['--allow-self-signed', 'Allow self-signed certs (for dev proxies)'],
+  ]);
+
+  // W3: Thinking Budget explanation
+  printSubSection('Extended Thinking (--thinking)', [
+    ['--thinking off', 'Disable extended thinking'],
+    ['--thinking auto', 'Let model decide dynamically'],
+    ['--thinking low', '1K tokens - Quick responses'],
+    ['--thinking medium', '8K tokens - Standard analysis'],
+    ['--thinking high', '24K tokens - Deep reasoning'],
+    ['--thinking xhigh', '32K tokens - Maximum depth'],
+    ['--thinking <number>', 'Custom token budget (512-100000)'],
+    ['', ''],
+    ['Note:', 'Extended thinking allocates compute for step-by-step reasoning'],
+    ['', 'before responding. Supported: agy, gemini (thinking models).'],
   ]);
 
   // CLI Proxy env vars
