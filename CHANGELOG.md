@@ -1,3 +1,23 @@
+## [7.26.0](https://github.com/kaitranntt/ccs/compare/v7.25.0...v7.26.0) (2026-01-23)
+
+### Features
+
+* add Ollama provider support ([bd3be23](https://github.com/kaitranntt/ccs/commit/bd3be23355f48269d5ce74dbf2b5aaf0eda8cf22))
+* **ui:** add Ollama logo and make API key optional ([2cb77f2](https://github.com/kaitranntt/ccs/commit/2cb77f2dfd8376905e76cdd951830d24f2d29bbf))
+* **ui:** add Ollama provider presets to dashboard ([2b7d18c](https://github.com/kaitranntt/ccs/commit/2b7d18c4c6631cb949c82a3eecc83beb0c885319))
+* **ui:** add provider logos for alternative API presets ([5074122](https://github.com/kaitranntt/ccs/commit/5074122d4af705933c60527d34f5ec9bc168990b))
+
+### Bug Fixes
+
+* **api:** skip API key prompt for local Ollama preset ([ef2c8bb](https://github.com/kaitranntt/ccs/commit/ef2c8bba12e9ab164fa5b4be4c8fbb60617a20a1))
+* **api:** skip API key prompt for local Ollama using noApiKey flag ([dc6977d](https://github.com/kaitranntt/ccs/commit/dc6977d32e5511b24f6a403f609507e9cd19af19))
+* **ollama:** align property naming and descriptions ([3ce698c](https://github.com/kaitranntt/ccs/commit/3ce698c5fe3bc013371b51f6c13d01f32611f9a3))
+* **presets:** make requiresApiKey required boolean, add sentinel docs ([8e29c48](https://github.com/kaitranntt/ccs/commit/8e29c48c6dd689794adaf740634823914e609c9d))
+
+### Documentation
+
+* add Ollama to Built-in Providers table and usage examples ([c9604be](https://github.com/kaitranntt/ccs/commit/c9604be5e1089c38d10047f65ab531a25ea14fc5))
+
 ## [7.25.0](https://github.com/kaitranntt/ccs/compare/v7.24.2...v7.25.0) (2026-01-22)
 
 ### Features
