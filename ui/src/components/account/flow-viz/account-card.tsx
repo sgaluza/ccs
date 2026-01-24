@@ -10,9 +10,10 @@ import {
   getMinClaudeQuota,
 } from '@/lib/utils';
 import { PRIVACY_BLUR_CLASS } from '@/contexts/privacy-context';
-import { GripVertical, Loader2, Clock, Pause } from 'lucide-react';
+import { GripVertical, Loader2, Clock, Pause, Play } from 'lucide-react';
 import { useAccountQuota } from '@/hooks/use-cliproxy-stats';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
 
 import type { AccountData, DragOffset } from './types';
 import { cleanEmail } from './utils';
@@ -34,6 +35,8 @@ interface AccountCardProps {
   onPointerDown: (e: React.PointerEvent) => void;
   onPointerMove: (e: React.PointerEvent) => void;
   onPointerUp: () => void;
+  onPauseToggle?: (accountId: string, paused: boolean) => void;
+  isPausingAccount?: boolean;
 }
 
 const BORDER_SIDE_MAP: Record<Zone, string> = {
@@ -77,6 +80,8 @@ export function AccountCard({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onPauseToggle,
+  isPausingAccount,
 }: AccountCardProps) {
   const borderSide = BORDER_SIDE_MAP[zone];
   const borderColor = getBorderColorStyle(zone, account.color);
@@ -109,13 +114,48 @@ export function AccountCard({
         borderSide,
         'select-none touch-none',
         isHovered && 'bg-muted/50 dark:bg-zinc-800/60',
-        isDragging && 'cursor-grabbing shadow-xl scale-105 z-50'
+        isDragging && 'cursor-grabbing shadow-xl scale-105 z-50',
+        account.paused && 'opacity-60'
       )}
       style={{
         ...borderColor,
         transform: `translate(${offset.x}px, ${offset.y}px)${isDragging ? ' scale(1.05)' : ''}`,
       }}
     >
+      {/* Pause toggle button - visible on hover or when paused */}
+      {onPauseToggle && (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  'absolute top-1.5 left-1.5 h-5 w-5 z-10',
+                  'opacity-0 group-hover/card:opacity-100 transition-opacity',
+                  account.paused && 'opacity-100'
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPauseToggle(account.id, !account.paused);
+                }}
+                disabled={isPausingAccount}
+              >
+                {isPausingAccount ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : account.paused ? (
+                  <Play className="w-3 h-3 text-emerald-500" />
+                ) : (
+                  <Pause className="w-3 h-3 text-muted-foreground" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="text-xs">
+              {account.paused ? 'Resume account' : 'Pause account'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       <GripVertical className="absolute top-2 right-2 w-4 h-4 text-muted-foreground/40" />
       <div className="flex justify-between items-start mb-1 mr-4">
         <span

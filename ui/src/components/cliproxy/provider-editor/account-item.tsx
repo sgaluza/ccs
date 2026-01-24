@@ -267,24 +267,6 @@ export function AccountItem({
                 Set as default
               </DropdownMenuItem>
             )}
-            {onPauseToggle && (
-              <DropdownMenuItem
-                onClick={() => onPauseToggle(!account.paused)}
-                disabled={isPausingAccount}
-              >
-                {account.paused ? (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    {isPausingAccount ? 'Resuming...' : 'Resume account'}
-                  </>
-                ) : (
-                  <>
-                    <Pause className="w-4 h-4 mr-2" />
-                    {isPausingAccount ? 'Pausing...' : 'Pause account'}
-                  </>
-                )}
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
               onClick={onRemove}

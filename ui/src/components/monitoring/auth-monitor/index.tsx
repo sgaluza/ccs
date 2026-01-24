@@ -9,6 +9,7 @@ import { STATUS_COLORS } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AccountFlowViz } from '@/components/account-flow-viz';
 import { usePrivacy } from '@/contexts/privacy-context';
+import { usePauseAccount, useResumeAccount } from '@/hooks/use-cliproxy';
 import { Activity, CheckCircle2, XCircle, Radio } from 'lucide-react';
 
 import { useAuthMonitorData } from './hooks';
@@ -33,10 +34,23 @@ export function AuthMonitor() {
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
   const [hoveredProvider, setHoveredProvider] = useState<string | null>(null);
 
+  // Account control mutations for flow viz
+  const pauseMutation = usePauseAccount();
+  const resumeMutation = useResumeAccount();
+
   // Get selected provider data for detail view
   const selectedProviderData = selectedProvider
     ? providerStats.find((ps) => ps.provider === selectedProvider)
     : null;
+
+  const handlePauseToggle = (accountId: string, paused: boolean) => {
+    if (!selectedProvider || pauseMutation.isPending || resumeMutation.isPending) return;
+    if (paused) {
+      pauseMutation.mutate({ provider: selectedProvider, accountId });
+    } else {
+      resumeMutation.mutate({ provider: selectedProvider, accountId });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -121,6 +135,8 @@ export function AuthMonitor() {
           <AccountFlowViz
             providerData={selectedProviderData}
             onBack={() => setSelectedProvider(null)}
+            onPauseToggle={handlePauseToggle}
+            isPausingAccount={pauseMutation.isPending || resumeMutation.isPending}
           />
         ) : (
           <div className="p-6">
