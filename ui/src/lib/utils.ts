@@ -81,7 +81,7 @@ export function sortModelsByPriority<T extends { name: string; displayName?: str
 }
 
 /**
- * Format reset time as relative time (e.g., "in 2h 30m")
+ * Format reset time - relative for <24h, absolute date for >=24h (weekly limits)
  */
 export function formatResetTime(resetTime: string | null): string | null {
   if (!resetTime) return null;
@@ -92,8 +92,19 @@ export function formatResetTime(resetTime: string | null): string | null {
     if (diff <= 0) return 'soon';
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
+    // Weekly/long resets: show absolute date (e.g., "01/27, 12:07")
+    if (hours >= 24) {
+      return reset.toLocaleDateString(undefined, {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    }
+
+    // Daily resets: show relative time
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
     if (hours > 0) return `in ${hours}h ${minutes}m`;
     return `in ${minutes}m`;
   } catch {
@@ -118,6 +129,16 @@ export function getEarliestResetTime<T extends { resetTime: string | null }>(
 }
 
 /**
+ * Filter to get Claude models from a model array
+ */
+function filterClaudeModels<T extends { name: string; displayName?: string }>(models: T[]): T[] {
+  return models.filter((m) => {
+    const name = (m.displayName || m.name || '').toLowerCase();
+    return name.includes('claude');
+  });
+}
+
+/**
  * Calculate the minimum quota percentage from Claude models (primary usage).
  * Falls back to minimum of all models if no Claude models exist.
  * Returns null if no valid models or quota data.
@@ -127,11 +148,7 @@ export function getMinClaudeQuota<
 >(models: T[]): number | null {
   if (models.length === 0) return null;
 
-  const claudeModels = models.filter((m) => {
-    const name = (m.displayName || m.name || '').toLowerCase();
-    return name.includes('claude');
-  });
-
+  const claudeModels = filterClaudeModels(models);
   const targetModels = claudeModels.length > 0 ? claudeModels : models;
   const percentages = targetModels
     .map((m) => m.percentage)
@@ -139,4 +156,26 @@ export function getMinClaudeQuota<
 
   if (percentages.length === 0) return null;
   return Math.min(...percentages);
+}
+
+/**
+ * Get reset time for Claude models (matches getMinClaudeQuota logic).
+ * Shows when the Claude quota will reset, not just earliest across all models.
+ */
+export function getClaudeResetTime<
+  T extends { name: string; displayName?: string; resetTime: string | null },
+>(models: T[]): string | null {
+  if (models.length === 0) return null;
+
+  const claudeModels = filterClaudeModels(models);
+  const targetModels = claudeModels.length > 0 ? claudeModels : models;
+
+  return targetModels.reduce(
+    (earliest, m) => {
+      if (!m.resetTime) return earliest;
+      if (!earliest) return m.resetTime;
+      return new Date(m.resetTime) < new Date(earliest) ? m.resetTime : earliest;
+    },
+    null as string | null
+  );
 }

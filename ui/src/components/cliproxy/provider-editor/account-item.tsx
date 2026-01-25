@@ -33,7 +33,7 @@ import {
   cn,
   sortModelsByPriority,
   formatResetTime,
-  getEarliestResetTime,
+  getClaudeResetTime,
   getMinClaudeQuota,
 } from '@/lib/utils';
 import { PRIVACY_BLUR_CLASS } from '@/contexts/privacy-context';
@@ -121,7 +121,7 @@ export function AccountItem({
 
   // Get earliest reset time
   const nextReset =
-    quota?.success && quota.models.length > 0 ? getEarliestResetTime(quota.models) : null;
+    quota?.success && quota.models.length > 0 ? getClaudeResetTime(quota.models) : null;
 
   return (
     <div

@@ -6,7 +6,7 @@ import {
   cn,
   sortModelsByPriority,
   formatResetTime,
-  getEarliestResetTime,
+  getClaudeResetTime,
   getMinClaudeQuota,
 } from '@/lib/utils';
 import { PRIVACY_BLUR_CLASS } from '@/contexts/privacy-context';
@@ -226,7 +226,7 @@ export function AccountCard({
                       </div>
                     ))}
                     {(() => {
-                      const resetTime = getEarliestResetTime(quota?.models || []);
+                      const resetTime = getClaudeResetTime(quota?.models || []);
                       return resetTime ? (
                         <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-border/50">
                           <Clock className="w-3 h-3 text-blue-400" />
