@@ -174,8 +174,8 @@ export function getMinClaudeQuota<
 }
 
 /**
- * Get reset time for Claude/GPT models (matches getMinClaudeQuota logic).
- * Falls back to earliest of all models if Claude/GPT not present (still need reset info).
+ * Get reset time for Claude/GPT models (primary models).
+ * Returns null only if no primary models present in response.
  */
 export function getClaudeResetTime<
   T extends { name: string; displayName?: string; resetTime: string | null },
@@ -183,10 +183,9 @@ export function getClaudeResetTime<
   if (models.length === 0) return null;
 
   const primaryModels = filterPrimaryModels(models);
-  // Fall back to all models for reset time (we need some reset info even if exhausted)
-  const targetModels = primaryModels.length > 0 ? primaryModels : models;
+  if (primaryModels.length === 0) return null;
 
-  return targetModels.reduce(
+  return primaryModels.reduce(
     (earliest, m) => {
       if (!m.resetTime) return earliest;
       if (!earliest) return m.resetTime;
@@ -267,11 +266,14 @@ export function getModelsWithTiers<
   // Add all models with tier info
   for (const m of models) {
     const displayName = m.displayName || m.name;
+    const tier = getModelTier(displayName);
     result.push({
       name: m.name,
       displayName,
       percentage: m.percentage,
-      tier: getModelTier(displayName),
+      tier,
+      // Mark primary models at 0% as exhausted for red styling
+      exhausted: tier === 'primary' && m.percentage === 0,
     });
   }
 

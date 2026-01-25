@@ -494,14 +494,21 @@ async function fetchAvailableModels(accessToken: string, _projectId: string): Pr
         const remaining =
           quotaInfo.remainingFraction ?? quotaInfo.remaining_fraction ?? quotaInfo.remaining;
 
-        // Skip invalid values (NaN, Infinity, non-numbers)
-        if (typeof remaining !== 'number' || !isFinite(remaining)) continue;
-
-        // Convert to percentage (0-100) and clamp to valid range
-        const percentage = Math.max(0, Math.min(100, Math.round(remaining * 100)));
-
         // Extract reset time
         const resetTime = quotaInfo.resetTime || quotaInfo.reset_time || null;
+
+        // If remaining is not a valid number but resetTime exists, treat as exhausted (0%)
+        // This happens when Claude models hit quota limit - API returns resetTime but no fraction
+        let percentage: number;
+        if (typeof remaining === 'number' && isFinite(remaining)) {
+          percentage = Math.max(0, Math.min(100, Math.round(remaining * 100)));
+        } else if (resetTime) {
+          // Model is exhausted but has reset time - show as 0%
+          percentage = 0;
+        } else {
+          // No valid data, skip this model
+          continue;
+        }
 
         models.push({
           name: modelId,
