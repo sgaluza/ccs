@@ -122,42 +122,8 @@ export function AccountCard({
         transform: `translate(${offset.x}px, ${offset.y}px)${isDragging ? ' scale(1.05)' : ''}`,
       }}
     >
-      {/* Pause toggle button - visible on hover or when paused */}
-      {onPauseToggle && (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  'absolute top-1.5 left-1.5 h-5 w-5 z-10',
-                  'opacity-0 group-hover/card:opacity-100 transition-opacity',
-                  account.paused && 'opacity-100'
-                )}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onPauseToggle(account.id, !account.paused);
-                }}
-                disabled={isPausingAccount}
-              >
-                {isPausingAccount ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : account.paused ? (
-                  <Play className="w-3 h-3 text-emerald-500" />
-                ) : (
-                  <Pause className="w-3 h-3 text-muted-foreground" />
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
-              {account.paused ? 'Resume account' : 'Pause account'}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
       <GripVertical className="absolute top-2 right-2 w-4 h-4 text-muted-foreground/40" />
-      <div className="flex justify-between items-start mb-1 mr-4">
+      <div className="flex items-center gap-1.5 mb-1 mr-4">
         <span
           className={cn(
             'text-xs font-semibold text-foreground tracking-tight truncate max-w-[100px]',
@@ -166,6 +132,39 @@ export function AccountCard({
         >
           {cleanEmail(account.email)}
         </span>
+        {onPauseToggle && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    'h-4 w-4 shrink-0',
+                    'transition-all rounded-full',
+                    account.paused ? 'bg-amber-500/20 hover:bg-amber-500/30' : 'hover:bg-muted'
+                  )}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPauseToggle(account.id, !account.paused);
+                  }}
+                  disabled={isPausingAccount}
+                >
+                  {isPausingAccount ? (
+                    <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                  ) : account.paused ? (
+                    <Play className="w-2.5 h-2.5 text-amber-600 dark:text-amber-400" />
+                  ) : (
+                    <Pause className="w-2.5 h-2.5 text-muted-foreground/50 hover:text-foreground" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">
+                {account.paused ? 'Resume account' : 'Pause account'}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
       <AccountCardStats
         success={account.successCount}
