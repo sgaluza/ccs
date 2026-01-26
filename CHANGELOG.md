@@ -1,3 +1,36 @@
+## [7.28.0](https://github.com/kaitranntt/ccs/compare/v7.27.0...v7.28.0) (2026-01-26)
+
+### Features
+
+* **cli:** implement --uninstall handler ([c44a5c2](https://github.com/kaitranntt/ccs/commit/c44a5c221f2046b84e6a556f0ffed706964dac6f))
+* **cli:** inject hooks into profile settings on launch ([0099ab5](https://github.com/kaitranntt/ccs/commit/0099ab5a1c6d3201850b44bc51b06ceb8847f1d2))
+* **npm:** add postuninstall script ([4f28de9](https://github.com/kaitranntt/ccs/commit/4f28de9c90cbd8b6bacbd6cf73b3f664db64eee3))
+* **websearch:** add per-profile hook injection module ([242ab76](https://github.com/kaitranntt/ccs/commit/242ab7645384516db0c05c7139ae652733acf271))
+* **websearch:** add removeHookConfig function ([9159aa5](https://github.com/kaitranntt/ccs/commit/9159aa52cbe99c0820c30a19843043ea141c1106)), closes [#317](https://github.com/kaitranntt/ccs/issues/317)
+* **websearch:** call removeHookConfig on uninstall ([fc4d987](https://github.com/kaitranntt/ccs/commit/fc4d987d205bb2bd86d2cf2698858f052a740cce))
+* **websearch:** inject hooks on profile creation ([fca8dbd](https://github.com/kaitranntt/ccs/commit/fca8dbd6cfdcb8a229051b840733b0769e61368a))
+
+### Bug Fixes
+
+* address PR [#373](https://github.com/kaitranntt/ccs/issues/373) review feedback ([e98a92f](https://github.com/kaitranntt/ccs/commit/e98a92fded2eeb32cd74ee25279b59e51237c67a))
+* address PR review feedback ([cd7a112](https://github.com/kaitranntt/ccs/commit/cd7a1121d4f0072a4b15dc11b4864ec3aad26758))
+* **config:** persist setup_completed flag to YAML file ([a8c46cc](https://github.com/kaitranntt/ccs/commit/a8c46cc8ed6743f3cfb07bbe621b644c9b2d6830))
+* **isolation:** add getCcsDir/getCcsHome to more files ([6a2c829](https://github.com/kaitranntt/ccs/commit/6a2c82917dea1fb7c5c7a9e4e134ac3227e0edaa))
+* **isolation:** use getCcsDir() for test isolation ([9b61f53](https://github.com/kaitranntt/ccs/commit/9b61f5318eedfd1f1a25ec5f3f3a39619174567b))
+* **setup:** persist setup_completed flag to prevent repeated first-time notice ([85e41a5](https://github.com/kaitranntt/ccs/commit/85e41a56e94e17ab7aeb729f50404eb6c0708df9))
+* **websearch:** use getCcsDir() for test isolation ([b33674b](https://github.com/kaitranntt/ccs/commit/b33674b3b225dd8d07fa48f916c3400cd0685dec))
+
+### Code Refactoring
+
+* **uninstall:** stop modifying global settings.json ([ba1fb7e](https://github.com/kaitranntt/ccs/commit/ba1fb7eeb3855db50eff5cfb5999d77ffd66f17f))
+* **websearch:** address PR review recommendations ([21b18d0](https://github.com/kaitranntt/ccs/commit/21b18d0c4e7dbdf9e7070458ec5c5fb54ac6a410))
+
+### Tests
+
+* **setup:** add unit tests for setup_completed flag detection ([596a9c6](https://github.com/kaitranntt/ccs/commit/596a9c68439a2c668a7c6243594a5fd2e57e8b04))
+* **uninstall:** add hook cleanup tests ([6838ac0](https://github.com/kaitranntt/ccs/commit/6838ac0fa1ae0578cf84a451ed628cd8ded31562))
+* **uninstall:** update tests for per-profile hook behavior ([ce59eb6](https://github.com/kaitranntt/ccs/commit/ce59eb6269ad65efb27e373b592596355f9dc313))
+
 ## [7.27.0](https://github.com/kaitranntt/ccs/compare/v7.26.3...v7.27.0) (2026-01-25)
 
 ### Features
