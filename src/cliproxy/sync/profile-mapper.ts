@@ -2,15 +2,13 @@
  * Profile Mapper for CLIProxy Sync
  *
  * Transforms CCS settings-based profiles into CLIProxy ClaudeKey format.
- * Handles model alias mapping and settings normalization.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { getCcsDir } from '../../utils/config-manager';
 import { listApiProfiles, isApiProfileConfigured } from '../../api/services/profile-reader';
-import type { ClaudeKey, ClaudeModel } from '../management-api-types';
-import { getProfileAliases, type ModelAlias } from './model-alias-config';
+import type { ClaudeKey } from '../management-api-types';
 
 /**
  * Profile info with settings for sync.
@@ -81,16 +79,6 @@ export function loadSyncableProfiles(): SyncableProfile[] {
 }
 
 /**
- * Map model aliases to ClaudeModel format.
- */
-function mapAliasesToClaudeModels(aliases: ModelAlias[]): ClaudeModel[] {
-  return aliases.map((alias) => ({
-    name: alias.from,
-    alias: alias.to,
-  }));
-}
-
-/**
  * Sanitize profile name for YAML safety.
  * Replaces non-alphanumeric chars (except - and _) with hyphens.
  */
@@ -109,6 +97,7 @@ export function mapProfileToClaudeKey(profile: SyncableProfile): ClaudeKey | nul
   if (!apiKey) return null;
 
   const baseUrl = env.ANTHROPIC_BASE_URL;
+  const modelName = env.ANTHROPIC_MODEL;
 
   // Generate prefix from profile name (e.g., "glm" -> "glm-")
   const sanitizedName = sanitizeProfileName(profile.name);
@@ -116,10 +105,6 @@ export function mapProfileToClaudeKey(profile: SyncableProfile): ClaudeKey | nul
     return null; // Skip profiles with invalid names
   }
   const prefix = `${sanitizedName}-`;
-
-  // Load model aliases for this profile
-  const aliases = getProfileAliases(profile.name);
-  const models = aliases.length > 0 ? mapAliasesToClaudeModels(aliases) : undefined;
 
   const claudeKey: ClaudeKey = {
     'api-key': apiKey,
@@ -130,8 +115,14 @@ export function mapProfileToClaudeKey(profile: SyncableProfile): ClaudeKey | nul
     claudeKey['base-url'] = baseUrl;
   }
 
-  if (models && models.length > 0) {
-    claudeKey.models = models;
+  // Use model name directly from profile (no alias mapping)
+  if (modelName) {
+    claudeKey.models = [
+      {
+        name: modelName,
+        alias: '',
+      },
+    ];
   }
 
   return claudeKey;
@@ -164,10 +155,8 @@ export interface SyncPreviewItem {
   name: string;
   /** Base URL (masked) */
   baseUrl?: string;
-  /** Whether profile has model aliases */
-  hasAliases: boolean;
-  /** Number of model aliases */
-  aliasCount: number;
+  /** Model name */
+  modelName?: string;
 }
 
 export function generateSyncPreview(): SyncPreviewItem[] {
@@ -175,13 +164,10 @@ export function generateSyncPreview(): SyncPreviewItem[] {
   const preview: SyncPreviewItem[] = [];
 
   for (const profile of profiles) {
-    const aliases = getProfileAliases(profile.name);
-
     preview.push({
       name: profile.name,
       baseUrl: profile.env?.ANTHROPIC_BASE_URL,
-      hasAliases: aliases.length > 0,
-      aliasCount: aliases.length,
+      modelName: profile.env?.ANTHROPIC_MODEL,
     });
   }
 

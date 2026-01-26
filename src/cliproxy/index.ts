@@ -180,7 +180,7 @@ export type {
 export { ManagementApiClient, createManagementClient } from './management-api-client';
 
 // Sync module (profile sync to remote CLIProxy)
-export type { SyncableProfile, SyncPreviewItem, ModelAlias, ModelAliasConfig } from './sync';
+export type { SyncableProfile, SyncPreviewItem } from './sync';
 export {
   loadSyncableProfiles,
   mapProfileToClaudeKey,
@@ -188,12 +188,4 @@ export {
   generateSyncPreview,
   getSyncableProfileCount,
   isProfileSyncable,
-  getModelAliasesPath,
-  loadModelAliases,
-  saveModelAliases,
-  getProfileAliases,
-  addProfileAlias,
-  removeProfileAlias,
-  listAllAliases,
-  DEFAULT_MODEL_ALIASES,
 } from './sync';

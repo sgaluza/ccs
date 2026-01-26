@@ -122,10 +122,11 @@ function transformToConfigFormat(key: ClaudeKey): Record<string, unknown> {
   // Add empty proxy-url (required by CLIProxyAPI)
   entry['proxy-url'] = '';
 
+  // Use model name directly (no alias mapping)
   if (key.models && key.models.length > 0) {
     entry.models = key.models.map((m) => ({
       name: m.name,
-      alias: m.alias || '',
+      alias: '',
     }));
   }
 

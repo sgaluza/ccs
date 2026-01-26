@@ -15,19 +15,6 @@ export {
   isProfileSyncable,
 } from './profile-mapper';
 
-// Model alias config
-export type { ModelAlias, ModelAliasConfig } from './model-alias-config';
-export {
-  getModelAliasesPath,
-  loadModelAliases,
-  saveModelAliases,
-  getProfileAliases,
-  addProfileAlias,
-  removeProfileAlias,
-  listAllAliases,
-  DEFAULT_MODEL_ALIASES,
-} from './model-alias-config';
-
 // Local config sync
 export { syncToLocalConfig, getLocalSyncStatus } from './local-config-sync';
 

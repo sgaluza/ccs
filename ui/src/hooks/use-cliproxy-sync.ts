@@ -19,8 +19,7 @@ export interface SyncStatus {
 export interface SyncPreviewItem {
   name: string;
   baseUrl?: string;
-  hasAliases: boolean;
-  aliasCount: number;
+  modelName?: string;
 }
 
 /** Masked payload item for preview */
@@ -120,79 +119,6 @@ async function executeSync(): Promise<SyncResult> {
 }
 
 /**
- * Fetch model aliases from API
- */
-async function fetchAliases(): Promise<AliasesResponse> {
-  const response = await fetch('/api/cliproxy/sync/aliases');
-  if (!response.ok) {
-    let message = 'Failed to fetch aliases';
-    try {
-      const error = await response.json();
-      message = error.error || error.message || message;
-    } catch {
-      // Non-JSON response (e.g., 502 Bad Gateway)
-    }
-    throw new Error(message);
-  }
-  return response.json();
-}
-
-/**
- * Add a model alias
- */
-async function addAlias(params: {
-  profile: string;
-  from: string;
-  to: string;
-}): Promise<{ success: boolean }> {
-  const response = await fetch('/api/cliproxy/sync/aliases', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    let message = 'Failed to add alias';
-    try {
-      const error = await response.json();
-      message = error.error || error.message || message;
-    } catch {
-      // Non-JSON response (e.g., 502 Bad Gateway)
-    }
-    throw new Error(message);
-  }
-
-  return response.json();
-}
-
-/**
- * Remove a model alias
- */
-async function removeAlias(params: {
-  profile: string;
-  from: string;
-}): Promise<{ success: boolean }> {
-  const response = await fetch('/api/cliproxy/sync/aliases', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(params),
-  });
-
-  if (!response.ok) {
-    let message = 'Failed to remove alias';
-    try {
-      const error = await response.json();
-      message = error.error || error.message || message;
-    } catch {
-      // Non-JSON response (e.g., 502 Bad Gateway)
-    }
-    throw new Error(message);
-  }
-
-  return response.json();
-}
-
-/**
  * Hook to get sync status
  */
 export function useSyncStatus() {
@@ -228,48 +154,6 @@ export function useExecuteSync() {
     onSuccess: () => {
       // Invalidate sync-related queries after successful sync
       queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-status'] });
-      queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-preview'] });
-    },
-  });
-}
-
-/**
- * Hook to get model aliases
- */
-export function useSyncAliases() {
-  return useQuery({
-    queryKey: ['cliproxy-sync-aliases'],
-    queryFn: fetchAliases,
-    staleTime: 30000,
-    retry: 1,
-  });
-}
-
-/**
- * Hook to add a model alias
- */
-export function useAddAlias() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: addAlias,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-aliases'] });
-      queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-preview'] });
-    },
-  });
-}
-
-/**
- * Hook to remove a model alias
- */
-export function useRemoveAlias() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: removeAlias,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-aliases'] });
       queryClient.invalidateQueries({ queryKey: ['cliproxy-sync-preview'] });
     },
   });

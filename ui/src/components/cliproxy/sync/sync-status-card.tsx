@@ -89,7 +89,7 @@ export function SyncStatusCard() {
               className="flex-1"
               onClick={() => setDialogOpen(true)}
             >
-              Aliases
+              Details
             </Button>
             <Button
               variant="default"

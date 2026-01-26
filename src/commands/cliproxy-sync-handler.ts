@@ -61,12 +61,12 @@ export async function handleSync(args: string[]): Promise<void> {
   console.log('');
 
   const rows = preview.map((p) => {
-    const aliases = p.hasAliases ? color(`${p.aliasCount} aliases`, 'info') : dim('none');
+    const model = p.modelName ? color(p.modelName, 'info') : dim('default');
     const url = p.baseUrl ? dim(p.baseUrl) : dim('-');
-    return [p.name, url, aliases];
+    return [p.name, url, model];
   });
 
-  console.log(table(rows, { head: ['Profile', 'Base URL', 'Aliases'], colWidths: [15, 40, 15] }));
+  console.log(table(rows, { head: ['Profile', 'Base URL', 'Model'], colWidths: [15, 40, 20] }));
   console.log('');
 
   if (parsed.verbose) {

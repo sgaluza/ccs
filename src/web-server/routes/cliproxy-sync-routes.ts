@@ -7,9 +7,6 @@ import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import {
   generateSyncPayload,
   generateSyncPreview,
-  listAllAliases,
-  addProfileAlias,
-  removeProfileAlias,
   getAutoSyncStatus,
   restartAutoSyncWatcher,
   syncToLocalConfig,
@@ -101,68 +98,6 @@ router.post('/', async (_req: Request, res: Response): Promise<void> => {
       success: false,
       error: (error as Error).message,
     });
-  }
-});
-
-// ==================== Model Aliases ====================
-
-/**
- * GET /api/cliproxy/sync/aliases - List all model aliases
- * Returns: { aliases: Record<string, ModelAlias[]> }
- */
-router.get('/aliases', async (_req: Request, res: Response): Promise<void> => {
-  try {
-    const aliases = listAllAliases();
-    res.json({ aliases });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * POST /api/cliproxy/sync/aliases - Add a model alias
- * Body: { profile: string, from: string, to: string }
- * Returns: { success: true }
- */
-router.post('/aliases', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { profile, from, to } = req.body;
-    const trimmedProfile = typeof profile === 'string' ? profile.trim() : '';
-    const trimmedFrom = typeof from === 'string' ? from.trim() : '';
-    const trimmedTo = typeof to === 'string' ? to.trim() : '';
-
-    if (!trimmedProfile || !trimmedFrom || !trimmedTo) {
-      res.status(400).json({ error: 'Missing required fields: profile, from, to' });
-      return;
-    }
-
-    addProfileAlias(trimmedProfile, trimmedFrom, trimmedTo);
-    res.json({ success: true, profile: trimmedProfile, from: trimmedFrom, to: trimmedTo });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * DELETE /api/cliproxy/sync/aliases - Remove a model alias
- * Body: { profile: string, from: string }
- * Returns: { success: boolean }
- */
-router.delete('/aliases', async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { profile, from } = req.body;
-    const trimmedProfile = typeof profile === 'string' ? profile.trim() : '';
-    const trimmedFrom = typeof from === 'string' ? from.trim() : '';
-
-    if (!trimmedProfile || !trimmedFrom) {
-      res.status(400).json({ error: 'Missing required fields: profile, from' });
-      return;
-    }
-
-    const removed = removeProfileAlias(trimmedProfile, trimmedFrom);
-    res.json({ success: removed, profile: trimmedProfile, from: trimmedFrom });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
   }
 });
 

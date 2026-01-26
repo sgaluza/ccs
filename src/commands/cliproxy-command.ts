@@ -64,9 +64,8 @@ import {
   installLatest,
 } from '../cliproxy/services';
 
-// Import sync and alias handlers
+// Import sync handler
 import { handleSync } from './cliproxy-sync-handler';
-import { handleAlias } from './cliproxy-alias-handler';
 
 // ============================================================================
 // ARGUMENT PARSING
@@ -623,9 +622,6 @@ async function showHelp(): Promise<void> {
         ['sync', 'Sync API profiles to remote CLIProxy'],
         ['sync --dry-run', 'Preview sync without applying'],
         ['sync --force', 'Sync without confirmation prompt'],
-        ['alias list', 'List model alias mappings'],
-        ['alias add <profile> <from> <to>', 'Add model alias'],
-        ['alias remove <profile> <from>', 'Remove model alias'],
       ],
     ],
     [
@@ -1021,11 +1017,6 @@ export async function handleCliproxyCommand(args: string[]): Promise<void> {
 
   if (command === 'sync') {
     await handleSync(remainingArgs.slice(1));
-    return;
-  }
-
-  if (command === 'alias') {
-    await handleAlias(remainingArgs.slice(1));
     return;
   }
 
