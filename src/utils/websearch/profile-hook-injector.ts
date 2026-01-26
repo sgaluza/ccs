@@ -9,17 +9,21 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { info, warn } from '../ui';
 import { getWebSearchHookConfig, getHookPath } from './hook-config';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
 import { removeHookConfig } from './hook-config';
+import { getCcsDir } from '../config-manager';
 
-// CCS directory
-const CCS_DIR = path.join(os.homedir(), '.ccs');
+// Valid profile name pattern (alphanumeric, dash, underscore only)
+const VALID_PROFILE_NAME = /^[a-zA-Z0-9_-]+$/;
 
-// Migration marker file
-const MIGRATION_MARKER = path.join(CCS_DIR, '.hook-migrated');
+/**
+ * Get migration marker path (respects CCS_HOME for test isolation)
+ */
+function getMigrationMarkerPath(): string {
+  return path.join(getCcsDir(), '.hook-migrated');
+}
 
 /**
  * Check if CCS WebSearch hook exists in settings
@@ -44,7 +48,8 @@ function hasCcsHook(settings: Record<string, unknown>): boolean {
  * Migrate CCS hook from global settings to profile settings (one-time)
  */
 function migrateGlobalHook(): void {
-  if (fs.existsSync(MIGRATION_MARKER)) {
+  const markerPath = getMigrationMarkerPath();
+  if (fs.existsSync(markerPath)) {
     return; // Already migrated
   }
 
@@ -53,8 +58,13 @@ function migrateGlobalHook(): void {
     if (removed && process.env.CCS_DEBUG) {
       console.error(info('Migrated WebSearch hook from global settings'));
     }
+    // Ensure CCS dir exists before creating marker
+    const ccsDir = getCcsDir();
+    if (!fs.existsSync(ccsDir)) {
+      fs.mkdirSync(ccsDir, { recursive: true, mode: 0o700 });
+    }
     // Create marker file
-    fs.writeFileSync(MIGRATION_MARKER, new Date().toISOString(), 'utf8');
+    fs.writeFileSync(markerPath, new Date().toISOString(), 'utf8');
   } catch (error) {
     if (process.env.CCS_DEBUG) {
       console.error(warn(`Migration failed: ${(error as Error).message}`));
@@ -70,6 +80,14 @@ function migrateGlobalHook(): void {
  */
 export function ensureProfileHooks(profileName: string): boolean {
   try {
+    // Validate profile name to prevent path traversal
+    if (!VALID_PROFILE_NAME.test(profileName)) {
+      if (process.env.CCS_DEBUG) {
+        console.error(warn(`Invalid profile name: ${profileName}`));
+      }
+      return false;
+    }
+
     const wsConfig = getWebSearchConfig();
 
     // Skip if WebSearch is disabled
@@ -80,7 +98,15 @@ export function ensureProfileHooks(profileName: string): boolean {
     // One-time migration from global settings
     migrateGlobalHook();
 
-    const settingsPath = path.join(CCS_DIR, `${profileName}.settings.json`);
+    // Get CCS directory (respects CCS_HOME for test isolation)
+    const ccsDir = getCcsDir();
+
+    // Ensure CCS dir exists
+    if (!fs.existsSync(ccsDir)) {
+      fs.mkdirSync(ccsDir, { recursive: true, mode: 0o700 });
+    }
+
+    const settingsPath = path.join(ccsDir, `${profileName}.settings.json`);
 
     // Read existing settings or create empty
     let settings: Record<string, unknown> = {};
@@ -193,8 +219,9 @@ function updateHookTimeoutIfNeeded(
  */
 export function removeMigrationMarker(): void {
   try {
-    if (fs.existsSync(MIGRATION_MARKER)) {
-      fs.unlinkSync(MIGRATION_MARKER);
+    const markerPath = getMigrationMarkerPath();
+    if (fs.existsSync(markerPath)) {
+      fs.unlinkSync(markerPath);
     }
   } catch {
     // Ignore errors

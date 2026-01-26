@@ -11,15 +11,20 @@ import * as path from 'path';
 import * as os from 'os';
 import { info, warn } from '../ui';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
+import { getCcsDir } from '../config-manager';
 
-// Path to Claude settings.json
+// Path to Claude settings.json (intentionally uses real homedir for global settings)
 const CLAUDE_SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
-
-// CCS hooks directory
-const CCS_HOOKS_DIR = path.join(os.homedir(), '.ccs', 'hooks');
 
 // Hook file name
 const WEBSEARCH_HOOK = 'websearch-transformer.cjs';
+
+/**
+ * Get CCS hooks directory (respects CCS_HOME for test isolation)
+ */
+function getCcsHooksDir(): string {
+  return path.join(getCcsDir(), 'hooks');
+}
 
 // Buffer time added to max provider timeout for hook timeout (seconds)
 const HOOK_TIMEOUT_BUFFER = 30;
@@ -31,7 +36,7 @@ const MIN_HOOK_TIMEOUT = 60;
  * Get path to WebSearch hook
  */
 export function getHookPath(): string {
-  return path.join(CCS_HOOKS_DIR, WEBSEARCH_HOOK);
+  return path.join(getCcsHooksDir(), WEBSEARCH_HOOK);
 }
 
 /**

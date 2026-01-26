@@ -8,20 +8,24 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { info, warn } from '../ui';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
 import { getHookPath, ensureHookConfig } from './hook-config';
 import { removeMigrationMarker } from './profile-hook-injector';
+import { getCcsDir } from '../config-manager';
 
 // Re-export from hook-config for backward compatibility
 export { getHookPath, getWebSearchHookConfig } from './hook-config';
 
-// CCS hooks directory
-const CCS_HOOKS_DIR = path.join(os.homedir(), '.ccs', 'hooks');
-
 // Hook file name
 const WEBSEARCH_HOOK = 'websearch-transformer.cjs';
+
+/**
+ * Get CCS hooks directory (respects CCS_HOME for test isolation)
+ */
+function getCcsHooksDir(): string {
+  return path.join(getCcsDir(), 'hooks');
+}
 
 /**
  * Check if WebSearch hook is installed
@@ -50,8 +54,9 @@ export function installWebSearchHook(): boolean {
     }
 
     // Ensure hooks directory exists
-    if (!fs.existsSync(CCS_HOOKS_DIR)) {
-      fs.mkdirSync(CCS_HOOKS_DIR, { recursive: true, mode: 0o700 });
+    const hooksDir = getCcsHooksDir();
+    if (!fs.existsSync(hooksDir)) {
+      fs.mkdirSync(hooksDir, { recursive: true, mode: 0o700 });
     }
 
     const hookPath = getHookPath();
