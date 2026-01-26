@@ -166,3 +166,34 @@ export {
   THINKING_BUDGET_MAX,
   THINKING_BUDGET_DEFAULT_MIN,
 } from './thinking-validator';
+
+// Management API client (for remote CLIProxy sync)
+export type {
+  ClaudeKey,
+  ClaudeModel,
+  ManagementClientConfig,
+  ManagementHealthStatus,
+  ManagementApiErrorCode,
+  ClaudeKeyPatch,
+  SyncStatus,
+} from './management-api-types';
+export { ManagementApiClient, createManagementClient } from './management-api-client';
+
+// Sync module (profile sync to remote CLIProxy)
+export type { SyncableProfile, SyncPreviewItem, ModelAlias, ModelAliasConfig } from './sync';
+export {
+  loadSyncableProfiles,
+  mapProfileToClaudeKey,
+  generateSyncPayload,
+  generateSyncPreview,
+  getSyncableProfileCount,
+  isProfileSyncable,
+  getModelAliasesPath,
+  loadModelAliases,
+  saveModelAliases,
+  getProfileAliases,
+  addProfileAlias,
+  removeProfileAlias,
+  listAllAliases,
+  DEFAULT_MODEL_ALIASES,
+} from './sync';
