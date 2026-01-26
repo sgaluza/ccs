@@ -39,6 +39,7 @@ import {
   getPresetIds,
   type ModelMapping,
 } from '../api/services';
+import { syncToLocalConfig } from '../cliproxy/sync/local-config-sync';
 
 interface ApiCommandArgs {
   name?: string;
@@ -275,6 +276,9 @@ async function handleCreate(args: string[]): Promise<void> {
     console.log(fail(`Failed to create API profile: ${result.error}`));
     process.exit(1);
   }
+
+  // Trigger sync to local CLIProxy config (best-effort, ignore result)
+  syncToLocalConfig();
 
   // Display success
   console.log('');
