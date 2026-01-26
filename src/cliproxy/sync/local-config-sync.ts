@@ -2,7 +2,7 @@
  * Local Config Sync
  *
  * Syncs CCS API profiles to the local CLIProxy config.yaml.
- * Updates only the claude-api-key section, preserving other config.
+ * Uses section-based replacement to preserve comments and formatting.
  */
 
 import * as fs from 'fs';
@@ -13,7 +13,7 @@ import type { ClaudeKey } from '../management-api-types';
 
 /**
  * Sync profiles to local CLIProxy config.yaml.
- * Merges/replaces the claude-api-key section.
+ * Replaces only the claude-api-key section, preserving all other content.
  *
  * @returns Object with success status and synced count
  */
@@ -48,31 +48,23 @@ export function syncToLocalConfig(): {
     }
 
     const configContent = fs.readFileSync(configPath, 'utf8');
-    const parsedConfig = yaml.load(configContent);
-
-    // Validate config is an object
-    if (!parsedConfig || typeof parsedConfig !== 'object' || Array.isArray(parsedConfig)) {
-      return {
-        success: false,
-        syncedCount: 0,
-        configPath,
-        error: 'Invalid config.yaml format. Expected object, got ' + typeof parsedConfig,
-      };
-    }
-
-    const config = parsedConfig as Record<string, unknown>;
 
     // Transform payload to config format
     const claudeApiKeys = payload.map(transformToConfigFormat);
 
-    // Update only claude-api-key section
-    config['claude-api-key'] = claudeApiKeys;
+    // Generate YAML for the claude-api-key section only
+    const newSection = yaml.dump(
+      { 'claude-api-key': claudeApiKeys },
+      {
+        indent: 2,
+        lineWidth: -1,
+        quotingType: "'",
+        forceQuotes: false,
+      }
+    );
 
-    // Write back with preserved formatting
-    const newContent = yaml.dump(config, {
-      indent: 2,
-      lineWidth: -1, // No wrapping
-    });
+    // Replace section in original content (preserves comments/formatting)
+    const newContent = replaceSectionInYaml(configContent, 'claude-api-key', newSection);
 
     // Atomic write with cleanup on failure
     const tempPath = configPath + '.tmp';
@@ -104,6 +96,61 @@ export function syncToLocalConfig(): {
       error: (error as Error).message,
     };
   }
+}
+
+/**
+ * Replace a top-level section in YAML content while preserving rest of file.
+ * Finds the section by key name and replaces it (including nested content).
+ */
+function replaceSectionInYaml(content: string, sectionKey: string, newSection: string): string {
+  const lines = content.split('\n');
+  const result: string[] = [];
+  let inSection = false;
+  let sectionFound = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+
+    // Check if this is the start of our target section
+    if (trimmed.startsWith(`${sectionKey}:`)) {
+      inSection = true;
+      sectionFound = true;
+
+      // Insert new section here
+      result.push(newSection.trimEnd());
+      continue;
+    }
+
+    // If we're in the section, skip lines until we hit another top-level key
+    if (inSection) {
+      // Top-level key starts at column 0 and has format "key:" or "key :"
+      const isTopLevelKey =
+        line.length > 0 &&
+        !line.startsWith(' ') &&
+        !line.startsWith('\t') &&
+        !line.startsWith('#') &&
+        line.includes(':');
+
+      if (isTopLevelKey) {
+        // We've exited the section, resume normal processing
+        inSection = false;
+        result.push(line);
+      }
+      // Otherwise skip this line (part of old section)
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  // If section wasn't found, append it at the end
+  if (!sectionFound) {
+    result.push('');
+    result.push(newSection.trimEnd());
+  }
+
+  return result.join('\n');
 }
 
 /**
