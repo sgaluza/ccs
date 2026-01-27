@@ -1,3 +1,9 @@
+## [7.28.2](https://github.com/kaitranntt/ccs/compare/v7.28.1...v7.28.2) (2026-01-27)
+
+### Bug Fixes
+
+* **websearch:** add shell option for Windows spawnSync compatibility ([3c534f4](https://github.com/kaitranntt/ccs/commit/3c534f48cb60448875c02bc0a8444277ca7c89eb)), closes [#378](https://github.com/kaitranntt/ccs/issues/378)
+
 ## [7.28.1](https://github.com/kaitranntt/ccs/compare/v7.28.0...v7.28.1) (2026-01-26)
 
 ### Bug Fixes
