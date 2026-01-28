@@ -7,14 +7,13 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api-client';
+import { isValidProvider } from '@/lib/provider-config';
 
 interface AuthFlowState {
   provider: string | null;
   isAuthenticating: boolean;
   error: string | null;
 }
-
-const VALID_PROVIDERS = ['gemini', 'codex', 'agy', 'qwen', 'iflow', 'kiro', 'ghcp'];
 
 export function useCliproxyAuthFlow() {
   const [state, setState] = useState<AuthFlowState>({
@@ -35,7 +34,7 @@ export function useCliproxyAuthFlow() {
 
   const startAuth = useCallback(
     async (provider: string) => {
-      if (!VALID_PROVIDERS.includes(provider)) {
+      if (!isValidProvider(provider)) {
         setState({
           provider: null,
           isAuthenticating: false,

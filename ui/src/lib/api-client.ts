@@ -3,6 +3,8 @@
  * Phase 03: REST API Routes & CRUD
  */
 
+import type { CLIProxyProvider } from './provider-config';
+
 const BASE_URL = '/api';
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
@@ -47,7 +49,7 @@ export interface UpdateProfile {
 
 export interface Variant {
   name: string;
-  provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp';
+  provider: CLIProxyProvider;
   settings: string;
   account?: string;
   port?: number;
@@ -56,13 +58,13 @@ export interface Variant {
 
 export interface CreateVariant {
   name: string;
-  provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp';
+  provider: CLIProxyProvider;
   model?: string;
   account?: string;
 }
 
 export interface UpdateVariant {
-  provider?: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp';
+  provider?: CLIProxyProvider;
   model?: string;
   account?: string;
 }
@@ -72,7 +74,7 @@ export interface OAuthAccount {
   id: string;
   email?: string;
   nickname?: string;
-  provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp';
+  provider: CLIProxyProvider;
   isDefault: boolean;
   tokenFile: string;
   createdAt: string;

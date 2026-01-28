@@ -35,6 +35,7 @@ export async function refreshToken(
     case 'iflow':
     case 'kiro':
     case 'ghcp':
+    case 'claude':
       return {
         success: false,
         error: `Token refresh not yet implemented for ${provider}`,

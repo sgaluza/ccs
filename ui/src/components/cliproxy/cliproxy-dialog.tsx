@@ -13,15 +13,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useCreateVariant, useCliproxyAuth } from '@/hooks/use-cliproxy';
 import { usePrivacy } from '@/contexts/privacy-context';
-
-const providers = ['gemini', 'codex', 'agy', 'qwen', 'iflow', 'kiro', 'ghcp'] as const;
+import { CLIPROXY_PROVIDERS, getProviderDisplayName } from '@/lib/provider-config';
 
 const schema = z.object({
   name: z
     .string()
     .min(1, 'Name is required')
     .regex(/^[a-zA-Z][a-zA-Z0-9._-]*$/, 'Invalid variant name'),
-  provider: z.enum(providers, { message: 'Provider is required' }),
+  provider: z.enum(CLIPROXY_PROVIDERS, { message: 'Provider is required' }),
   model: z.string().optional(),
   account: z.string().optional(),
 });
@@ -33,15 +32,10 @@ interface CliproxyDialogProps {
   onClose: () => void;
 }
 
-const providerOptions = [
-  { value: 'gemini', label: 'Google Gemini' },
-  { value: 'codex', label: 'OpenAI Codex' },
-  { value: 'agy', label: 'Antigravity' },
-  { value: 'qwen', label: 'Alibaba Qwen' },
-  { value: 'iflow', label: 'iFlow' },
-  { value: 'kiro', label: 'Kiro (AWS)' },
-  { value: 'ghcp', label: 'GitHub Copilot (OAuth)' },
-];
+const providerOptions = CLIPROXY_PROVIDERS.map((id) => ({
+  value: id,
+  label: getProviderDisplayName(id),
+}));
 
 export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
   const createMutation = useCreateVariant();
