@@ -11,6 +11,9 @@
 
 import * as http from 'http';
 import * as https from 'https';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { URL } from 'url';
 import { ToolNameMapper, type Tool, type ContentBlock } from './tool-name-mapper';
 
@@ -33,6 +36,8 @@ export class ToolSanitizationProxy {
   private server: http.Server | null = null;
   private port: number | null = null;
   private readonly config: Required<ToolSanitizationProxyConfig>;
+  private readonly logFilePath: string;
+  private readonly debugMode: boolean;
 
   constructor(config: ToolSanitizationProxyConfig) {
     this.config = {
@@ -41,17 +46,59 @@ export class ToolSanitizationProxy {
       warnOnSanitize: config.warnOnSanitize ?? true,
       timeoutMs: config.timeoutMs ?? 120000,
     };
+    this.debugMode = process.env.CCS_DEBUG === '1';
+    this.logFilePath = this.initLogFile();
+  }
+
+  /**
+   * Initialize log file path and ensure directory exists.
+   */
+  private initLogFile(): string {
+    const ccsDir = process.env.CCS_HOME || path.join(os.homedir(), '.ccs');
+    const logsDir = path.join(ccsDir, 'logs');
+
+    try {
+      if (!fs.existsSync(logsDir)) {
+        fs.mkdirSync(logsDir, { recursive: true });
+      }
+    } catch {
+      // Fallback to temp directory if logs dir creation fails
+      return path.join(os.tmpdir(), 'tool-sanitization-proxy.log');
+    }
+
+    return path.join(logsDir, 'tool-sanitization-proxy.log');
+  }
+
+  /**
+   * Write log entry to file (always) and console (if CCS_DEBUG=1).
+   */
+  private writeLog(level: 'info' | 'warn' | 'error', message: string): void {
+    const timestamp = new Date().toISOString();
+    const prefix = level === 'info' ? '[i]' : level === 'warn' ? '[!]' : '[X]';
+    const logLine = `${timestamp} ${prefix} ${message}\n`;
+
+    // Always write to file
+    try {
+      fs.appendFileSync(this.logFilePath, logLine);
+    } catch {
+      // Silently ignore file write errors
+    }
+
+    // Console output only in debug mode
+    if (this.debugMode) {
+      console.error(`${prefix} ${message}`);
+    }
   }
 
   private log(message: string): void {
     if (this.config.verbose) {
-      console.error(`[tool-sanitization-proxy] ${message}`);
+      this.writeLog('info', `[tool-sanitization-proxy] ${message}`);
     }
   }
 
   private warn(message: string): void {
     if (this.config.warnOnSanitize) {
-      console.error(`[!] ${message}`);
+      this.writeLog('warn', `Tool name sanitized: ${message}`);
     }
   }
 
@@ -70,6 +117,7 @@ export class ToolSanitizationProxy {
       this.server.listen(0, '127.0.0.1', () => {
         const address = this.server?.address();
         this.port = typeof address === 'object' && address ? address.port : 0;
+        this.writeLog('info', `Tool sanitization proxy active (port ${this.port})`);
         resolve(this.port);
       });
 
@@ -157,7 +205,7 @@ export class ToolSanitizationProxy {
         if (mapper.hasChanges()) {
           const changes = mapper.getChanges();
           for (const change of changes) {
-            this.warn(`Tool name sanitized: "${change.original}" → "${change.sanitized}"`);
+            this.warn(`"${change.original}" → "${change.sanitized}"`);
           }
           this.log(`Sanitized ${changes.length} tool name(s)`);
         }
