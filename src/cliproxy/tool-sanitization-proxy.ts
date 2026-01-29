@@ -13,9 +13,9 @@ import * as http from 'http';
 import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { URL } from 'url';
 import { ToolNameMapper, type Tool, type ContentBlock } from './tool-name-mapper';
+import { getCcsDir } from '../utils/config-manager';
 
 export interface ToolSanitizationProxyConfig {
   /** Upstream CLIProxy URL */
@@ -28,6 +28,10 @@ export interface ToolSanitizationProxyConfig {
   timeoutMs?: number;
 }
 
+/**
+ * Type guard to check if a value is a plain object (Record).
+ * Used for safely accessing properties on unknown JSON values.
+ */
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -54,8 +58,7 @@ export class ToolSanitizationProxy {
    * Initialize log file path and ensure directory exists.
    */
   private initLogFile(): string {
-    const ccsDir = process.env.CCS_HOME || path.join(os.homedir(), '.ccs');
-    const logsDir = path.join(ccsDir, 'logs');
+    const logsDir = path.join(getCcsDir(), 'logs');
 
     try {
       if (!fs.existsSync(logsDir)) {
@@ -63,6 +66,7 @@ export class ToolSanitizationProxy {
       }
     } catch {
       // Fallback to temp directory if logs dir creation fails
+      const os = require('os');
       return path.join(os.tmpdir(), 'tool-sanitization-proxy.log');
     }
 

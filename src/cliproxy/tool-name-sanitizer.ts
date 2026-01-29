@@ -4,11 +4,14 @@
  * Sanitizes MCP tool names to comply with Gemini API constraints:
  * - Max 64 characters
  * - Must start with letter or underscore
- * - Only a-z A-Z 0-9 _ . : - allowed
+ * - Only a-z A-Z 0-9 _ . : - / allowed
  *
  * Strategies:
  * 1. Remove duplicate segments (e.g., gitmcp__foo__foo → gitmcp__foo)
  * 2. Smart truncate with hash suffix if still >64 chars
+ *
+ * Note: Hash collision risk is ~1 in 16M with 6-char MD5 prefix.
+ * Acceptable for typical MCP tool counts (<1000 tools).
  */
 
 import { createHash } from 'crypto';
