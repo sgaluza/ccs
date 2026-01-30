@@ -218,12 +218,24 @@ async function performNpmUpdate(
 
     // On Windows, filter stderr to hide npm cleanup warnings (EPERM on bcrypt.node etc.)
     // These warnings are cosmetic - update succeeds despite file locking by antivirus/indexing
+    // Use line-buffering to handle chunk splitting (data events don't guarantee message boundaries)
     if (isWindows && child.stderr) {
+      let stderrBuffer = '';
       child.stderr.on('data', (data: Buffer) => {
-        const output = data.toString();
-        // Skip npm cleanup warnings (EPERM, ENOTEMPTY, EBUSY on native module prebuilds)
-        if (!/npm warn cleanup/i.test(output)) {
-          process.stderr.write(data);
+        stderrBuffer += data.toString();
+        const lines = stderrBuffer.split('\n');
+        stderrBuffer = lines.pop() || ''; // Keep incomplete line in buffer
+        for (const line of lines) {
+          // Skip npm cleanup warnings (EPERM, ENOTEMPTY, EBUSY on native module prebuilds)
+          if (!/npm warn cleanup/i.test(line)) {
+            process.stderr.write(line + '\n');
+          }
+        }
+      });
+      child.stderr.on('close', () => {
+        // Flush remaining buffer on stream close
+        if (stderrBuffer && !/npm warn cleanup/i.test(stderrBuffer)) {
+          process.stderr.write(stderrBuffer);
         }
       });
     }
