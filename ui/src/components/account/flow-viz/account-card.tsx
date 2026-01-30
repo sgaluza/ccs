@@ -5,20 +5,19 @@
 import {
   cn,
   formatResetTime,
-  getClaudeResetTime,
-  getMinClaudeQuota,
   getModelsWithTiers,
   groupModelsByTier,
-  getMinCodexQuota,
-  getMinGeminiQuota,
-  getCodexResetTime,
-  getGeminiResetTime,
+  getProviderMinQuota,
+  getProviderResetTime,
+  isAgyQuotaResult,
+  isCodexQuotaResult,
+  isGeminiQuotaResult,
   type ModelTier,
 } from '@/lib/utils';
 import { PRIVACY_BLUR_CLASS } from '@/contexts/privacy-context';
 import { GripVertical, Loader2, Clock, Pause, Play } from 'lucide-react';
-import { useAccountQuota } from '@/hooks/use-cliproxy-stats';
-import type { CodexQuotaResult, GeminiCliQuotaResult, QuotaResult } from '@/lib/api-client';
+import { useAccountQuota, QUOTA_SUPPORTED_PROVIDERS } from '@/hooks/use-cliproxy-stats';
+import type { QuotaSupportedProvider } from '@/hooks/use-cliproxy-stats';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
 
@@ -95,28 +94,17 @@ export function AccountCard({
   const connectorPosition = CONNECTOR_POSITION_MAP[zone];
 
   // Quota for CLIProxy accounts (agy, codex, gemini)
-  const isCliproxyProvider = ['agy', 'codex', 'gemini'].includes(account.provider);
+  const isCliproxyProvider = QUOTA_SUPPORTED_PROVIDERS.includes(
+    account.provider as QuotaSupportedProvider
+  );
   const { data: quota, isLoading: quotaLoading } = useAccountQuota(
     account.provider,
     account.id,
     isCliproxyProvider
   );
 
-  // Get provider-specific minimum quota
-  const getProviderMinQuota = () => {
-    if (!quota?.success) return null;
-    switch (account.provider) {
-      case 'agy':
-        return getMinClaudeQuota((quota as QuotaResult).models);
-      case 'codex':
-        return getMinCodexQuota((quota as CodexQuotaResult).windows);
-      case 'gemini':
-        return getMinGeminiQuota((quota as GeminiCliQuotaResult).buckets);
-      default:
-        return null;
-    }
-  };
-  const minQuota = getProviderMinQuota();
+  // Use shared helper for provider-specific minimum quota
+  const minQuota = getProviderMinQuota(account.provider, quota);
 
   // Tier badge (AGY only) - show P for Pro, U for Ultra
   const showTierBadge =
@@ -266,11 +254,11 @@ export function AccountCard({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs">
-                  {account.provider === 'agy' ? (
+                  {quota && isAgyQuotaResult(quota) ? (
                     <div className="text-xs space-y-1">
                       <p className="font-medium">Model Quotas:</p>
                       {(() => {
-                        const tiered = getModelsWithTiers((quota as QuotaResult)?.models || []);
+                        const tiered = getModelsWithTiers(quota.models || []);
                         const groups = groupModelsByTier(tiered);
                         const tierOrder: ModelTier[] = ['primary', 'gemini-3', 'gemini-2', 'other'];
                         return tierOrder.map((tier, idx) => {
@@ -297,7 +285,7 @@ export function AccountCard({
                         });
                       })()}
                       {(() => {
-                        const resetTime = getClaudeResetTime((quota as QuotaResult)?.models || []);
+                        const resetTime = getProviderResetTime('agy', quota);
                         return resetTime ? (
                           <div className="flex items-center gap-1.5 pt-1 border-t border-border/50">
                             <Clock className="w-3 h-3 text-blue-400" />
@@ -308,10 +296,10 @@ export function AccountCard({
                         ) : null;
                       })()}
                     </div>
-                  ) : account.provider === 'codex' ? (
+                  ) : quota && isCodexQuotaResult(quota) ? (
                     <div className="text-xs space-y-1">
                       <p className="font-medium">Rate Limits:</p>
-                      {(quota as CodexQuotaResult)?.windows?.map((w) => (
+                      {quota.windows?.map((w) => (
                         <div key={w.label} className="flex justify-between gap-4">
                           <span className={cn(w.remainingPercent < 20 && 'text-red-500')}>
                             {w.label}
@@ -320,9 +308,7 @@ export function AccountCard({
                         </div>
                       ))}
                       {(() => {
-                        const resetTime = getCodexResetTime(
-                          (quota as CodexQuotaResult)?.windows || []
-                        );
+                        const resetTime = getProviderResetTime('codex', quota);
                         return resetTime ? (
                           <div className="flex items-center gap-1.5 pt-1 border-t border-border/50">
                             <Clock className="w-3 h-3 text-blue-400" />
@@ -333,10 +319,10 @@ export function AccountCard({
                         ) : null;
                       })()}
                     </div>
-                  ) : account.provider === 'gemini' ? (
+                  ) : quota && isGeminiQuotaResult(quota) ? (
                     <div className="text-xs space-y-1">
                       <p className="font-medium">Buckets:</p>
-                      {(quota as GeminiCliQuotaResult)?.buckets?.map((b) => (
+                      {quota.buckets?.map((b) => (
                         <div key={b.id} className="flex justify-between gap-4">
                           <span className={cn(b.remainingPercent < 20 && 'text-red-500')}>
                             {b.label}
@@ -345,9 +331,7 @@ export function AccountCard({
                         </div>
                       ))}
                       {(() => {
-                        const resetTime = getGeminiResetTime(
-                          (quota as GeminiCliQuotaResult)?.buckets || []
-                        );
+                        const resetTime = getProviderResetTime('gemini', quota);
                         return resetTime ? (
                           <div className="flex items-center gap-1.5 pt-1 border-t border-border/50">
                             <Clock className="w-3 h-3 text-blue-400" />

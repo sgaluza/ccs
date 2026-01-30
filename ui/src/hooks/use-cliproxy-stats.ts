@@ -204,7 +204,8 @@ export function useCliproxyErrorLogContent(name: string | null) {
 export type { ModelQuota, QuotaResult, CodexQuotaResult, GeminiCliQuotaResult };
 
 /** Providers with quota API support */
-const SUPPORTED_PROVIDERS = ['agy', 'codex', 'gemini'] as const;
+export const QUOTA_SUPPORTED_PROVIDERS = ['agy', 'codex', 'gemini'] as const;
+export type QuotaSupportedProvider = (typeof QUOTA_SUPPORTED_PROVIDERS)[number];
 
 /**
  * Fetch account quota from API (Antigravity only)
@@ -290,7 +291,7 @@ export function useAccountQuota(provider: string, accountId: string, enabled = t
     queryFn: () => fetchQuotaByProvider(provider, accountId),
     enabled:
       enabled &&
-      SUPPORTED_PROVIDERS.includes(provider as (typeof SUPPORTED_PROVIDERS)[number]) &&
+      QUOTA_SUPPORTED_PROVIDERS.includes(provider as QuotaSupportedProvider) &&
       !!accountId,
     staleTime: 60000, // Match refetchInterval to prevent early refetching
     refetchInterval: 60000, // Refresh every 1 minute
