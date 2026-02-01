@@ -1,3 +1,19 @@
+## [7.34.0](https://github.com/kaitranntt/ccs/compare/v7.33.0...v7.34.0) (2026-02-01)
+
+### Features
+
+* **glmt:** add rate limit resilience with exponential backoff retry ([3afdcea](https://github.com/kaitranntt/ccs/commit/3afdcea379a6527657ba326895f328c219ad6a88)), closes [#402](https://github.com/kaitranntt/ccs/issues/402)
+
+### Bug Fixes
+
+* **claude:** update base config to Claude 4.5 model IDs ([09dd701](https://github.com/kaitranntt/ccs/commit/09dd7016eb2570ef9946f9e7be0bbc300f75337a))
+* **cliproxy:** load WebSearch hooks via --settings flag ([7aaf568](https://github.com/kaitranntt/ccs/commit/7aaf568c3f15ae0a5c9dcab14f3e61d811515c9a)), closes [#412](https://github.com/kaitranntt/ccs/issues/412)
+* **glmt:** add env var validation and max delay cap ([67a8e2c](https://github.com/kaitranntt/ccs/commit/67a8e2cefcedad2f5a26f0d43952219379be5cc0))
+* **glmt:** extract Retry-After from HTTP headers and cap maxRetries ([62ac3e2](https://github.com/kaitranntt/ccs/commit/62ac3e2ae9b941adaa35cc3962c4de54f917e065))
+* **sync:** prevent duplicate backup folders on Windows ([a8b0547](https://github.com/kaitranntt/ccs/commit/a8b054781f9c18165e985de801500f31d87a88a8)), closes [#409](https://github.com/kaitranntt/ccs/issues/409)
+* **update:** add line-buffering and unit tests for stderr filter ([b39726f](https://github.com/kaitranntt/ccs/commit/b39726fc0713451679b26d3467e70e835c784851))
+* **update:** filter npm cleanup warnings on Windows ([c9f8ed1](https://github.com/kaitranntt/ccs/commit/c9f8ed1a04faa95af68650dca4371804391daef8)), closes [#405](https://github.com/kaitranntt/ccs/issues/405)
+
 ## [7.33.0](https://github.com/kaitranntt/ccs/compare/v7.32.0...v7.33.0) (2026-01-30)
 
 ### Features
