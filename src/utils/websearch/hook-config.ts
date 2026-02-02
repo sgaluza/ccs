@@ -229,7 +229,9 @@ export function removeHookConfig(): boolean {
       if (!hookArray?.[0]?.command) return true; // Keep malformed entries
 
       const command = hookArray[0].command as string;
-      return !command.includes('.ccs/hooks/websearch-transformer'); // Remove if CCS hook
+      // Normalize path separators for cross-platform matching (Windows uses backslashes)
+      const normalizedCommand = command.replace(/\\/g, '/');
+      return !normalizedCommand.includes('.ccs/hooks/websearch-transformer'); // Remove if CCS hook
     });
 
     if (hooks.PreToolUse.length === originalLength) {

@@ -40,8 +40,50 @@ function hasCcsHook(settings: Record<string, unknown>): boolean {
     if (!hookArray?.[0]?.command) return false;
 
     const command = hookArray[0].command as string;
-    return command.includes('.ccs/hooks/websearch-transformer');
+    // Normalize path separators for cross-platform matching (Windows uses backslashes)
+    const normalizedCommand = command.replace(/\\/g, '/');
+    return normalizedCommand.includes('.ccs/hooks/websearch-transformer');
   });
+}
+
+/**
+ * Check if a hook entry is a CCS WebSearch hook
+ */
+function isCcsWebSearchHook(hook: Record<string, unknown>): boolean {
+  if (hook.matcher !== 'WebSearch') return false;
+
+  const hookArray = hook.hooks as Array<Record<string, unknown>> | undefined;
+  if (!hookArray?.[0]?.command) return false;
+
+  const command = hookArray[0].command as string;
+  // Normalize path separators for cross-platform matching (Windows uses backslashes)
+  const normalizedCommand = command.replace(/\\/g, '/');
+  return normalizedCommand.includes('.ccs/hooks/websearch-transformer');
+}
+
+/**
+ * Remove duplicate CCS WebSearch hooks from settings, keeping only the first one
+ * Returns true if duplicates were removed
+ */
+function deduplicateCcsHooks(settings: Record<string, unknown>): boolean {
+  const hooks = settings.hooks as Record<string, unknown[]> | undefined;
+  if (!hooks?.PreToolUse) return false;
+
+  let foundFirst = false;
+  const originalLength = hooks.PreToolUse.length;
+
+  hooks.PreToolUse = hooks.PreToolUse.filter((h: unknown) => {
+    const hook = h as Record<string, unknown>;
+    if (!isCcsWebSearchHook(hook)) return true; // Keep non-CCS hooks
+
+    if (!foundFirst) {
+      foundFirst = true;
+      return true; // Keep first CCS hook
+    }
+    return false; // Remove subsequent duplicates
+  });
+
+  return hooks.PreToolUse.length < originalLength;
 }
 
 /**
@@ -126,6 +168,16 @@ export function ensureProfileHooks(profileName: string): boolean {
 
     // Check if CCS hook already present
     if (hasCcsHook(settings)) {
+      // Clean up any duplicates that may have accumulated (Windows path bug fix)
+      const hadDuplicates = deduplicateCcsHooks(settings);
+      if (hadDuplicates) {
+        fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+        if (process.env.CCS_DEBUG) {
+          console.error(
+            info(`Removed duplicate WebSearch hooks from ${profileName}.settings.json`)
+          );
+        }
+      }
       // Update timeout if needed
       return updateHookTimeoutIfNeeded(settings, settingsPath);
     }
@@ -189,7 +241,9 @@ function updateHookTimeoutIfNeeded(
       if (!hookArray?.[0]?.command) continue;
 
       const command = hookArray[0].command as string;
-      if (!command.includes('.ccs/hooks/websearch-transformer')) continue;
+      // Normalize path separators for cross-platform matching (Windows uses backslashes)
+      const normalizedCommand = command.replace(/\\/g, '/');
+      if (!normalizedCommand.includes('.ccs/hooks/websearch-transformer')) continue;
 
       // Found CCS hook - check if needs update
       if (hookArray[0].command !== expectedCommand) {
