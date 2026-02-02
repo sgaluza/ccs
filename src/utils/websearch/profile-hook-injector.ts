@@ -14,6 +14,7 @@ import { getWebSearchHookConfig, getHookPath } from './hook-config';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
 import { removeHookConfig } from './hook-config';
 import { getCcsDir } from '../config-manager';
+import { isCcsWebSearchHook, deduplicateCcsHooks } from './hook-utils';
 
 // Valid profile name pattern (alphanumeric, dash, underscore only)
 const VALID_PROFILE_NAME = /^[a-zA-Z0-9_-]+$/;
@@ -33,59 +34,8 @@ function hasCcsHook(settings: Record<string, unknown>): boolean {
   if (!hooks?.PreToolUse) return false;
 
   return hooks.PreToolUse.some((h: unknown) => {
-    const hook = h as Record<string, unknown>;
-    if (hook.matcher !== 'WebSearch') return false;
-
-    const hookArray = hook.hooks as Array<Record<string, unknown>> | undefined;
-    if (!hookArray?.[0]?.command) return false;
-
-    const command = hookArray[0].command;
-    if (typeof command !== 'string') return false;
-    // Normalize path separators for cross-platform matching (Windows uses backslashes)
-    const normalizedCommand = command.replace(/\\/g, '/');
-    return normalizedCommand.includes('.ccs/hooks/websearch-transformer');
+    return isCcsWebSearchHook(h as Record<string, unknown>);
   });
-}
-
-/**
- * Check if a hook entry is a CCS WebSearch hook
- */
-function isCcsWebSearchHook(hook: Record<string, unknown>): boolean {
-  if (hook.matcher !== 'WebSearch') return false;
-
-  const hookArray = hook.hooks as Array<Record<string, unknown>> | undefined;
-  if (!hookArray?.[0]?.command) return false;
-
-  const command = hookArray[0].command;
-  if (typeof command !== 'string') return false;
-  // Normalize path separators for cross-platform matching (Windows uses backslashes)
-  const normalizedCommand = command.replace(/\\/g, '/');
-  return normalizedCommand.includes('.ccs/hooks/websearch-transformer');
-}
-
-/**
- * Remove duplicate CCS WebSearch hooks from settings, keeping only the first one
- * Returns true if duplicates were removed
- */
-function deduplicateCcsHooks(settings: Record<string, unknown>): boolean {
-  const hooks = settings.hooks as Record<string, unknown[]> | undefined;
-  if (!hooks?.PreToolUse) return false;
-
-  let foundFirst = false;
-  const originalLength = hooks.PreToolUse.length;
-
-  hooks.PreToolUse = hooks.PreToolUse.filter((h: unknown) => {
-    const hook = h as Record<string, unknown>;
-    if (!isCcsWebSearchHook(hook)) return true; // Keep non-CCS hooks
-
-    if (!foundFirst) {
-      foundFirst = true;
-      return true; // Keep first CCS hook
-    }
-    return false; // Remove subsequent duplicates
-  });
-
-  return hooks.PreToolUse.length < originalLength;
 }
 
 /**
