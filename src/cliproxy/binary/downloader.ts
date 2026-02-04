@@ -2,12 +2,58 @@
  * Binary Downloader
  * Handles downloading files with retry logic, progress tracking, and redirect following.
  * Robust handling for transient network errors (socket hang up, ECONNRESET, etc.)
+ * Respects http_proxy, https_proxy, and all_proxy environment variables.
  */
 
 import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { HttpProxyAgent } from 'http-proxy-agent';
 import { DownloadResult, ProgressCallback } from '../types';
+
+/**
+ * Get proxy URL from environment variables.
+ * Checks: https_proxy, HTTPS_PROXY, http_proxy, HTTP_PROXY, all_proxy, ALL_PROXY
+ * @param isHttps Whether the target URL is HTTPS
+ * @returns Proxy URL or undefined if no proxy configured
+ */
+function getProxyUrl(isHttps: boolean): string | undefined {
+  if (isHttps) {
+    return (
+      process.env.https_proxy ||
+      process.env.HTTPS_PROXY ||
+      process.env.all_proxy ||
+      process.env.ALL_PROXY
+    );
+  }
+  return (
+    process.env.http_proxy ||
+    process.env.HTTP_PROXY ||
+    process.env.all_proxy ||
+    process.env.ALL_PROXY
+  );
+}
+
+/**
+ * Create appropriate proxy agent based on URL protocol.
+ * @param url Target URL to determine protocol
+ * @returns Proxy agent or false (no agent/pooling disabled)
+ */
+function getProxyAgent(url: string): http.Agent | https.Agent | false {
+  const isHttps = url.startsWith('https');
+  const proxyUrl = getProxyUrl(isHttps);
+
+  if (!proxyUrl) {
+    return false; // No proxy configured, disable connection pooling for clean exit
+  }
+
+  // Use appropriate agent based on target URL protocol
+  if (isHttps) {
+    return new HttpsProxyAgent(proxyUrl);
+  }
+  return new HttpProxyAgent(proxyUrl);
+}
 
 /** Default configuration for downloader */
 export interface DownloaderConfig {
@@ -154,12 +200,12 @@ export function downloadFile(
 
     const protocol = url.startsWith('https') ? https : http;
 
-    // Use agent: false to prevent connection pooling (allows process to exit)
+    // Use proxy agent if configured, otherwise disable connection pooling for clean exit
     const options = {
       headers: {
         'User-Agent': 'CCS-CLIProxyPlus-Downloader/1.0',
       },
-      agent: false, // Disable connection pooling for clean exit
+      agent: getProxyAgent(url),
     };
 
     const req = protocol.get(url, options, handleResponse);
@@ -288,7 +334,7 @@ function fetchTextOnce(url: string, verbose = false, timeout = 30000): Promise<s
       headers: {
         'User-Agent': 'CCS-CLIProxyPlus-Downloader/1.0',
       },
-      agent: false, // Disable connection pooling for clean exit
+      agent: getProxyAgent(url),
     };
 
     const req = protocol.get(url, options, handleResponse);
@@ -352,7 +398,7 @@ function fetchJsonOnce(
         'User-Agent': 'CCS-CLIProxyPlus-Updater/1.0',
         Accept: 'application/vnd.github.v3+json',
       },
-      agent: false, // Disable connection pooling for clean exit
+      agent: getProxyAgent(url),
     };
 
     const handleResponse = (res: http.IncomingMessage) => {
