@@ -189,8 +189,10 @@ async function performNpmUpdate(
     case 'bun':
       updateCommand = 'bun';
       updateArgs = ['add', '-g', `@kaitranntt/ccs@${targetTag}`];
-      cacheCommand = null;
-      cacheArgs = null;
+      // On Windows, bun's global bin symlink may not update properly without removal first
+      // Pre-remove to ensure clean reinstall (mirrors dev-install.sh behavior)
+      cacheCommand = process.platform === 'win32' ? 'bun' : null;
+      cacheArgs = process.platform === 'win32' ? ['remove', '-g', '@kaitranntt/ccs'] : null;
       break;
     default:
       updateCommand = 'npm';
@@ -271,7 +273,16 @@ async function performNpmUpdate(
   };
 
   if (cacheCommand && cacheArgs) {
-    console.log(info('Clearing package cache...'));
+    // For bun on Windows, we pre-remove instead of cache clear
+    const isBunPreRemove = packageManager === 'bun' && cacheArgs.includes('remove');
+    const stepMessage = isBunPreRemove
+      ? 'Removing existing installation...'
+      : 'Clearing package cache...';
+    const failMessage = isBunPreRemove
+      ? 'Pre-removal failed, proceeding anyway...'
+      : 'Cache clearing failed, proceeding anyway...';
+
+    console.log(info(stepMessage));
     // On Windows, use shell with full command string to avoid deprecation warning
     const cacheChild = isWindows
       ? spawn(`${cacheCommand} ${cacheArgs.join(' ')}`, [], {
@@ -283,13 +294,13 @@ async function performNpmUpdate(
 
     cacheChild.on('exit', (code) => {
       if (code !== 0) {
-        console.log(warn('Cache clearing failed, proceeding anyway...'));
+        console.log(warn(failMessage));
       }
       performUpdate();
     });
 
     cacheChild.on('error', () => {
-      console.log(warn('Cache clearing failed, proceeding anyway...'));
+      console.log(warn(failMessage));
       performUpdate();
     });
   } else {
