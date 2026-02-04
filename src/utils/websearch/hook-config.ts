@@ -11,7 +11,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { info, warn } from '../ui';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
-import { getCcsDir } from '../config-manager';
+import { getCcsHooksDir } from '../config-manager';
 import { isCcsWebSearchHook, deduplicateCcsHooks } from './hook-utils';
 
 // Hook file name
@@ -30,13 +30,6 @@ function getClaudeSettingsPath(): string {
   }
   // Production: use real home directory
   return path.join(os.homedir(), '.claude', 'settings.json');
-}
-
-/**
- * Get CCS hooks directory (respects CCS_HOME for test isolation)
- */
-export function getCcsHooksDir(): string {
-  return path.join(getCcsDir(), 'hooks');
 }
 
 // Buffer time added to max provider timeout for hook timeout (seconds)

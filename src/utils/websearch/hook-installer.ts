@@ -10,7 +10,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { info, warn } from '../ui';
 import { getWebSearchConfig } from '../../config/unified-config-loader';
-import { getHookPath, getCcsHooksDir } from './hook-config';
+import { getCcsHooksDir } from '../config-manager';
+import { getHookPath } from './hook-config';
 import { removeMigrationMarker } from './profile-hook-injector';
 
 // Re-export from hook-config for backward compatibility

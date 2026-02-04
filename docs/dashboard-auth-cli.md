@@ -1,5 +1,7 @@
 # Dashboard Authentication CLI
 
+Last Updated: 2026-02-04
+
 CLI commands for managing CCS dashboard authentication.
 
 ## Overview

@@ -1,20 +1,23 @@
 /**
- * Profile Hook Injector
+ * Image Analyzer Profile Hook Injector
  *
- * Injects WebSearch hooks into per-profile settings files.
+ * Injects image analyzer hooks into per-profile settings files.
  * This replaces the global ~/.claude/settings.json approach.
  *
- * @module utils/websearch/profile-hook-injector
+ * Injects for profiles configured in image_analysis.provider_models.
+ *
+ * @module utils/hooks/image-analyzer-profile-injector
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { info, warn } from '../ui';
-import { getWebSearchHookConfig, getHookPath } from './hook-config';
-import { getWebSearchConfig } from '../../config/unified-config-loader';
-import { removeHookConfig } from './hook-config';
+import {
+  getImageAnalyzerHookConfig,
+  getImageAnalyzerHookPath,
+} from './image-analyzer-hook-configuration';
+import { getImageAnalysisConfig } from '../../config/unified-config-loader';
 import { getCcsDir } from '../config-manager';
-import { isCcsWebSearchHook, deduplicateCcsHooks } from './hook-utils';
 
 // Valid profile name pattern (alphanumeric, dash, underscore only)
 const VALID_PROFILE_NAME = /^[a-zA-Z0-9_-]+$/;
@@ -23,23 +26,33 @@ const VALID_PROFILE_NAME = /^[a-zA-Z0-9_-]+$/;
  * Get migration marker path (respects CCS_HOME for test isolation)
  */
 function getMigrationMarkerPath(): string {
-  return path.join(getCcsDir(), '.hook-migrated');
+  return path.join(getCcsDir(), '.image-analyzer-hook-migrated');
 }
 
 /**
- * Check if CCS WebSearch hook exists in settings
+ * Check if CCS image analyzer hook exists in settings
  */
 function hasCcsHook(settings: Record<string, unknown>): boolean {
   const hooks = settings.hooks as Record<string, unknown[]> | undefined;
   if (!hooks?.PreToolUse) return false;
 
   return hooks.PreToolUse.some((h: unknown) => {
-    return isCcsWebSearchHook(h as Record<string, unknown>);
+    const hook = h as Record<string, unknown>;
+    if (hook.matcher !== 'Read') return false;
+
+    const hookArray = hook.hooks as Array<Record<string, unknown>> | undefined;
+    const command = hookArray?.[0]?.command;
+    if (typeof command !== 'string') return false;
+
+    const normalized = command
+      .replace(/\\/g, '/') // Windows backslashes
+      .replace(/\/+/g, '/'); // Collapse multiple slashes
+    return normalized.includes('.ccs/hooks/image-analyzer-transformer');
   });
 }
 
 /**
- * Migrate CCS hook from global settings to profile settings (one-time)
+ * One-time migration marker management
  */
 function migrateGlobalHook(): void {
   const markerPath = getMigrationMarkerPath();
@@ -48,11 +61,8 @@ function migrateGlobalHook(): void {
   }
 
   try {
-    const removed = removeHookConfig();
-    if (removed && process.env.CCS_DEBUG) {
-      console.error(info('Migrated WebSearch hook from global settings'));
-    }
-    // Ensure CCS dir exists before creating marker
+    // No global hook to migrate (image analyzer is profile-only from the start)
+    // Just create marker to prevent future migration attempts
     const ccsDir = getCcsDir();
     if (!fs.existsSync(ccsDir)) {
       fs.mkdirSync(ccsDir, { recursive: true, mode: 0o700 });
@@ -67,9 +77,11 @@ function migrateGlobalHook(): void {
 }
 
 /**
- * Ensure WebSearch hook is configured in profile's settings file
+ * Ensure image analyzer hook is configured in profile's settings file
  *
- * @param profileName - Name of the profile (e.g., 'agy', 'gemini', 'glm')
+ * Only injects for CLIProxy profiles with vision support (agy, gemini).
+ *
+ * @param profileName - Name of the profile (e.g., 'agy', 'gemini')
  * @returns true if hook is configured (existing or newly added)
  */
 export function ensureProfileHooks(profileName: string): boolean {
@@ -82,14 +94,21 @@ export function ensureProfileHooks(profileName: string): boolean {
       return false;
     }
 
-    const wsConfig = getWebSearchConfig();
+    const imageConfig = getImageAnalysisConfig();
 
-    // Skip if WebSearch is disabled
-    if (!wsConfig.enabled) {
+    // Only inject for profiles that have a model mapping in provider_models
+    // This allows dynamic extension without hardcoding profile names
+    const configuredProviders = Object.keys(imageConfig.provider_models);
+    if (!configuredProviders.includes(profileName)) {
       return false;
     }
 
-    // One-time migration from global settings
+    // Skip if image analysis is disabled
+    if (!imageConfig.enabled) {
+      return false;
+    }
+
+    // One-time migration marker
     migrateGlobalHook();
 
     // Get CCS directory (respects CCS_HOME for test isolation)
@@ -120,28 +139,12 @@ export function ensureProfileHooks(profileName: string): boolean {
 
     // Check if CCS hook already present
     if (hasCcsHook(settings)) {
-      // Clean up any duplicates that may have accumulated (Windows path bug fix)
-      const hadDuplicates = deduplicateCcsHooks(settings);
-      if (hadDuplicates) {
-        // Re-read file to compare with modified settings (deduplicateCcsHooks mutates in-place)
-        const newContent = JSON.stringify(settings, null, 2);
-        const existingContent = fs.readFileSync(settingsPath, 'utf8');
-        // Only write if content actually changed
-        if (newContent !== existingContent) {
-          fs.writeFileSync(settingsPath, newContent, 'utf8');
-          if (process.env.CCS_DEBUG) {
-            console.error(
-              info(`Removed duplicate WebSearch hooks from ${profileName}.settings.json`)
-            );
-          }
-        }
-      }
       // Update timeout if needed
       return updateHookTimeoutIfNeeded(settings, settingsPath);
     }
 
     // Get hook config
-    const hookConfig = getWebSearchHookConfig();
+    const hookConfig = getImageAnalyzerHookConfig();
 
     // Ensure hooks structure exists
     if (!settings.hooks) {
@@ -161,7 +164,7 @@ export function ensureProfileHooks(profileName: string): boolean {
     fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
 
     if (process.env.CCS_DEBUG) {
-      console.error(info(`Added WebSearch hook to ${profileName}.settings.json`));
+      console.error(info(`Added image analyzer hook to ${profileName}.settings.json`));
     }
 
     return true;
@@ -182,8 +185,8 @@ function updateHookTimeoutIfNeeded(
 ): boolean {
   try {
     const hooks = settings.hooks as Record<string, unknown[]>;
-    const hookConfig = getWebSearchHookConfig();
-    const expectedHookPath = getHookPath();
+    const hookConfig = getImageAnalyzerHookConfig();
+    const expectedHookPath = getImageAnalyzerHookPath();
     const expectedCommand = `node "${expectedHookPath}"`;
     const expectedHooks = (hookConfig.PreToolUse as Array<Record<string, unknown>>)[0]
       .hooks as Array<Record<string, unknown>>;
@@ -193,7 +196,7 @@ function updateHookTimeoutIfNeeded(
 
     for (const h of hooks.PreToolUse) {
       const hook = h as Record<string, unknown>;
-      if (hook.matcher !== 'WebSearch') continue;
+      if (hook.matcher !== 'Read') continue;
 
       const hookArray = hook.hooks as Array<Record<string, unknown>>;
       if (!hookArray?.[0]?.command) continue;
@@ -204,7 +207,7 @@ function updateHookTimeoutIfNeeded(
       const normalizedCommand = command
         .replace(/\\/g, '/') // Windows backslashes
         .replace(/\/+/g, '/'); // Collapse multiple slashes
-      if (!normalizedCommand.includes('.ccs/hooks/websearch-transformer')) continue;
+      if (!normalizedCommand.includes('.ccs/hooks/image-analyzer-transformer')) continue;
 
       // Found CCS hook - check if needs update
       if (hookArray[0].command !== expectedCommand) {
@@ -221,7 +224,7 @@ function updateHookTimeoutIfNeeded(
     if (needsUpdate) {
       fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
       if (process.env.CCS_DEBUG) {
-        console.error(info('Updated WebSearch hook timeout in profile settings'));
+        console.error(info('Updated image analyzer hook timeout in profile settings'));
       }
     }
 

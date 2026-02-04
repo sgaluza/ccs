@@ -1,8 +1,8 @@
 # CCS Codebase Summary
 
-Last Updated: 2026-01-06
+Last Updated: 2026-02-04
 
-Comprehensive overview of the modularized CCS codebase structure following the Phase 9 modularization effort (Settings, Analytics, Auth Monitor splits + Test Infrastructure), v7.1 Remote CLIProxy feature, v7.2 Kiro + GitHub Copilot (ghcp) OAuth providers, and v7.14 Hybrid Quota Management.
+Comprehensive overview of the modularized CCS codebase structure following the Phase 9 modularization effort (Settings, Analytics, Auth Monitor splits + Test Infrastructure), v7.1 Remote CLIProxy feature, v7.2 Kiro + GitHub Copilot (ghcp) OAuth providers, v7.14 Hybrid Quota Management, and v7.34 Image Analysis Hook.
 
 ## Repository Structure
 
@@ -45,6 +45,8 @@ src/
 │
 ├── commands/                 # CLI command handlers
 │   ├── cliproxy-command.ts   # CLIProxy subcommand handling
+│   ├── config-command.ts     # Config management commands
+│   ├── config-image-analysis-command.ts  # Image analysis hook config (NEW v7.34)
 │   ├── doctor-command.ts     # Health diagnostics
 │   ├── help-command.ts       # Help text generation
 │   ├── install-command.ts    # Install/uninstall logic
@@ -116,7 +118,8 @@ src/
 ├── management/               # Doctor diagnostics
 │   ├── index.ts              # Barrel export
 │   ├── checks/               # Diagnostic checks
-│   │   └── index.ts
+│   │   ├── index.ts
+│   │   └── image-analysis-check.ts  # Image hook validation (NEW v7.34)
 │   └── repair/               # Auto-repair logic
 │       └── index.ts
 │
@@ -136,6 +139,15 @@ src/
 │   │   └── spinners.ts       # Progress spinners
 │   ├── websearch/            # Search tool integrations
 │   │   └── index.ts
+│   ├── hooks/                # Claude Code hooks (NEW v7.34)
+│   │   ├── index.ts
+│   │   ├── image-analyzer-hook-installer.ts
+│   │   ├── image-analyzer-hook-configuration.ts
+│   │   ├── image-analyzer-profile-hook-injector.ts
+│   │   └── get-image-analysis-hook-env.ts
+│   ├── image-analysis/       # Image analysis hook utilities (NEW v7.34)
+│   │   ├── index.ts
+│   │   └── hook-installer.ts
 │   └── [utility files...]
 │
 └── web-server/               # Express web server (heavily modularized)
@@ -173,6 +185,7 @@ src/
 | Providers | `cliproxy/`, `copilot/`, `glmt/` | Provider integrations (7 CLIProxy providers: gemini, codex, agy, qwen, iflow, kiro, ghcp) |
 | Quota | `cliproxy/quota-*.ts`, `account-manager.ts` | Hybrid quota management (v7.14) |
 | Remote Proxy | `cliproxy/remote-*.ts`, `proxy-config-resolver.ts` | Remote CLIProxy support (v7.1) |
+| Image Analysis | `utils/image-analysis/`, `utils/hooks/` | Vision model proxying (v7.34) |
 | Services | `web-server/`, `api/` | HTTP server, API services |
 | Utilities | `utils/`, `management/` | Helpers, diagnostics |
 
@@ -474,14 +487,12 @@ tests/
 
 | Metric | Value |
 |--------|-------|
-| CLI Tests | 539 |
-| UI Tests | 99 |
-| Total Tests | 638 |
-| Passing | 612 |
+| Total Tests | 1407 |
+| Passing | 1407 |
 | Skipped | 6 |
-| Failed | 0 (CLI), 26 (UI - jsdom setup) |
+| Failed | 0 |
 | Coverage Threshold | 90% |
-| Test Files | 38 |
+| Test Files | 40+ |
 
 ---
 

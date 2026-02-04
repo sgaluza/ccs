@@ -1,6 +1,6 @@
 # CCS System Architecture
 
-Last Updated: 2026-01-06
+Last Updated: 2026-02-04
 
 High-level architecture documentation for the CCS (Claude Code Switch) system.
 
@@ -13,7 +13,7 @@ CCS is a CLI wrapper that enables seamless switching between multiple Claude acc
 1. **CLI Application** (`src/`) - Node.js TypeScript CLI
 2. **Dashboard UI** (`ui/`) - React web application served by Express
 
-CCS v7.14 adds Hybrid Quota Management with pause/resume/status commands and auto-failover.
+CCS v7.34 adds Image Analysis Hook for vision model proxying through CLIProxy with automatic injection for all profile types.
 
 ```
 +===========================================================================+
@@ -324,6 +324,14 @@ CCS v7.14 adds Hybrid Quota Management with pause/resume/status commands and aut
         |           |
         |           v
         |     Anthropic Format --> Provider Format
+        |
+        +---> Image Analysis Hook (v7.34)
+        |           |
+        |           v
+        |     Vision Model Proxying (gemini, codex, agy, cliproxy)
+        |           - Auto-injected via claude-hooks
+        |           - Skip for Claude Sub accounts (native vision)
+        |           - Fallback with deprecated block-image-read
         |
         +---> Provider APIs
                     |

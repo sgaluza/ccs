@@ -1,6 +1,6 @@
 # CCS Product Development Requirements (PDR)
 
-Last Updated: 2026-01-06
+Last Updated: 2026-02-04
 
 ## Product Overview
 
@@ -10,7 +10,7 @@ Last Updated: 2026-01-06
 
 **Description**: CLI wrapper enabling seamless switching between multiple Claude accounts and alternative AI providers (GLM, Gemini, Codex, OpenRouter, Qwen, Kimi, DeepSeek) with a React-based dashboard for configuration management. Supports both local and remote CLIProxyAPI instances with hybrid quota management.
 
-**Current Version**: v7.14.x (Hybrid Quota Management + Pause/Resume)
+**Current Version**: v7.34.x (Image Analysis Hook + Performance Improvements)
 
 ---
 
@@ -192,7 +192,7 @@ CCS provides:
 | Startup time | < 100ms | Achieved |
 | Dashboard load | < 2s | Achieved |
 | Error rate | < 1% | Achieved |
-| Test coverage | > 90% | 90% (539 CLI + 99 UI tests) |
+| Test coverage | > 90% | 90% (1407 tests, 6 skipped) |
 | File size compliance | 100% < 200 lines | 95% |
 
 ---
@@ -247,6 +247,19 @@ CCS provides:
 - [x] Persistent volumes for config and credentials
 - [x] Pre-installed AI CLI tools (claude, gemini, grok, opencode)
 - [x] Entrypoint with privilege dropping
+
+### v7.34 Release (Complete)
+- [x] Image Analysis Hook for vision model proxying
+- [x] Auto-injection for agy, gemini, codex, cliproxy profiles
+- [x] Skip hook for Claude Sub accounts (native vision)
+- [x] CLIProxy fallback with deprecated block-image-read
+- [x] `ccs config image-analysis` CLI command
+- [x] Doctor integration for hook validation
+- [x] 791-line E2E test suite for image analysis
+- [x] Performance: Replace busy-wait with Atomics.wait in config lock
+- [x] Network error handling with noRetryPatterns
+- [x] Quota 429 rate limit handling improvements
+- [x] WebSocket maxPayload limit (DoS prevention)
 
 ### v8.0 Release (Planned - Q1 2026)
 - [ ] Multiple CLIProxyAPI instances (load balancing, failover)

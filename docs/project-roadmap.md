@@ -1,6 +1,6 @@
 # CCS Project Roadmap
 
-Last Updated: 2026-01-06
+Last Updated: 2026-02-04
 
 Forward-looking roadmap documenting current priorities, GitHub issues, and future feature plans.
 
@@ -20,18 +20,19 @@ All major modularization work is complete. The codebase evolved from monolithic 
 | 6 | Settings Page | `pages/settings/` (1,781->20 files) |
 | 7 | Analytics Page | `pages/analytics/` (420->8 files) |
 | 8 | Auth Monitor | `monitoring/auth-monitor/` (465->8 files) |
-| 9 | Test Infrastructure | 99 UI tests + 539 CLI tests, 90% coverage |
+| 9 | Test Infrastructure | 1407 tests, 90% coverage |
 | 10 | Remote CLIProxy | `proxy-config-resolver.ts`, `remote-proxy-client.ts` |
 | 11 | Kiro + ghcp Providers | OAuth support via CLIProxyAPIPlus (v7.2) |
 | 12 | Hybrid Quota Management | `quota-manager.ts`, `quota-fetcher.ts` (v7.14) |
 | 13 | Docker Support | `docker/` directory with Dockerfile, Compose, entrypoint |
+| 14 | Image Analysis Hook | Vision proxying via CLIProxy transformers (v7.34) |
 
 **Metrics Achieved**:
 - Files >500 lines: 12 -> 5 (-58%)
 - UI files >200 lines: 28 -> 8 (-71%)
 - Barrel exports: 5 -> 39 (+680%)
 - Test coverage: 0% -> 90%
-- Total tests: 638 (539 CLI + 99 UI)
+- Total tests: 1407 (6 skipped)
 
 ---
 
@@ -168,6 +169,7 @@ worktrees:
 | Kiro + GitHub Copilot OAuth (#157) | COMPLETE | v7.2 |
 | Hybrid Quota Management | COMPLETE | v7.14 |
 | Docker Support (PR #345) | COMPLETE | v7.23 |
+| Image Analysis Hook | COMPLETE | v7.34 |
 | Critical Bug Fixes (#158, #155, #124) | PLANNED | Q1 2026 |
 | Multiple CLIProxyAPI Instances | PLANNED | Q1 2026 |
 | Git Worktree Support | PLANNED | Q2 2026 |
