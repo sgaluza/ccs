@@ -4,6 +4,42 @@ import { expandPath } from './helpers';
 import { ClaudeCliInfo } from '../types';
 
 /**
+ * Common Windows installation paths for Claude CLI native installer
+ * These are checked as fallback when 'where.exe claude' fails
+ */
+const WINDOWS_NATIVE_PATHS = [
+  // Native installer locations (Anthropic/Claude branded)
+  '%LOCALAPPDATA%\\Programs\\Claude\\claude.exe',
+  '%LOCALAPPDATA%\\AnthropicClaude\\claude.exe',
+  '%PROGRAMFILES%\\Claude\\claude.exe',
+  '%PROGRAMFILES%\\Anthropic\\Claude\\claude.exe',
+  // npm/bun global install locations (already in PATH, but check as fallback)
+  '%APPDATA%\\npm\\claude.cmd',
+  '%USERPROFILE%\\.bun\\bin\\claude.exe',
+];
+
+/**
+ * Expand Windows environment variables in path
+ */
+function expandWindowsPath(p: string): string {
+  return p.replace(/%([^%]+)%/g, (_, name) => process.env[name] || '');
+}
+
+/**
+ * Check common Windows installation paths for Claude CLI
+ * Returns the first valid path found, or null
+ */
+function findClaudeInWindowsPaths(): string | null {
+  for (const template of WINDOWS_NATIVE_PATHS) {
+    const expanded = expandWindowsPath(template);
+    if (fs.existsSync(expanded)) {
+      return expanded;
+    }
+  }
+  return null;
+}
+
+/**
  * Detect Claude CLI executable
  */
 export function detectClaudeCli(): string | null {
@@ -57,10 +93,19 @@ export function detectClaudeCli(): string | null {
     }
   } catch (_err) {
     // Command failed - claude not in PATH
-    // Fall through to return null
+    // Fall through to Windows fallback or return null
   }
 
-  // Priority 3: Claude not found
+  // Priority 3 (Windows only): Check common native installer locations
+  // This helps users who installed via Windows MSI/EXE but haven't run 'claude install'
+  if (isWindows) {
+    const nativePath = findClaudeInWindowsPaths();
+    if (nativePath) {
+      return nativePath;
+    }
+  }
+
+  // Priority 4: Claude not found
   return null;
 }
 
