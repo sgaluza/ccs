@@ -5,39 +5,12 @@
  * Checks: enabled status, provider_models, timeout, CLIProxy availability.
  */
 
-import http from 'http';
 import { getImageAnalysisConfig } from '../../config/unified-config-loader';
 import { DEFAULT_IMAGE_ANALYSIS_CONFIG } from '../../config/unified-config-types';
 import { ok, warn, dim } from '../../utils/ui';
+import { isCliproxyRunning } from '../../cliproxy/stats-fetcher';
+import { CLIPROXY_DEFAULT_PORT } from '../../cliproxy/config-generator';
 import type { HealthCheck } from './types';
-
-/**
- * Check CLIProxy availability (simple HTTP check)
- */
-async function isCliProxyAvailable(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const req = http.request(
-      {
-        hostname: '127.0.0.1',
-        port: 8317,
-        path: '/',
-        method: 'GET',
-        timeout: 2000,
-      },
-      (res) => {
-        resolve(res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 500);
-      }
-    );
-
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-
-    req.end();
-  });
-}
 
 /**
  * Run image analysis configuration check
@@ -93,7 +66,7 @@ export async function runImageAnalysisCheck(results: HealthCheck): Promise<void>
   console.log(`  ${ok('Timeout:')} ${config.timeout}s`);
 
   // Check 4: CLIProxy availability (only if enabled)
-  const cliproxyAvailable = await isCliProxyAvailable();
+  const cliproxyAvailable = await isCliproxyRunning(CLIPROXY_DEFAULT_PORT);
   if (!cliproxyAvailable) {
     results.details['Image Analysis'] = {
       status: 'WARN',
@@ -104,11 +77,11 @@ export async function runImageAnalysisCheck(results: HealthCheck): Promise<void>
       message: 'CLIProxy not running - image analysis will fail',
       fix: 'ccs config (starts CLIProxy)',
     });
-    console.log(`  ${warn('CLIProxy:')} Not running at http://127.0.0.1:8317`);
+    console.log(`  ${warn('CLIProxy:')} Not running at http://127.0.0.1:${CLIPROXY_DEFAULT_PORT}`);
     console.log(`  ${dim('Note:')} Start with: ccs config`);
     return;
   }
-  console.log(`  ${ok('CLIProxy:')} Available at http://127.0.0.1:8317`);
+  console.log(`  ${ok('CLIProxy:')} Available at http://127.0.0.1:${CLIPROXY_DEFAULT_PORT}`);
 
   // All checks passed
   results.details['Image Analysis'] = {
