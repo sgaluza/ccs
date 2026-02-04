@@ -94,13 +94,14 @@ export function ensureProfileHooks(profileName: string): boolean {
       return false;
     }
 
-    // Only inject for CLIProxy profiles with vision support
-    const visionProfiles = ['agy', 'gemini'];
-    if (!visionProfiles.includes(profileName)) {
+    const imageConfig = getImageAnalysisConfig();
+
+    // Only inject for profiles that have a model mapping in provider_models
+    // This allows dynamic extension without hardcoding profile names
+    const configuredProviders = Object.keys(imageConfig.provider_models);
+    if (!configuredProviders.includes(profileName)) {
       return false;
     }
-
-    const imageConfig = getImageAnalysisConfig();
 
     // Skip if image analysis is disabled
     if (!imageConfig.enabled) {

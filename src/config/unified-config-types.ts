@@ -545,6 +545,8 @@ export const DEFAULT_IMAGE_ANALYSIS_CONFIG: ImageAnalysisConfig = {
     kiro: 'kiro-claude-haiku-4-5',
     ghcp: 'claude-haiku-4.5',
     claude: 'claude-haiku-4-5-20251001',
+    qwen: 'vision-model',
+    iflow: 'qwen3-vl-plus',
   },
 };
 
