@@ -1,3 +1,21 @@
+## [7.36.0](https://github.com/kaitranntt/ccs/compare/v7.35.1...v7.36.0) (2026-02-04)
+
+### Features
+
+* **detector:** add Windows native installer fallback detection ([3336736](https://github.com/kaitranntt/ccs/commit/333673615465727d2b25fef7a35203424859584d)), closes [#447](https://github.com/kaitranntt/ccs/issues/447)
+
+### Bug Fixes
+
+* **detector:** use expandPath helper and add tests ([7f83a7d](https://github.com/kaitranntt/ccs/commit/7f83a7d43574e12ae3685caa0f6cf682ea9631ca)), closes [#449](https://github.com/kaitranntt/ccs/issues/449) [#447](https://github.com/kaitranntt/ccs/issues/447)
+* **hooks:** deduplicate WebSearch hooks when saving via Dashboard ([57d4b04](https://github.com/kaitranntt/ccs/commit/57d4b04c682aac6246d2678a8104ed64e3bbd39a)), closes [#450](https://github.com/kaitranntt/ccs/issues/450)
+* **ui:** prevent settings tab truncation with grid layout ([bfb2a06](https://github.com/kaitranntt/ccs/commit/bfb2a062682be3bfb4a03d3a2e0b534829a37899))
+
+### Tests
+
+* add stress test and PostToolUse preservation tests ([2fe6c33](https://github.com/kaitranntt/ccs/commit/2fe6c336d71cd36e7983603491601307a5f674e7)), closes [#452](https://github.com/kaitranntt/ccs/issues/452)
+* **glmt:** increase timeout for retry-logic tests on CI ([aa83b4d](https://github.com/kaitranntt/ccs/commit/aa83b4db4e00296bd02ff1699ee7782d291f012a))
+* **uploader:** fix flaky timeout test with 5ms tolerance ([36c5605](https://github.com/kaitranntt/ccs/commit/36c560532331a6d12ec0d52e7f559004f241beea))
+
 ## [7.35.1](https://github.com/kaitranntt/ccs/compare/v7.35.0...v7.35.1) (2026-02-04)
 
 ### Bug Fixes
