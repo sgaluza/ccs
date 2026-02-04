@@ -27,6 +27,14 @@ export function getCcsDir(): string {
 }
 
 /**
+ * Get CCS hooks directory (respects CCS_HOME for test isolation)
+ * @returns Path to hooks directory
+ */
+export function getCcsHooksDir(): string {
+  return path.join(getCcsDir(), 'hooks');
+}
+
+/**
  * Get config file path (legacy JSON path)
  * @deprecated Use getActiveConfigPath() for mode-aware config path
  */

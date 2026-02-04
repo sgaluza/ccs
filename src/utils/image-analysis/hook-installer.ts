@@ -9,20 +9,13 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { info, warn } from '../ui';
-import { getCcsDir } from '../config-manager';
-
-/**
- * Get CCS hooks directory
- */
-export function getCcsHooksDir(): string {
-  return path.join(getCcsDir(), 'hooks');
-}
+import { getCcsHooksDir } from '../config-manager';
 
 /**
  * Get prompts directory for image analysis
  */
 export function getPromptsDir(): string {
-  return path.join(getCcsDir(), 'prompts', 'image-analysis');
+  return path.join(getCcsHooksDir(), '..', 'prompts', 'image-analysis');
 }
 
 /**

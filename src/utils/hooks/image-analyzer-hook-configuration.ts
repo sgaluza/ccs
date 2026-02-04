@@ -8,17 +8,10 @@
 
 import * as path from 'path';
 import { getImageAnalysisConfig } from '../../config/unified-config-loader';
-import { getCcsDir } from '../config-manager';
+import { getCcsHooksDir } from '../config-manager';
 
 // Hook file name
 const IMAGE_ANALYZER_HOOK = 'image-analyzer-transformer.cjs';
-
-/**
- * Get CCS hooks directory (respects CCS_HOME for test isolation)
- */
-export function getCcsHooksDir(): string {
-  return path.join(getCcsDir(), 'hooks');
-}
 
 /**
  * Get path to image analyzer hook
