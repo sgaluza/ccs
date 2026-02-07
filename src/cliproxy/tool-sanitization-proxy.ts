@@ -439,12 +439,21 @@ export class ToolSanitizationProxy {
         (upstreamRes) => {
           clientRes.writeHead(upstreamRes.statusCode || 200, upstreamRes.headers);
 
-          // Track whether upstream emitted any content (guards against empty proxy responses)
-          let hasReceivedContent = false;
-          let hasReceivedData = false;
-          let hasReceivedMessageStart = false;
-          let hasReceivedMessageDelta = false;
-          let hasReceivedMessageStop = false;
+          // Track upstream SSE lifecycle events (guards against empty proxy responses)
+          const lifecycle = {
+            hasContent: false,
+            hasData: false,
+            hasMessageStart: false,
+            hasMessageDelta: false,
+            hasMessageStop: false,
+            /** Scan text for SSE lifecycle events and update tracking flags */
+            update(text: string) {
+              if (text.includes('"content_block_start"')) this.hasContent = true;
+              if (text.includes('"message_start"')) this.hasMessageStart = true;
+              if (text.includes('"message_delta"')) this.hasMessageDelta = true;
+              if (text.includes('"message_stop"')) this.hasMessageStop = true;
+            },
+          };
           const isSuccessResponse =
             (upstreamRes.statusCode || 200) >= 200 && (upstreamRes.statusCode || 200) < 300;
 
@@ -455,34 +464,27 @@ export class ToolSanitizationProxy {
           // synthetic block as additional content in the same conversation turn.
           if (!mapper.hasChanges()) {
             upstreamRes.on('data', (chunk: Buffer) => {
-              hasReceivedData = true;
-              const chunkStr = chunk.toString('utf8');
-              if (chunkStr.includes('"content_block_start"')) {
-                hasReceivedContent = true;
+              lifecycle.hasData = true;
+              lifecycle.update(chunk.toString('utf8'));
+              // Respect backpressure: pause upstream if client can't keep up
+              const canContinue = clientRes.write(chunk);
+              if (!canContinue) {
+                upstreamRes.pause();
+                clientRes.once('drain', () => upstreamRes.resume());
               }
-              if (chunkStr.includes('"message_start"')) {
-                hasReceivedMessageStart = true;
-              }
-              if (chunkStr.includes('"message_delta"')) {
-                hasReceivedMessageDelta = true;
-              }
-              if (chunkStr.includes('"message_stop"')) {
-                hasReceivedMessageStop = true;
-              }
-              clientRes.write(chunk);
             });
             upstreamRes.on('end', () => {
               try {
-                if (!hasReceivedContent && isSuccessResponse && hasReceivedData) {
+                if (!lifecycle.hasContent && isSuccessResponse && lifecycle.hasData) {
                   this.writeLog(
                     'warn',
                     '[tool-sanitization-proxy] Empty response detected from upstream (no content blocks). Injecting synthetic response to prevent client crash.'
                   );
                   clientRes.write(
                     this.buildSyntheticErrorResponse(
-                      hasReceivedMessageStart,
-                      hasReceivedMessageDelta,
-                      hasReceivedMessageStop
+                      lifecycle.hasMessageStart,
+                      lifecycle.hasMessageDelta,
+                      lifecycle.hasMessageStop
                     )
                   );
                 }
@@ -500,7 +502,7 @@ export class ToolSanitizationProxy {
           let buffer = '';
 
           upstreamRes.on('data', (chunk: Buffer) => {
-            hasReceivedData = true;
+            lifecycle.hasData = true;
             buffer += chunk.toString('utf8');
 
             // Process complete SSE events
@@ -510,18 +512,7 @@ export class ToolSanitizationProxy {
             for (const event of events) {
               if (!event.trim()) continue;
 
-              if (event.includes('"content_block_start"')) {
-                hasReceivedContent = true;
-              }
-              if (event.includes('"message_start"')) {
-                hasReceivedMessageStart = true;
-              }
-              if (event.includes('"message_delta"')) {
-                hasReceivedMessageDelta = true;
-              }
-              if (event.includes('"message_stop"')) {
-                hasReceivedMessageStop = true;
-              }
+              lifecycle.update(event);
 
               const processedEvent = this.processSSEEvent(event, mapper);
               clientRes.write(processedEvent + '\n\n');
@@ -532,33 +523,22 @@ export class ToolSanitizationProxy {
             try {
               // Process any remaining buffer
               if (buffer.trim()) {
-                if (buffer.includes('"content_block_start"')) {
-                  hasReceivedContent = true;
-                }
-                if (buffer.includes('"message_start"')) {
-                  hasReceivedMessageStart = true;
-                }
-                if (buffer.includes('"message_delta"')) {
-                  hasReceivedMessageDelta = true;
-                }
-                if (buffer.includes('"message_stop"')) {
-                  hasReceivedMessageStop = true;
-                }
+                lifecycle.update(buffer);
                 const processedEvent = this.processSSEEvent(buffer, mapper);
                 clientRes.write(processedEvent + '\n\n');
               }
 
               // Safety net: if upstream sent data but no content blocks, inject synthetic response
-              if (!hasReceivedContent && isSuccessResponse && hasReceivedData) {
+              if (!lifecycle.hasContent && isSuccessResponse && lifecycle.hasData) {
                 this.writeLog(
                   'warn',
                   '[tool-sanitization-proxy] Empty response detected from upstream (no content blocks). Injecting synthetic response to prevent client crash.'
                 );
                 clientRes.write(
                   this.buildSyntheticErrorResponse(
-                    hasReceivedMessageStart,
-                    hasReceivedMessageDelta,
-                    hasReceivedMessageStop
+                    lifecycle.hasMessageStart,
+                    lifecycle.hasMessageDelta,
+                    lifecycle.hasMessageStop
                   )
                 );
               }
