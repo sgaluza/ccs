@@ -4,7 +4,7 @@
  * Cross-platform shell execution utilities for CCS.
  */
 
-import { spawn, ChildProcess, execSync } from 'child_process';
+import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { ErrorManager } from './error-manager';
 import { getWebSearchHookEnv } from './websearch-manager';
 
@@ -89,7 +89,7 @@ export function execClaude(
     for (const key of tmuxPropagateVars) {
       if (envVars[key]) {
         try {
-          execSync(`tmux setenv ${key} ${JSON.stringify(envVars[key])}`, { stdio: 'ignore' });
+          spawnSync('tmux', ['setenv', key, envVars[key] ?? ''], { stdio: 'ignore' });
         } catch {
           // tmux setenv can fail if not in a tmux session; safe to ignore
         }
