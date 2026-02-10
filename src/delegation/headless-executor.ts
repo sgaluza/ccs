@@ -5,7 +5,20 @@
  * Spawns claude with -p flag for single-turn execution
  */
 
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
+
+/**
+ * Kill process with SIGTERM, escalating to SIGKILL if it doesn't exit
+ */
+function killWithEscalation(proc: ChildProcess, gracePeriodMs = 3000): void {
+  proc.kill('SIGTERM');
+  const timer = setTimeout(() => {
+    if (proc.exitCode === null) {
+      proc.kill('SIGKILL');
+    }
+  }, gracePeriodMs);
+  proc.once('exit', () => clearTimeout(timer));
+}
 import * as path from 'path';
 import * as fs from 'fs';
 import { SessionManager } from './session-manager';
@@ -214,11 +227,8 @@ export class HeadlessExecutor {
 
       // Setup signal handlers for cleanup
       const cleanupHandler = () => {
-        if (!proc.killed) {
-          proc.kill('SIGTERM');
-          setTimeout(() => {
-            if (!proc.killed) proc.kill('SIGKILL');
-          }, 2000);
+        if (proc.exitCode === null) {
+          killWithEscalation(proc, 2000);
         }
       };
       process.once('SIGINT', cleanupHandler);
@@ -326,16 +336,13 @@ export class HeadlessExecutor {
       // Handle timeout
       if (timeout > 0) {
         const timeoutHandle = setTimeout(() => {
-          if (!proc.killed) {
+          if (proc.exitCode === null) {
             timedOut = true;
             if (progressInterval) {
               clearInterval(progressInterval);
               process.stderr.write('\r\x1b[K');
             }
-            proc.kill('SIGTERM');
-            setTimeout(() => {
-              if (!proc.killed) proc.kill('SIGKILL');
-            }, 10000);
+            killWithEscalation(proc, 10000);
           }
         }, timeout);
         proc.on('close', () => clearTimeout(timeoutHandle));
