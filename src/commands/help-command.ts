@@ -257,6 +257,15 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['ccs update --beta', 'Install from dev channel (unstable)'],
   ]);
 
+  // Environment export
+  printSubSection('Environment Export', [
+    ['ccs env <profile>', 'Export env vars for third-party tools'],
+    ['ccs env <profile> --format openai', 'OpenAI-compatible vars (OpenCode/Cursor)'],
+    ['ccs env <profile> --format anthropic', 'Anthropic vars (default)'],
+    ['ccs env <profile> --format raw', 'All effective env vars'],
+    ['ccs env <profile> --shell fish', 'Fish shell syntax'],
+  ]);
+
   // Flags
   printSubSection('Flags', [
     ['-h, --help', 'Show this help message'],

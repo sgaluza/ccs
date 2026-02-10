@@ -1,0 +1,229 @@
+/**
+ * Env Command Handler
+ *
+ * Export environment variables for third-party tool integration.
+ * Outputs shell-evaluable exports for OpenCode, Cursor, Continue, etc.
+ */
+
+import { initUI, header, dim, color, subheader, fail, warn } from '../utils/ui';
+import { CLIProxyProvider } from '../cliproxy/types';
+import { CLIPROXY_PROFILES, loadSettingsFromFile } from '../auth/profile-detector';
+import { getEffectiveEnvVars } from '../cliproxy/config/env-builder';
+import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
+import { isUnifiedMode, loadUnifiedConfig } from '../config/unified-config-loader';
+import { expandPath } from '../utils/helpers';
+
+type ShellType = 'bash' | 'fish' | 'powershell';
+type OutputFormat = 'openai' | 'anthropic' | 'raw';
+
+const VALID_FORMATS: OutputFormat[] = ['openai', 'anthropic', 'raw'];
+const VALID_SHELLS: ShellType[] = ['bash', 'fish', 'powershell'];
+
+/** Auto-detect shell from environment */
+export function detectShell(flag?: string): ShellType {
+  if (flag && flag !== 'auto' && VALID_SHELLS.includes(flag as ShellType)) {
+    return flag as ShellType;
+  }
+  const shell = process.env['SHELL'] || '';
+  if (shell.includes('fish')) return 'fish';
+  if (process.platform === 'win32') return 'powershell';
+  return 'bash';
+}
+
+/** Format a single env var export for the target shell */
+export function formatExportLine(shell: ShellType, key: string, value: string): string {
+  // Escape double quotes in value
+  const escaped = value.replace(/"/g, '\\"');
+  switch (shell) {
+    case 'fish':
+      return `set -gx ${key} "${escaped}"`;
+    case 'powershell':
+      return `$env:${key} = "${escaped}"`;
+    default:
+      return `export ${key}="${escaped}"`;
+  }
+}
+
+/** Map Anthropic env vars to OpenAI-compatible format */
+export function transformToOpenAI(envVars: Record<string, string>): Record<string, string> {
+  const baseUrl = envVars['ANTHROPIC_BASE_URL'] || '';
+  const apiKey = envVars['ANTHROPIC_AUTH_TOKEN'] || '';
+  return {
+    OPENAI_API_KEY: apiKey,
+    OPENAI_BASE_URL: baseUrl,
+    LOCAL_ENDPOINT: baseUrl,
+  };
+}
+
+/** Parse --key=value or --key value style args */
+function parseFlag(args: string[], flag: string): string | undefined {
+  // --flag=value style
+  const eqMatch = args.find((a) => a.startsWith(`--${flag}=`));
+  if (eqMatch) return eqMatch.split('=')[1];
+  // --flag value style
+  const idx = args.indexOf(`--${flag}`);
+  if (idx >= 0 && idx + 1 < args.length && !args[idx + 1].startsWith('-')) {
+    return args[idx + 1];
+  }
+  return undefined;
+}
+
+/** Check if a profile is a CLIProxy profile */
+function isCLIProxyProfile(name: string): boolean {
+  return (CLIPROXY_PROFILES as readonly string[]).includes(name);
+}
+
+/** Resolve env vars for settings-based profiles (glm, kimi, custom API profiles) */
+function resolveSettingsProfile(profileName: string): Record<string, string> | null {
+  if (!isUnifiedMode()) return null;
+
+  const config = loadUnifiedConfig();
+  if (!config) return null;
+
+  // Check unified config profiles section
+  const profileConfig = config.profiles?.[profileName];
+  if (!profileConfig) return null;
+
+  if (profileConfig.type === 'api' && profileConfig.settings) {
+    const settingsPath = expandPath(profileConfig.settings);
+    const env = loadSettingsFromFile(settingsPath);
+    if (Object.keys(env).length > 0) return env;
+  }
+
+  return null;
+}
+
+/** Show help for env command */
+function showHelp(): void {
+  console.log('');
+  console.log(header('ccs env'));
+  console.log('');
+  console.log('  Export environment variables for third-party tool integration.');
+  console.log('');
+
+  console.log(subheader('Usage:'));
+  console.log(`  ${color('ccs env', 'command')} <profile> [options]`);
+  console.log('');
+
+  console.log(subheader('Options:'));
+  console.log(
+    `  ${color('--format', 'command')} <fmt>    Output format: openai, anthropic, raw ${dim('(default: anthropic)')}`
+  );
+  console.log(
+    `  ${color('--shell', 'command')} <sh>      Shell syntax: auto, bash, fish, powershell ${dim('(default: auto)')}`
+  );
+  console.log(`  ${color('--help, -h', 'command')}        Show this help message`);
+  console.log('');
+
+  console.log(subheader('Formats:'));
+  console.log(
+    `  ${color('openai', 'command')}      OPENAI_API_KEY, OPENAI_BASE_URL, LOCAL_ENDPOINT`
+  );
+  console.log(
+    `  ${color('anthropic', 'command')}   ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL`
+  );
+  console.log(`  ${color('raw', 'command')}         All effective env vars as-is`);
+  console.log('');
+
+  console.log(subheader('Examples:'));
+  console.log(
+    `  $ ${color('eval $(ccs env gemini --format openai)', 'command')}     ${dim('# For OpenCode/Cursor')}`
+  );
+  console.log(
+    `  $ ${color('ccs env codex --format anthropic', 'command')}          ${dim('# Anthropic vars')}`
+  );
+  console.log(
+    `  $ ${color('ccs env glm --format raw', 'command')}                  ${dim('# All vars from settings')}`
+  );
+  console.log(
+    `  $ ${color('ccs env agy --format openai --shell fish', 'command')}  ${dim('# Fish shell syntax')}`
+  );
+  console.log('');
+}
+
+/**
+ * Handle env command
+ * @param args - Command line arguments (after 'env')
+ */
+export async function handleEnvCommand(args: string[]): Promise<void> {
+  await initUI();
+
+  if (args.includes('--help') || args.includes('-h')) {
+    showHelp();
+    return;
+  }
+
+  // Parse profile (first non-flag argument)
+  const profile = args.find((a) => !a.startsWith('-'));
+  if (!profile) {
+    console.error(fail('Usage: ccs env <profile> [--format openai|anthropic|raw]'));
+    process.exit(1);
+  }
+
+  // Parse flags
+  const formatStr = parseFlag(args, 'format') || 'anthropic';
+  if (!VALID_FORMATS.includes(formatStr as OutputFormat)) {
+    console.error(fail(`Invalid format: ${formatStr}. Use: ${VALID_FORMATS.join(', ')}`));
+    process.exit(1);
+  }
+  const format = formatStr as OutputFormat;
+
+  const shellStr = parseFlag(args, 'shell') || 'auto';
+  const shell = detectShell(shellStr);
+
+  // Resolve env vars based on profile type
+  let envVars: Record<string, string> = {};
+
+  if (isCLIProxyProfile(profile)) {
+    // CLIProxy profile (gemini, codex, agy, etc.)
+    const provider = profile as CLIProxyProvider;
+    const resolved = getEffectiveEnvVars(provider, CLIPROXY_DEFAULT_PORT);
+    // Convert NodeJS.ProcessEnv to Record<string, string>
+    for (const [k, v] of Object.entries(resolved)) {
+      if (v !== undefined) envVars[k] = v;
+    }
+  } else {
+    // Settings-based profile (glm, kimi, custom API)
+    const resolved = resolveSettingsProfile(profile);
+    if (!resolved) {
+      console.error(fail(`Profile '${profile}' not found.`));
+      console.error(dim('  Available CLIProxy profiles: ' + CLIPROXY_PROFILES.join(', ')));
+      console.error(dim('  Check ~/.ccs/config.yaml for custom profiles.'));
+      process.exit(1);
+    }
+    envVars = resolved;
+  }
+
+  if (Object.keys(envVars).length === 0) {
+    console.error(warn(`No env vars resolved for profile '${profile}'.`));
+    process.exit(1);
+  }
+
+  // Transform to requested format
+  let output: Record<string, string>;
+  switch (format) {
+    case 'openai':
+      output = transformToOpenAI(envVars);
+      break;
+    case 'anthropic': {
+      // Filter to only Anthropic-relevant vars
+      output = {};
+      for (const [k, v] of Object.entries(envVars)) {
+        if (k.startsWith('ANTHROPIC_')) {
+          output[k] = v;
+        }
+      }
+      break;
+    }
+    case 'raw':
+      output = envVars;
+      break;
+  }
+
+  // Output shell-formatted exports to stdout
+  for (const [key, value] of Object.entries(output)) {
+    if (value) {
+      console.log(formatExportLine(shell, key, value));
+    }
+  }
+}

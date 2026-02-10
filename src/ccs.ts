@@ -450,6 +450,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Special case: env command (export env vars for third-party tools)
+  if (firstArg === 'env') {
+    const { handleEnvCommand } = await import('./commands/env-command');
+    await handleEnvCommand(args.slice(1));
+    return;
+  }
+
   // Special case: setup command (first-time wizard)
   if (firstArg === 'setup' || firstArg === '--setup') {
     const { handleSetupCommand } = await import('./commands/setup-command');
