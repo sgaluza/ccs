@@ -18,6 +18,7 @@ type OutputFormat = 'openai' | 'anthropic' | 'raw';
 
 const VALID_FORMATS: OutputFormat[] = ['openai', 'anthropic', 'raw'];
 const VALID_SHELLS: ShellType[] = ['bash', 'fish', 'powershell'];
+const VALID_ENV_KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Auto-detect shell from environment */
 export function detectShell(flag?: string): ShellType {
@@ -231,7 +232,7 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
 
   // Output shell-formatted exports to stdout
   for (const [key, value] of Object.entries(output)) {
-    if (value) {
+    if (value && VALID_ENV_KEY.test(key)) {
       console.log(formatExportLine(shell, key, value));
     }
   }
