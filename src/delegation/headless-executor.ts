@@ -5,21 +5,9 @@
  * Spawns claude with -p flag for single-turn execution
  */
 
-import { spawn, ChildProcess } from 'child_process';
-
-/**
- * Kill process with SIGTERM, escalating to SIGKILL if it doesn't exit
- */
-function killWithEscalation(proc: ChildProcess, gracePeriodMs = 3000): void {
-  proc.kill('SIGTERM');
-  const timer = setTimeout(() => {
-    if (proc.exitCode === null) {
-      proc.kill('SIGKILL');
-    }
-  }, gracePeriodMs);
-  proc.once('exit', () => clearTimeout(timer));
-}
+import { spawn } from 'child_process';
 import * as path from 'path';
+import { killWithEscalation } from '../utils/process-utils';
 import * as fs from 'fs';
 import { SessionManager } from './session-manager';
 import { SettingsParser } from './settings-parser';

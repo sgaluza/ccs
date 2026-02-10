@@ -6,20 +6,8 @@
  */
 
 import { spawn, ChildProcess } from 'child_process';
-
-/**
- * Kill process with SIGTERM, escalating to SIGKILL if it doesn't exit
- */
-function killWithEscalation(proc: ChildProcess, gracePeriodMs = 3000): void {
-  proc.kill('SIGTERM');
-  const timer = setTimeout(() => {
-    if (proc.exitCode === null) {
-      proc.kill('SIGKILL');
-    }
-  }, gracePeriodMs);
-  proc.once('exit', () => clearTimeout(timer));
-}
 import { ok, fail, info, warn } from '../../utils/ui';
+import { killWithEscalation } from '../../utils/process-utils';
 import { tryKiroImport } from './kiro-import';
 import { CLIProxyProvider } from '../types';
 import { AccountInfo } from '../account-manager';
@@ -371,9 +359,9 @@ export function executeOAuthProcess(options: OAuthProcessOptions): Promise<Accou
 
     // Listen for external cancel signal
     const handleCancel = (cancelledSessionId: string) => {
-      if (cancelledSessionId === state.sessionId && authProcess && !authProcess.killed) {
+      if (cancelledSessionId === state.sessionId && authProcess && authProcess.exitCode === null) {
         log('Session cancelled externally');
-        authProcess.kill('SIGTERM');
+        killWithEscalation(authProcess);
       }
     };
     authSessionEvents.on('session:cancelled', handleCancel);
