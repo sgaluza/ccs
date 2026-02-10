@@ -36,8 +36,8 @@ export function detectShell(flag?: string): ShellType {
 export function formatExportLine(shell: ShellType, key: string, value: string): string {
   switch (shell) {
     case 'fish':
-      // Fish: single quotes prevent expansion; escape embedded single quotes with \'
-      return `set -gx ${key} '${value.replace(/'/g, "\\'")}'`;
+      // Fish: single quotes prevent expansion; escape embedded single quotes with '\''
+      return `set -gx ${key} '${value.replace(/'/g, "'\\''")}'`;
     case 'powershell':
       // PowerShell: single quotes prevent expansion; escape embedded single quotes with ''
       return `$env:${key} = '${value.replace(/'/g, "''")}'`;
@@ -48,16 +48,19 @@ export function formatExportLine(shell: ShellType, key: string, value: string): 
 }
 
 /** Map Anthropic env vars to OpenAI-compatible format.
- * ANTHROPIC_MODEL is intentionally omitted — the proxy endpoint handles
- * model routing, so OPENAI_MODEL is unnecessary for OpenAI-compatible tools. */
+ * OPENAI_MODEL is included so tools that need it (e.g. OpenCode local provider)
+ * can discover the model without additional configuration. */
 export function transformToOpenAI(envVars: Record<string, string>): Record<string, string> {
   const baseUrl = envVars['ANTHROPIC_BASE_URL'] || '';
   const apiKey = envVars['ANTHROPIC_AUTH_TOKEN'] || '';
-  return {
+  const model = envVars['ANTHROPIC_MODEL'] || '';
+  const result: Record<string, string> = {
     OPENAI_API_KEY: apiKey,
     OPENAI_BASE_URL: baseUrl,
     LOCAL_ENDPOINT: baseUrl,
   };
+  if (model) result['OPENAI_MODEL'] = model;
+  return result;
 }
 
 /** Parse --key=value or --key value style args */
@@ -69,6 +72,23 @@ export function parseFlag(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(`--${flag}`);
   if (idx >= 0 && idx + 1 < args.length && !args[idx + 1].startsWith('-')) {
     return args[idx + 1];
+  }
+  return undefined;
+}
+
+/** Find the first positional argument, skipping flags and their values */
+export function findProfile(args: string[], flagsWithValues: string[]): string | undefined {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg.startsWith('-')) {
+      // Skip flag values: --flag=value (single token) or --flag value (two tokens)
+      const flagName = arg.replace(/^--/, '').split('=')[0];
+      if (!arg.includes('=') && flagsWithValues.includes(flagName) && i + 1 < args.length) {
+        i++; // skip next arg (the value)
+      }
+      continue;
+    }
+    return arg;
   }
   return undefined;
 }
@@ -115,7 +135,7 @@ function showHelp(): void {
     `  ${color('--format', 'command')} <fmt>    Output format: openai, anthropic, raw ${dim('(default: anthropic)')}`
   );
   console.log(
-    `  ${color('--shell', 'command')} <sh>      Shell syntax: auto, bash, fish, powershell ${dim('(default: auto)')}`
+    `  ${color('--shell', 'command')} <sh>      Shell syntax: auto, bash/zsh, fish, powershell ${dim('(default: auto)')}`
   );
   console.log(`  ${color('--help, -h', 'command')}        Show this help message`);
   console.log('');
@@ -158,8 +178,9 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
     return;
   }
 
-  // Parse profile (first non-flag argument)
-  const profile = args.find((a) => !a.startsWith('-'));
+  // Parse profile (first positional argument, skipping flag values)
+  const flagsWithValues = ['format', 'shell'];
+  const profile = findProfile(args, flagsWithValues);
   if (!profile) {
     console.error(fail('Usage: ccs env <profile> [--format openai|anthropic|raw]'));
     process.exit(1);
@@ -235,7 +256,11 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
 
   // Output shell-formatted exports to stdout
   for (const [key, value] of Object.entries(output)) {
-    if (value && VALID_ENV_KEY.test(key)) {
+    if (!VALID_ENV_KEY.test(key)) {
+      console.error(dim(`  Skipping invalid key: ${key}`));
+      continue;
+    }
+    if (value) {
       console.log(formatExportLine(shell, key, value));
     }
   }

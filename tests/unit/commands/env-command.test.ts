@@ -9,6 +9,7 @@ import {
   formatExportLine,
   transformToOpenAI,
   parseFlag,
+  findProfile,
 } from '../../../src/commands/env-command';
 
 describe('env-command', () => {
@@ -98,7 +99,7 @@ describe('env-command', () => {
     });
 
     it('escapes single quotes in fish values', () => {
-      expect(formatExportLine('fish', 'VAL', "it's here")).toBe("set -gx VAL 'it\\'s here'");
+      expect(formatExportLine('fish', 'VAL', "it's here")).toBe("set -gx VAL 'it'\\''s here'");
     });
 
     it('escapes single quotes in powershell values', () => {
@@ -120,6 +121,7 @@ describe('env-command', () => {
         OPENAI_API_KEY: 'ccs-internal-managed',
         OPENAI_BASE_URL: 'http://127.0.0.1:8317/api/provider/gemini',
         LOCAL_ENDPOINT: 'http://127.0.0.1:8317/api/provider/gemini',
+        OPENAI_MODEL: 'gemini-claude-sonnet-4-5',
       });
     });
 
@@ -141,9 +143,18 @@ describe('env-command', () => {
         DISABLE_TELEMETRY: '1',
       });
 
-      // Should only have 3 keys
+      // Should only have 3 keys (no OPENAI_MODEL when ANTHROPIC_MODEL absent)
       expect(Object.keys(result)).toHaveLength(3);
       expect(result['ANTHROPIC_MAX_TOKENS']).toBeUndefined();
+    });
+
+    it('omits OPENAI_MODEL when ANTHROPIC_MODEL absent', () => {
+      const result = transformToOpenAI({
+        ANTHROPIC_BASE_URL: 'http://localhost:8317',
+        ANTHROPIC_AUTH_TOKEN: 'key',
+      });
+
+      expect(result['OPENAI_MODEL']).toBeUndefined();
     });
   });
 
@@ -166,6 +177,32 @@ describe('env-command', () => {
 
     it('does not consume next flag as value', () => {
       expect(parseFlag(['--format', '--shell'], 'format')).toBeUndefined();
+    });
+  });
+
+  describe('findProfile', () => {
+    it('finds profile as first positional arg', () => {
+      expect(findProfile(['gemini'], ['format', 'shell'])).toBe('gemini');
+    });
+
+    it('skips flags before profile', () => {
+      expect(findProfile(['--format', 'openai', 'gemini'], ['format', 'shell'])).toBe('gemini');
+    });
+
+    it('skips --flag=value style flags', () => {
+      expect(findProfile(['--format=openai', 'gemini'], ['format', 'shell'])).toBe('gemini');
+    });
+
+    it('handles profile before flags', () => {
+      expect(findProfile(['gemini', '--format', 'openai'], ['format', 'shell'])).toBe('gemini');
+    });
+
+    it('returns undefined when no positional args', () => {
+      expect(findProfile(['--format', 'openai', '--shell', 'fish'], ['format', 'shell'])).toBeUndefined();
+    });
+
+    it('skips multiple flag-value pairs', () => {
+      expect(findProfile(['--format', 'openai', '--shell', 'fish', 'codex'], ['format', 'shell'])).toBe('codex');
     });
   });
 });
