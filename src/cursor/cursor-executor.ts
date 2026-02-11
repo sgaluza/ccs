@@ -83,6 +83,7 @@ async function getHttp2() {
 
 /**
  * Decompress payload if needed
+ * NOTE: Uses synchronous gzip for single-request CLI tool. Async not warranted for small payloads.
  */
 function decompressPayload(payload: Buffer, flags: number): Buffer {
   // Check if payload is JSON error
@@ -556,6 +557,7 @@ export class CursorExecutor {
   transformProtobufToSSE(buffer: Buffer, model: string, _body: ExecutorParams['body']): Response {
     // TODO: Implement true streaming — currently buffers entire response before transforming.
     // This should pipe HTTP/2 data events through a TransformStream for incremental SSE output.
+    // NOTE: Chunk boundary splits may emit duplicate SSE messages if a frame spans multiple chunks.
     const responseId = `chatcmpl-cursor-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
 

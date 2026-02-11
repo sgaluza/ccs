@@ -83,6 +83,7 @@ export function decodeMessage(
   const fields = new Map<number, Array<{ wireType: WireType; value: Uint8Array | number }>>();
   let pos = 0;
 
+  // NOTE: If two fields share the same field number but different wire types, later values overwrite earlier ones.
   while (pos < data.length) {
     const [fieldNum, wireType, value, newPos] = decodeField(data, pos);
     if (fieldNum === null || wireType === null || value === null) break;
