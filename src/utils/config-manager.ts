@@ -72,10 +72,10 @@ const CLOUD_SYNC_PATTERNS = [
  * @returns Detected service name or null
  */
 export function detectCloudSyncPath(dir: string): string | null {
-  const normalized = dir.replace(/\\/g, '/');
+  const normalized = dir.replace(/\\/g, '/').toLowerCase();
   for (const pattern of CLOUD_SYNC_PATTERNS) {
-    if (normalized.includes(pattern)) {
-      return pattern;
+    if (normalized.includes(pattern.toLowerCase())) {
+      return pattern; // Return original casing for display
     }
   }
   return null;

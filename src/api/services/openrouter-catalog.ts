@@ -5,10 +5,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
+import { getCcsDir } from '../../utils/config-manager';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/models';
-const CACHE_FILE = path.join(os.homedir(), '.ccs', 'openrouter-models-cache.json');
+const CACHE_FILE = path.join(getCcsDir(), 'openrouter-models-cache.json');
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface OpenRouterModel {

@@ -10,7 +10,7 @@ import { getDashboardAuthConfig } from '../../config/unified-config-loader';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { getCcsDir } from '../../utils/config-manager';
 
 // Extend Express Request with session
 declare module 'express-session' {
@@ -24,7 +24,7 @@ declare module 'express-session' {
 const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/check', '/api/auth/setup', '/api/health'];
 
 /** Path to persistent session secret file */
-const SESSION_SECRET_PATH = path.join(os.homedir(), '.ccs', '.session-secret');
+const SESSION_SECRET_PATH = path.join(getCcsDir(), '.session-secret');
 
 /**
  * Generate or retrieve persistent session secret.

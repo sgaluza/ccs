@@ -18,6 +18,9 @@ describe('Config Directory Override', function () {
     originalCcsHome = process.env.CCS_HOME;
     delete process.env.CCS_DIR;
     delete process.env.CCS_HOME;
+    // Reset module-level state
+    const { setGlobalConfigDir } = require('../../dist/utils/config-manager');
+    setGlobalConfigDir(undefined);
   });
 
   afterEach(function () {
@@ -25,6 +28,9 @@ describe('Config Directory Override', function () {
     else delete process.env.CCS_DIR;
     if (originalCcsHome !== undefined) process.env.CCS_HOME = originalCcsHome;
     else delete process.env.CCS_HOME;
+    // Reset module-level state
+    const { setGlobalConfigDir } = require('../../dist/utils/config-manager');
+    setGlobalConfigDir(undefined);
   });
 
   describe('getCcsDir() precedence', function () {
@@ -52,6 +58,29 @@ describe('Config Directory Override', function () {
       const { getCcsDir } = require('../../dist/utils/config-manager');
       assert.strictEqual(getCcsDir(), path.resolve('/tmp/ccs-dir'));
     });
+
+    it('should give setGlobalConfigDir() highest precedence', function () {
+      process.env.CCS_DIR = '/tmp/env-dir';
+      process.env.CCS_HOME = '/tmp/env-home';
+      const { getCcsDir, setGlobalConfigDir } = require('../../dist/utils/config-manager');
+      setGlobalConfigDir('/tmp/flag-dir');
+      assert.strictEqual(getCcsDir(), path.resolve('/tmp/flag-dir'));
+    });
+
+    it('should resolve relative paths in setGlobalConfigDir()', function () {
+      const { getCcsDir, setGlobalConfigDir } = require('../../dist/utils/config-manager');
+      setGlobalConfigDir('relative/path');
+      assert.strictEqual(getCcsDir(), path.resolve('relative/path'));
+    });
+
+    it('should clear override when setGlobalConfigDir(undefined) is called', function () {
+      const { getCcsDir, setGlobalConfigDir } = require('../../dist/utils/config-manager');
+      setGlobalConfigDir('/tmp/override');
+      assert.strictEqual(getCcsDir(), path.resolve('/tmp/override'));
+      setGlobalConfigDir(undefined);
+      const expected = path.join(os.homedir(), '.ccs');
+      assert.strictEqual(getCcsDir(), expected);
+    });
   });
 
   describe('getCcsDirSource()', function () {
@@ -73,6 +102,14 @@ describe('Config Directory Override', function () {
       const { getCcsDirSource } = require('../../dist/utils/config-manager');
       const [source] = getCcsDirSource();
       assert.strictEqual(source, 'CCS_HOME');
+    });
+
+    it('should return "--config-dir" when setGlobalConfigDir() is set', function () {
+      const { getCcsDirSource, setGlobalConfigDir } = require('../../dist/utils/config-manager');
+      setGlobalConfigDir('/tmp/flag-test');
+      const [source, dir] = getCcsDirSource();
+      assert.strictEqual(source, '--config-dir');
+      assert.strictEqual(dir, path.resolve('/tmp/flag-test'));
     });
   });
 
@@ -98,6 +135,13 @@ describe('Config Directory Override', function () {
     it('should detect Google Drive', function () {
       const { detectCloudSyncPath } = require('../../dist/utils/config-manager');
       assert.strictEqual(detectCloudSyncPath('/Users/kai/Google Drive/ccs'), 'Google Drive');
+    });
+
+    it('should detect cloud paths case-insensitively', function () {
+      const { detectCloudSyncPath } = require('../../dist/utils/config-manager');
+      assert.strictEqual(detectCloudSyncPath('/Users/kai/dropbox/ccs'), 'Dropbox');
+      assert.strictEqual(detectCloudSyncPath('C:\\Users\\kai\\onedrive\\ccs'), 'OneDrive');
+      assert.strictEqual(detectCloudSyncPath('/Users/kai/google drive/ccs'), 'Google Drive');
     });
 
     it('should return null for regular paths', function () {

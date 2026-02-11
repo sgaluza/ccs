@@ -286,8 +286,8 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    if (!fs.existsSync(configDirValue)) {
-      console.error(fail(`Config directory not found: ${configDirValue}`));
+    if (!fs.existsSync(configDirValue) || !fs.statSync(configDirValue).isDirectory()) {
+      console.error(fail(`Config directory not found or not a directory: ${configDirValue}`));
       console.error(info('Create the directory first, then copy your config files into it.'));
       process.exit(1);
     }

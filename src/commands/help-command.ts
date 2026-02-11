@@ -111,6 +111,10 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   );
   console.log('');
 
+  // Resolve display path for dynamic sections
+  const [dirSource] = getCcsDirSource();
+  const dirDisplay = dirSource === 'default' ? '~/.ccs' : getCcsDir();
+
   // Usage section
   console.log(subheader('Usage:'));
   console.log(`  ${color('ccs', 'command')} [profile] [claude-args...]`);
@@ -122,7 +126,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   // ═══════════════════════════════════════════════════════════════════════════
   printMajorSection(
     'API Key Profiles',
-    ['Configure in ~/.ccs/*.settings.json'],
+    [`Configure in ${dirDisplay}/*.settings.json`],
     [
       ['ccs', 'Use default Claude account'],
       ['ccs glm', 'GLM 4.6 (API key required)'],
@@ -267,8 +271,6 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   ]);
 
   // Configuration
-  const [dirSource] = getCcsDirSource();
-  const dirDisplay = dirSource === 'default' ? '~/.ccs' : getCcsDir();
   printConfigSection('Configuration', [
     ['Config File:', isUnifiedMode() ? `${dirDisplay}/config.yaml` : `${dirDisplay}/config.json`],
     ['Profiles:', `${dirDisplay}/profiles.json`],

@@ -6,21 +6,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import { info } from '../utils/ui';
+import { getCcsHome, getCcsDir } from '../utils/config-manager';
 import { createEmptyUnifiedConfig, UNIFIED_CONFIG_VERSION } from '../config/unified-config-types';
 import {
   saveUnifiedConfig,
   hasUnifiedConfig,
   loadUnifiedConfig,
 } from '../config/unified-config-loader';
-
-/**
- * Get CCS home directory (respects CCS_HOME env for test isolation)
- */
-function getCcsHome(): string {
-  return process.env.CCS_HOME || os.homedir();
-}
 
 /**
  * Recovery Manager Class
@@ -35,7 +28,7 @@ class RecoveryManager {
 
   constructor() {
     this.homedir = getCcsHome();
-    this.ccsDir = path.join(this.homedir, '.ccs');
+    this.ccsDir = getCcsDir();
     this.claudeDir = path.join(this.homedir, '.claude');
     this.sharedDir = path.join(this.ccsDir, 'shared');
     this.completionsDir = path.join(this.ccsDir, 'completions');

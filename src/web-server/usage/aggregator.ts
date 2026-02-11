@@ -7,7 +7,6 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import {
   loadDailyUsageData,
   loadMonthlyUsageData,
@@ -25,13 +24,14 @@ import {
   getCacheAge,
 } from './disk-cache';
 import { ok, info, fail } from '../../utils/ui';
+import { getCcsDir } from '../../utils/config-manager';
 
 // ============================================================================
 // Multi-Instance Support - Aggregate usage from CCS profiles
 // ============================================================================
 
 /** Path to CCS instances directory */
-const CCS_INSTANCES_DIR = path.join(os.homedir(), '.ccs', 'instances');
+const CCS_INSTANCES_DIR = path.join(getCcsDir(), 'instances');
 
 /**
  * Get list of CCS instance paths that have usage data

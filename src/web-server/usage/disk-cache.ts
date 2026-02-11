@@ -10,13 +10,12 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as os from 'os';
 import type { DailyUsage, HourlyUsage, MonthlyUsage, SessionUsage } from './types';
 import { ok, info, warn } from '../../utils/ui';
+import { getCcsDir } from '../../utils/config-manager';
 
 // Cache configuration
-const CCS_DIR = path.join(os.homedir(), '.ccs');
-const CACHE_DIR = path.join(CCS_DIR, 'cache');
+const CACHE_DIR = path.join(getCcsDir(), 'cache');
 const CACHE_FILE = path.join(CACHE_DIR, 'usage.json');
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (max age for stale data)
