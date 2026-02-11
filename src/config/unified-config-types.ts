@@ -384,7 +384,7 @@ export interface RuntimeMonitorConfig {
   warn_threshold: number;
   /** Quota percentage that triggers cooldown + switch (default: 5) */
   exhaustion_threshold: number;
-  /** Minutes to cooldown exhausted account (default: 10) */
+  /** Minutes to cooldown exhausted account (default: 5) */
   cooldown_minutes: number;
 }
 

@@ -353,7 +353,7 @@ export function handleBanDetection(
 
   console.error('');
   console.error(warn('Account safety: account appears disabled by Google'));
-  console.error(`    Account "${accountId}" (${provider}) returned:`);
+  console.error(`    Account "${maskEmail(accountId)}" (${provider}) returned:`);
   console.error(`    "${truncate(errorMessage, 120)}"`);
   console.error('');
   console.error(info('Auto-pausing this account to prevent further issues.'));
