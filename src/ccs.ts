@@ -2,7 +2,13 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { detectClaudeCli } from './utils/claude-detector';
-import { getSettingsPath, loadSettings, getCcsDir } from './utils/config-manager';
+import {
+  getSettingsPath,
+  loadSettings,
+  getCcsDir,
+  setGlobalConfigDir,
+  detectCloudSyncPath,
+} from './utils/config-manager';
 import { validateGlmKey, validateMiniMaxKey } from './utils/api-key-validator';
 import { ErrorManager } from './utils/error-manager';
 import { execClaudeWithCLIProxy, CLIProxyProvider } from './cliproxy';
@@ -298,7 +304,6 @@ async function main(): Promise<void> {
       process.exit(1);
     }
 
-    const { setGlobalConfigDir, detectCloudSyncPath } = await import('./utils/config-manager');
     setGlobalConfigDir(configDirValue);
 
     // Security warning: cloud sync paths expose OAuth tokens
@@ -306,25 +311,26 @@ async function main(): Promise<void> {
     if (cloudService) {
       console.error(warn(`CCS directory is under ${cloudService}.`));
       console.error('    OAuth tokens in cliproxy/auth/ will be synced to cloud.');
+      console.error('    Consider: CCS_DIR=/path/outside/cloud ccs ...');
     }
 
     // Remove consumed args so they don't leak to Claude CLI
     args.splice(configDirIdx, spliceCount);
   } else if (process.env.CCS_DIR) {
     // Also warn for CCS_DIR env var pointing to cloud sync
-    const { detectCloudSyncPath } = await import('./utils/config-manager');
     const cloudService = detectCloudSyncPath(process.env.CCS_DIR);
     if (cloudService) {
       console.error(warn(`CCS directory is under ${cloudService}.`));
       console.error('    OAuth tokens in cliproxy/auth/ will be synced to cloud.');
+      console.error('    Consider: CCS_DIR=/path/outside/cloud ccs ...');
     }
   } else if (process.env.CCS_HOME) {
     // Also warn for CCS_HOME env var pointing to cloud sync
-    const { detectCloudSyncPath } = await import('./utils/config-manager');
     const cloudService = detectCloudSyncPath(process.env.CCS_HOME);
     if (cloudService) {
       console.error(warn(`CCS directory is under ${cloudService}.`));
       console.error('    OAuth tokens in cliproxy/auth/ will be synced to cloud.');
+      console.error('    Consider: CCS_DIR=/path/outside/cloud ccs ...');
     }
   }
 

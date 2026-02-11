@@ -139,7 +139,7 @@ export function fixHealthIssue(checkId: string): { success: boolean; message: st
   switch (checkId) {
     case 'ccs-dir':
       fs.mkdirSync(ccsDir, { recursive: true });
-      return { success: true, message: 'Created ~/.ccs directory' };
+      return { success: true, message: `Created ${ccsDir} directory` };
 
     case 'config-file': {
       // Use appropriate config based on unified mode

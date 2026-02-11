@@ -55,11 +55,12 @@ function ensureCacheDir(): void {
  */
 export function readDiskCache(): UsageDiskCache | null {
   try {
-    if (!fs.existsSync(getCacheFile())) {
+    const cacheFile = getCacheFile();
+    if (!fs.existsSync(cacheFile)) {
       return null;
     }
 
-    const data = fs.readFileSync(getCacheFile(), 'utf-8');
+    const data = fs.readFileSync(cacheFile, 'utf-8');
     const cache: UsageDiskCache = JSON.parse(data);
 
     // Version check - invalidate if schema changed
@@ -117,9 +118,10 @@ export function writeDiskCache(
     };
 
     // Write atomically using temp file + rename
-    const tempFile = getCacheFile() + '.tmp';
+    const cacheFile = getCacheFile();
+    const tempFile = cacheFile + '.tmp';
     fs.writeFileSync(tempFile, JSON.stringify(cache), 'utf-8');
-    fs.renameSync(tempFile, getCacheFile());
+    fs.renameSync(tempFile, cacheFile);
 
     console.log(ok('Disk cache updated'));
   } catch (err) {
@@ -149,8 +151,9 @@ export function getCacheAge(cache: UsageDiskCache | null): string {
  */
 export function clearDiskCache(): void {
   try {
-    if (fs.existsSync(getCacheFile())) {
-      fs.unlinkSync(getCacheFile());
+    const cacheFile = getCacheFile();
+    if (fs.existsSync(cacheFile)) {
+      fs.unlinkSync(cacheFile);
       console.log(ok('Disk cache cleared'));
     }
   } catch (err) {
