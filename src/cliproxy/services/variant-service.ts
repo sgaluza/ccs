@@ -9,17 +9,21 @@ import * as os from 'os';
 import * as path from 'path';
 import { CLIProxyProfileName } from '../../auth/profile-detector';
 import { CLIProxyProvider, CLIProxyBackend, PLUS_ONLY_PROVIDERS } from '../types';
+import { CompositeTierConfig, CompositeVariantConfig } from '../../config/unified-config-types';
 import { isReservedName, isWindowsReservedName } from '../../config/reserved-names';
 import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import { DEFAULT_BACKEND } from '../platform-detector';
 import { isUnifiedMode } from '../../config/unified-config-loader';
 import { deleteConfigForPort } from '../config-generator';
 import { deleteSessionLockForPort } from '../session-tracker';
+import { warn } from '../../utils/ui';
 import {
   createSettingsFile,
   createSettingsFileUnified,
+  createCompositeSettingsFile,
   deleteSettingsFile,
   getRelativeSettingsPath,
+  getCompositeRelativeSettingsPath,
   updateSettingsModel,
 } from './variant-settings';
 import {
@@ -28,6 +32,7 @@ import {
   listVariantsFromConfig,
   saveVariantUnified,
   saveVariantLegacy,
+  saveCompositeVariantUnified,
   removeVariantFromUnifiedConfig,
   removeVariantFromLegacyConfig,
   getNextAvailablePort,
@@ -203,6 +208,15 @@ export function updateVariant(name: string, updates: UpdateVariantOptions): Vari
       return { success: false, error: `Variant '${name}' not found` };
     }
 
+    if (existing.type === 'composite') {
+      console.log(
+        warn(
+          'Cannot update composite variant properties directly. Remove and recreate, or edit config.yaml.'
+        )
+      );
+      return { success: false, error: 'Composite variant update not supported' };
+    }
+
     // Update model in settings file if provided
     if (updates.model !== undefined && existing.settings) {
       const settingsPath = existing.settings.replace(/^~/, os.homedir());
@@ -249,6 +263,74 @@ export function updateVariant(name: string, updates: UpdateVariantOptions): Vari
         account: updates.account !== undefined ? updates.account : existing.account,
         port: existing.port,
         settings: existing.settings,
+      },
+    };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/** Composite variant creation options */
+export interface CreateCompositeVariantOptions {
+  name: string;
+  defaultTier: 'opus' | 'sonnet' | 'haiku';
+  tiers: {
+    opus: CompositeTierConfig;
+    sonnet: CompositeTierConfig;
+    haiku: CompositeTierConfig;
+  };
+}
+
+/**
+ * Create a new composite CLIProxy variant.
+ * Mixes different providers per tier using CLIProxyAPI root endpoints.
+ */
+export function createCompositeVariant(
+  options: CreateCompositeVariantOptions
+): VariantOperationResult {
+  if (!isUnifiedMode()) {
+    throw new Error(
+      'Composite variants require unified config (config.yaml). Run "ccs migrate" first.'
+    );
+  }
+
+  try {
+    const { name, defaultTier, tiers } = options;
+
+    // Validate all tier providers against backend compatibility
+    const tierNames: Array<'opus' | 'sonnet' | 'haiku'> = ['opus', 'sonnet', 'haiku'];
+    for (const tier of tierNames) {
+      const backendError = validateProviderBackend(tiers[tier].provider);
+      if (backendError) {
+        return { success: false, error: `${tier} tier: ${backendError}` };
+      }
+    }
+
+    // Allocate unique port for this composite variant
+    const port = getNextAvailablePort();
+
+    // Create settings file with root URL + per-tier models
+    const settingsPath = createCompositeSettingsFile(name, tiers, defaultTier, port);
+
+    // Save composite config to unified config
+    const compositeConfig: CompositeVariantConfig = {
+      type: 'composite',
+      default_tier: defaultTier,
+      tiers,
+      settings: getCompositeRelativeSettingsPath(name),
+      port,
+    };
+    saveCompositeVariantUnified(name, compositeConfig);
+
+    return {
+      success: true,
+      settingsPath,
+      variant: {
+        provider: tiers[defaultTier].provider,
+        type: 'composite',
+        default_tier: defaultTier,
+        tiers,
+        port,
       },
     };
   } catch (error) {

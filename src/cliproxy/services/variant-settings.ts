@@ -13,8 +13,11 @@ import { getCcsDir } from '../../utils/config-manager';
 import { expandPath } from '../../utils/helpers';
 import { getClaudeEnvVars, CLIPROXY_DEFAULT_PORT } from '../config-generator';
 import { CLIProxyProvider } from '../types';
+import { CompositeTierConfig } from '../../config/unified-config-types';
 import { ensureProfileHooks } from '../../utils/websearch/profile-hook-injector';
 import { ensureProfileHooks as ensureImageAnalyzerHooks } from '../../utils/hooks/image-analyzer-profile-hook-injector';
+import { getEffectiveApiKey } from '../auth-token-manager';
+import { warn } from '../../utils/ui';
 
 /** Environment settings structure */
 interface SettingsEnv {
@@ -145,6 +148,63 @@ export function createSettingsFileUnified(
 }
 
 /**
+ * Build settings env object for a composite variant.
+ * Uses root URL (no /api/provider/ path) for model-based routing.
+ */
+function buildCompositeSettingsEnv(
+  tiers: { opus: CompositeTierConfig; sonnet: CompositeTierConfig; haiku: CompositeTierConfig },
+  defaultTier: 'opus' | 'sonnet' | 'haiku',
+  port: number = CLIPROXY_DEFAULT_PORT
+): SettingsEnv {
+  const defaultModel = tiers[defaultTier].model;
+
+  return {
+    // Root URL — CLIProxyAPI routes based on model name, no provider prefix
+    ANTHROPIC_BASE_URL: `http://127.0.0.1:${port}`,
+    ANTHROPIC_AUTH_TOKEN: getEffectiveApiKey(),
+    ANTHROPIC_MODEL: defaultModel,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: tiers.opus.model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: tiers.sonnet.model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: tiers.haiku.model,
+  };
+}
+
+/**
+ * Create settings.json file for a composite variant.
+ */
+export function createCompositeSettingsFile(
+  name: string,
+  tiers: { opus: CompositeTierConfig; sonnet: CompositeTierConfig; haiku: CompositeTierConfig },
+  defaultTier: 'opus' | 'sonnet' | 'haiku',
+  port: number = CLIPROXY_DEFAULT_PORT
+): string {
+  const ccsDir = getCcsDir();
+  const settingsPath = path.join(ccsDir, `composite-${name}.settings.json`);
+
+  const settings: SettingsFile = {
+    env: buildCompositeSettingsEnv(tiers, defaultTier, port),
+  };
+
+  ensureDir(ccsDir);
+  writeSettings(settingsPath, settings);
+
+  // Inject WebSearch hooks into variant settings
+  ensureProfileHooks(`composite-${name}`);
+
+  // Inject Image Analyzer hooks into variant settings
+  ensureImageAnalyzerHooks(`composite-${name}`);
+
+  return settingsPath;
+}
+
+/**
+ * Get relative settings path for a composite variant
+ */
+export function getCompositeRelativeSettingsPath(name: string): string {
+  return `~/.ccs/composite-${name}.settings.json`;
+}
+
+/**
  * Delete settings file if it exists.
  * Uses expandPath() for cross-platform path handling.
  */
@@ -161,6 +221,14 @@ export function deleteSettingsFile(settingsPath: string): boolean {
  * Update model in an existing settings file
  */
 export function updateSettingsModel(settingsPath: string, model: string): void {
+  const fileName = path.basename(settingsPath);
+  if (fileName.startsWith('composite-')) {
+    console.log(
+      warn('Cannot update model for composite variant. Edit config.yaml tiers directly.')
+    );
+    return;
+  }
+
   const resolvedPath = settingsPath.replace(/^~/, os.homedir());
   if (!fs.existsSync(resolvedPath)) {
     return;
