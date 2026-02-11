@@ -132,8 +132,20 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
     envVars = getEffectiveEnvVars(provider, localPort, customSettingsPath, remoteRewriteConfig);
   }
 
+  // Extract per-tier thinking from composite config
+  let compositeTierThinking: { opus?: string; sonnet?: string; haiku?: string } | undefined;
+  if (isComposite && compositeTiers) {
+    const tierThinking: { opus?: string; sonnet?: string; haiku?: string } = {};
+    if (compositeTiers.opus.thinking) tierThinking.opus = compositeTiers.opus.thinking;
+    if (compositeTiers.sonnet.thinking) tierThinking.sonnet = compositeTiers.sonnet.thinking;
+    if (compositeTiers.haiku.thinking) tierThinking.haiku = compositeTiers.haiku.thinking;
+    if (Object.keys(tierThinking).length > 0) {
+      compositeTierThinking = tierThinking;
+    }
+  }
+
   // Apply thinking configuration to model (auto tier-based or manual override)
-  applyThinkingConfig(envVars, provider, thinkingOverride);
+  applyThinkingConfig(envVars, provider, thinkingOverride, compositeTierThinking);
 
   // Apply extended context suffix for 1M token context window
   // Auto-enabled for Gemini, opt-in for Claude (--1m flag)
@@ -202,4 +214,25 @@ export function logEnvironment(
   if (env.DISABLE_TELEMETRY || env.DISABLE_ERROR_REPORTING || env.DISABLE_BUG_COMMAND) {
     log(`Claude env: Global env applied (telemetry/reporting disabled)`);
   }
+}
+
+/** Apply fallback provider config to env vars for a failed tier */
+export function applyFallback(
+  env: Record<string, string>,
+  failedTier: 'opus' | 'sonnet' | 'haiku',
+  fallback: { provider: string; model: string }
+): Record<string, string> {
+  const tierEnvMap = {
+    opus: 'ANTHROPIC_DEFAULT_OPUS_MODEL',
+    sonnet: 'ANTHROPIC_DEFAULT_SONNET_MODEL',
+    haiku: 'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  } as const;
+  const result = { ...env };
+  const originalModel = result[tierEnvMap[failedTier]];
+  result[tierEnvMap[failedTier]] = fallback.model;
+  // If failed tier is default tier, also update ANTHROPIC_MODEL
+  if (result.ANTHROPIC_MODEL === originalModel) {
+    result.ANTHROPIC_MODEL = fallback.model;
+  }
+  return result;
 }

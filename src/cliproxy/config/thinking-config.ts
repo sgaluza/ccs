@@ -74,12 +74,18 @@ export function getThinkingValueForTier(
  * @param envVars - Environment variables to modify
  * @param provider - CLIProxy provider
  * @param thinkingOverride - Optional CLI override (takes priority over config)
+ * @param compositeTierThinking - Optional per-tier thinking overrides for composite variants
  * @returns Modified env vars with thinking suffixes applied
  */
 export function applyThinkingConfig(
   envVars: NodeJS.ProcessEnv,
   provider: CLIProxyProvider,
-  thinkingOverride?: string | number
+  thinkingOverride?: string | number,
+  compositeTierThinking?: {
+    opus?: string;
+    sonnet?: string;
+    haiku?: string;
+  }
 ): NodeJS.ProcessEnv {
   const thinkingConfig = getThinkingConfig();
   const result = { ...envVars };
@@ -115,7 +121,13 @@ export function applyThinkingConfig(
   } else if (thinkingConfig.mode === 'auto') {
     // Auto mode: detect tier and apply default
     const tier = detectTierFromModel(baseModel);
-    thinkingValue = getThinkingValueForTier(tier, provider, thinkingConfig);
+    // Check per-tier config first if composite
+    const perTierValue = compositeTierThinking?.[tier];
+    if (perTierValue !== undefined) {
+      thinkingValue = perTierValue;
+    } else {
+      thinkingValue = getThinkingValueForTier(tier, provider, thinkingConfig);
+    }
   } else {
     return result; // No thinking to apply
   }
@@ -153,8 +165,28 @@ export function applyThinkingConfig(
         : tierVar.includes('SONNET')
           ? 'sonnet'
           : 'haiku';
-      const tierThinkingValue =
-        thinkingOverride ?? getThinkingValueForTier(tier, provider, thinkingConfig);
+
+      // Priority chain: CLI --thinking > per-tier config > global config > defaults
+      let tierThinkingValue: string | number;
+      if (thinkingOverride !== undefined) {
+        // CLI override takes priority
+        tierThinkingValue = thinkingOverride;
+      } else {
+        const perTierValue = compositeTierThinking?.[tier];
+        if (perTierValue !== undefined) {
+          // Per-tier config from composite variant
+          tierThinkingValue = perTierValue;
+        } else {
+          // Global config or defaults
+          tierThinkingValue = getThinkingValueForTier(tier, provider, thinkingConfig);
+        }
+      }
+
+      // If per-tier thinking is 'off', skip this tier
+      if (tierThinkingValue === 'off') {
+        continue;
+      }
+
       result[tierVar] = applyThinkingSuffix(model, tierThinkingValue);
     }
   }
