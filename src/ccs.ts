@@ -15,7 +15,7 @@ import {
 import { getGlobalEnvConfig } from './config/unified-config-loader';
 import { ensureProfileHooks as ensureImageAnalyzerHooks } from './utils/hooks/image-analyzer-profile-hook-injector';
 import { getImageAnalysisHookEnv } from './utils/hooks';
-import { fail, info } from './utils/ui';
+import { fail, info, warn } from './utils/ui';
 
 // Import centralized error handling
 import { handleError, runCleanup } from './errors';
@@ -259,7 +259,6 @@ async function showCachedUpdateNotification(): Promise<boolean> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  const firstArg = args[0];
 
   // Initialize UI colors early to ensure consistent colored output
   // Must happen before any status messages (ok, info, fail, etc.)
@@ -267,6 +266,55 @@ async function main(): Promise<void> {
     const { initUI } = await import('./utils/ui');
     await initUI();
   }
+
+  // Parse --config-dir flag (must happen before any config loading)
+  const configDirIdx = args.findIndex((a) => a === '--config-dir' || a.startsWith('--config-dir='));
+  if (configDirIdx !== -1) {
+    const arg = args[configDirIdx];
+    let configDirValue: string | undefined;
+    let spliceCount = 1;
+
+    if (arg.startsWith('--config-dir=')) {
+      configDirValue = arg.split('=').slice(1).join('=');
+    } else {
+      configDirValue = args[configDirIdx + 1];
+      spliceCount = 2;
+    }
+
+    if (!configDirValue || configDirValue.startsWith('-')) {
+      console.error(fail('--config-dir requires a path argument'));
+      process.exit(1);
+    }
+
+    if (!fs.existsSync(configDirValue)) {
+      console.error(fail(`Config directory not found: ${configDirValue}`));
+      console.error(info('Create the directory first, then copy your config files into it.'));
+      process.exit(1);
+    }
+
+    const { setGlobalConfigDir, detectCloudSyncPath } = await import('./utils/config-manager');
+    setGlobalConfigDir(configDirValue);
+
+    // Security warning: cloud sync paths expose OAuth tokens
+    const cloudService = detectCloudSyncPath(configDirValue);
+    if (cloudService) {
+      console.error(warn(`CCS directory is under ${cloudService}.`));
+      console.error('    OAuth tokens in cliproxy/auth/ will be synced to cloud.');
+    }
+
+    // Remove consumed args so they don't leak to Claude CLI
+    args.splice(configDirIdx, spliceCount);
+  } else if (process.env.CCS_DIR) {
+    // Also warn for CCS_DIR env var pointing to cloud sync
+    const { detectCloudSyncPath } = await import('./utils/config-manager');
+    const cloudService = detectCloudSyncPath(process.env.CCS_DIR);
+    if (cloudService) {
+      console.error(warn(`CCS directory is under ${cloudService}.`));
+      console.error('    OAuth tokens in cliproxy/auth/ will be synced to cloud.');
+    }
+  }
+
+  const firstArg = args[0];
 
   // Trigger update check early for ALL commands except version/help/update
   // Only if TTY and not CI to avoid noise in automated environments
