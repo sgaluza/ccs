@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { initUI, box, color, dim, sectionHeader, subheader } from '../utils/ui';
 import { isUnifiedMode } from '../config/unified-config-loader';
+import { getCcsDir, getCcsDirSource } from '../utils/config-manager';
 
 // Get version from package.json (same as version-command.ts)
 const VERSION = JSON.parse(
@@ -110,6 +111,10 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   );
   console.log('');
 
+  // Resolve display path for dynamic sections
+  const [dirSource] = getCcsDirSource();
+  const dirDisplay = dirSource === 'default' ? '~/.ccs' : getCcsDir();
+
   // Usage section
   console.log(subheader('Usage:'));
   console.log(`  ${color('ccs', 'command')} [profile] [claude-args...]`);
@@ -121,7 +126,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   // ═══════════════════════════════════════════════════════════════════════════
   printMajorSection(
     'API Key Profiles',
-    ['Configure in ~/.ccs/*.settings.json'],
+    [`Configure in ${dirDisplay}/*.settings.json`],
     [
       ['ccs', 'Use default Claude account'],
       ['ccs glm', 'GLM 4.6 (API key required)'],
@@ -268,6 +273,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   // Flags
   printSubSection('Flags', [
+    ['--config-dir <path>', 'Use custom CCS config directory'],
     ['-h, --help', 'Show this help message'],
     ['-v, --version', 'Show version and installation info'],
     ['-sc, --shell-completion', 'Install shell auto-completion'],
@@ -275,10 +281,10 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   // Configuration
   printConfigSection('Configuration', [
-    ['Config File:', isUnifiedMode() ? '~/.ccs/config.yaml' : '~/.ccs/config.json'],
-    ['Profiles:', '~/.ccs/profiles.json'],
-    ['Instances:', '~/.ccs/instances/'],
-    ['Settings:', '~/.ccs/*.settings.json'],
+    ['Config File:', isUnifiedMode() ? `${dirDisplay}/config.yaml` : `${dirDisplay}/config.json`],
+    ['Profiles:', `${dirDisplay}/profiles.json`],
+    ['Instances:', `${dirDisplay}/instances/`],
+    ['Settings:', `${dirDisplay}/*.settings.json`],
   ]);
 
   // CLI Proxy management
@@ -345,6 +351,13 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['', 'providers (agy, gemini, codex, kiro, ghcp).'],
   ]);
 
+  // CCS Environment Variables
+  printSubSection('Environment Variables', [
+    ['CCS_DIR', 'Override CCS config directory (default: ~/.ccs)'],
+    ['CCS_HOME', 'Override home directory (legacy, appends .ccs)'],
+    ['CCS_DEBUG', 'Enable debug logging'],
+  ]);
+
   // CLI Proxy env vars
   printSubSection('CLI Proxy Environment Variables', [
     ['CCS_PROXY_HOST', 'Remote proxy hostname'],
@@ -358,17 +371,17 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
 
   // CLI Proxy paths
   console.log(subheader('CLI Proxy:'));
-  console.log(`  Binary:      ${color('~/.ccs/cliproxy/bin/cli-proxy-api-plus', 'path')}`);
-  console.log(`  Config:      ${color('~/.ccs/cliproxy/config.yaml', 'path')}`);
-  console.log(`  Auth:        ${color('~/.ccs/cliproxy/auth/', 'path')}`);
+  console.log(`  Binary:      ${color(`${dirDisplay}/cliproxy/bin/cli-proxy-api-plus`, 'path')}`);
+  console.log(`  Config:      ${color(`${dirDisplay}/cliproxy/config.yaml`, 'path')}`);
+  console.log(`  Auth:        ${color(`${dirDisplay}/cliproxy/auth/`, 'path')}`);
   console.log(`  ${dim('Port: 8317 (default)')}`);
   console.log('');
 
   // Shared Data
   console.log(subheader('Shared Data:'));
-  console.log(`  Commands:    ${color('~/.ccs/shared/commands/', 'path')}`);
-  console.log(`  Skills:      ${color('~/.ccs/shared/skills/', 'path')}`);
-  console.log(`  Agents:      ${color('~/.ccs/shared/agents/', 'path')}`);
+  console.log(`  Commands:    ${color(`${dirDisplay}/shared/commands/`, 'path')}`);
+  console.log(`  Skills:      ${color(`${dirDisplay}/shared/skills/`, 'path')}`);
+  console.log(`  Agents:      ${color(`${dirDisplay}/shared/agents/`, 'path')}`);
   console.log(`  ${dim('Note: Symlinked across all profiles')}`);
   console.log('');
 
