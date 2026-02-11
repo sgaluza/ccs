@@ -32,8 +32,9 @@ interface CacheData {
 /** Check if cached data is valid */
 function getCachedModels(): OpenRouterModel[] | null {
   try {
-    if (!fs.existsSync(getCacheFile())) return null;
-    const data = JSON.parse(fs.readFileSync(getCacheFile(), 'utf8')) as CacheData;
+    const cacheFile = getCacheFile();
+    if (!fs.existsSync(cacheFile)) return null;
+    const data = JSON.parse(fs.readFileSync(cacheFile, 'utf8')) as CacheData;
     if (Date.now() - data.fetchedAt > CACHE_TTL_MS) return null;
     return data.models;
   } catch {
@@ -44,10 +45,11 @@ function getCachedModels(): OpenRouterModel[] | null {
 /** Save models to cache */
 function setCachedModels(models: OpenRouterModel[]): void {
   try {
-    const dir = path.dirname(getCacheFile());
+    const cacheFile = getCacheFile();
+    const dir = path.dirname(cacheFile);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
-      getCacheFile(),
+      cacheFile,
       JSON.stringify({
         models,
         fetchedAt: Date.now(),

@@ -40,15 +40,16 @@ function getCcsInstancesDir() {
  * Only returns instances with existing projects/ directory
  */
 function getInstancePaths(): string[] {
-  if (!fs.existsSync(getCcsInstancesDir())) {
+  const instancesDir = getCcsInstancesDir();
+  if (!fs.existsSync(instancesDir)) {
     return [];
   }
 
   try {
-    const entries = fs.readdirSync(getCcsInstancesDir(), { withFileTypes: true });
+    const entries = fs.readdirSync(instancesDir, { withFileTypes: true });
     return entries
       .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(getCcsInstancesDir(), entry.name))
+      .map((entry) => path.join(instancesDir, entry.name))
       .filter((instancePath) => {
         // Only include instances that have a projects directory
         const projectsPath = path.join(instancePath, 'projects');

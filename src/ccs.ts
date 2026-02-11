@@ -2,7 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { detectClaudeCli } from './utils/claude-detector';
-import { getSettingsPath, loadSettings } from './utils/config-manager';
+import { getSettingsPath, loadSettings, getCcsDir } from './utils/config-manager';
 import { validateGlmKey, validateMiniMaxKey } from './utils/api-key-validator';
 import { ErrorManager } from './utils/error-manager';
 import { execClaudeWithCLIProxy, CLIProxyProvider } from './cliproxy';
@@ -80,7 +80,7 @@ async function execClaudeWithProxy(
 
   if (!apiKey || apiKey === 'YOUR_GLM_API_KEY_HERE') {
     console.error(fail('GLMT profile requires Z.AI API key'));
-    console.error('    Edit ~/.ccs/glmt.settings.json and set ANTHROPIC_AUTH_TOKEN');
+    console.error(`    Edit ${getCcsDir()}/glmt.settings.json and set ANTHROPIC_AUTH_TOKEN`);
     process.exit(1);
   }
 
@@ -148,7 +148,7 @@ async function execClaudeWithProxy(
     console.error('Workarounds:');
     console.error('  - Use non-thinking mode: ccs glm "prompt"');
     console.error('  - Enable verbose logging: ccs glmt --verbose "prompt"');
-    console.error('  - Check proxy logs in ~/.ccs/logs/ (if debug enabled)');
+    console.error(`  - Check proxy logs in ${getCcsDir()}/logs/ (if debug enabled)`);
     console.error('');
     proxy.kill();
     process.exit(1);

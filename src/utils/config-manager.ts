@@ -38,7 +38,7 @@ export function getCcsHome(): string {
 export function getCcsDir(): string {
   if (_globalConfigDir) return _globalConfigDir;
   if (process.env.CCS_DIR) return path.resolve(process.env.CCS_DIR);
-  if (process.env.CCS_HOME) return path.join(process.env.CCS_HOME, '.ccs');
+  if (process.env.CCS_HOME) return path.join(path.resolve(process.env.CCS_HOME), '.ccs');
   return path.join(os.homedir(), '.ccs');
 }
 
@@ -49,7 +49,8 @@ export function getCcsDir(): string {
 export function getCcsDirSource(): [string, string] {
   if (_globalConfigDir) return ['--config-dir', _globalConfigDir];
   if (process.env.CCS_DIR) return ['CCS_DIR', path.resolve(process.env.CCS_DIR)];
-  if (process.env.CCS_HOME) return ['CCS_HOME', path.join(process.env.CCS_HOME, '.ccs')];
+  if (process.env.CCS_HOME)
+    return ['CCS_HOME', path.join(path.resolve(process.env.CCS_HOME), '.ccs')];
   return ['default', path.join(os.homedir(), '.ccs')];
 }
 
