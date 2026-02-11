@@ -103,6 +103,12 @@ describe('env-command', () => {
       );
     });
 
+    it('prevents backtick injection in values', () => {
+      expect(formatExportLine('bash', 'TOKEN', 'safe`whoami`')).toBe(
+        "export TOKEN='safe`whoami`'"
+      );
+    });
+
     it('escapes single quotes in fish values', () => {
       expect(formatExportLine('fish', 'VAL', "it's here")).toBe("set -gx VAL 'it'\\''s here'");
     });

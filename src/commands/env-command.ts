@@ -197,6 +197,11 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
   const format = formatStr as OutputFormat;
 
   const shellStr = parseFlag(args, 'shell') || 'auto';
+  const validShellInputs = ['auto', 'bash', 'zsh', 'fish', 'powershell'];
+  if (!validShellInputs.includes(shellStr)) {
+    console.error(fail(`Invalid shell: ${shellStr}. Use: ${validShellInputs.join(', ')}`));
+    process.exit(1);
+  }
   // zsh uses the same syntax as bash
   const shell = detectShell(shellStr === 'zsh' ? 'bash' : shellStr);
 
