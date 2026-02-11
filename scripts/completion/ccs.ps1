@@ -23,7 +23,7 @@ Register-ArgumentCompleter -CommandName ccs -ScriptBlock {
     $updateFlags = @('--force', '--beta', '--dev', '--help', '-h')
     $envFlags = @('--format', '--shell', '--help', '-h')
     $envFormats = @('openai', 'anthropic', 'raw')
-    $envShells = @('bash', 'fish', 'powershell')
+    $envShells = @('auto', 'bash', 'zsh', 'fish', 'powershell')
     $shellCompletionFlags = @('--bash', '--zsh', '--fish', '--powershell')
     $listFlags = @('--verbose', '--json')
     $removeFlags = @('--yes', '-y')

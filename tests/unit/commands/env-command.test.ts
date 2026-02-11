@@ -60,6 +60,11 @@ describe('env-command', () => {
       process.env['SHELL'] = '/bin/bash';
       expect(detectShell('invalid')).toBe('bash');
     });
+
+    it('auto-detects powershell from SHELL containing pwsh', () => {
+      process.env['SHELL'] = '/usr/local/bin/pwsh';
+      expect(detectShell('auto')).toBe('powershell');
+    });
   });
 
   describe('formatExportLine', () => {
@@ -128,11 +133,7 @@ describe('env-command', () => {
     it('handles missing source vars gracefully', () => {
       const result = transformToOpenAI({});
 
-      expect(result).toEqual({
-        OPENAI_API_KEY: '',
-        OPENAI_BASE_URL: '',
-        LOCAL_ENDPOINT: '',
-      });
+      expect(result).toEqual({});
     });
 
     it('only extracts relevant vars', () => {
@@ -143,7 +144,7 @@ describe('env-command', () => {
         DISABLE_TELEMETRY: '1',
       });
 
-      // Should only have 3 keys (no OPENAI_MODEL when ANTHROPIC_MODEL absent)
+      // OPENAI_API_KEY + OPENAI_BASE_URL + LOCAL_ENDPOINT (no OPENAI_MODEL when ANTHROPIC_MODEL absent)
       expect(Object.keys(result)).toHaveLength(3);
       expect(result['ANTHROPIC_MAX_TOKENS']).toBeUndefined();
     });

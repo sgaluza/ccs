@@ -176,7 +176,7 @@ complete -c ccs -n '__fish_seen_subcommand_from doctor' -s h -l help -d 'Show he
 complete -c ccs -n '__fish_seen_subcommand_from env' -l format -d 'Output format'
 complete -c ccs -n '__fish_seen_subcommand_from env; and __fish_seen_argument -l format' -a 'openai anthropic raw' -d 'Format'
 complete -c ccs -n '__fish_seen_subcommand_from env' -l shell -d 'Shell syntax'
-complete -c ccs -n '__fish_seen_subcommand_from env; and __fish_seen_argument -l shell' -a 'bash fish powershell' -d 'Shell'
+complete -c ccs -n '__fish_seen_subcommand_from env; and __fish_seen_argument -l shell' -a 'auto bash zsh fish powershell' -d 'Shell'
 complete -c ccs -n '__fish_seen_subcommand_from env' -s h -l help -d 'Show help for env command'
 
 # ============================================================================

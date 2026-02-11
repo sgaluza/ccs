@@ -128,7 +128,7 @@ _ccs() {
         env)
           _arguments \
             '--format[Output format]:format:(openai anthropic raw)' \
-            '--shell[Shell syntax]:shell:(bash fish powershell)' \
+            '--shell[Shell syntax]:shell:(auto bash zsh fish powershell)' \
             '(- *)'{-h,--help}'[Show help]' \
             '1:profile:($proxy_profiles ${(k)settings_profiles_described})'
           ;;

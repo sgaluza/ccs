@@ -155,8 +155,8 @@ _ccs_completion() {
   if [[ ${COMP_WORDS[1]} == "env" ]]; then
     case "${prev}" in
       env)
-        # Complete with profile names and flags
-        local env_opts="--format --shell --help -h $cliproxy_profiles"
+        # Complete with profile names and flags (inline profiles since $cliproxy_profiles is out of scope)
+        local env_opts="--format --shell --help -h gemini codex agy qwen"
         if [[ -f ~/.ccs/config.json ]]; then
           env_opts="$env_opts $(jq -r '.profiles | keys[]' ~/.ccs/config.json 2>/dev/null || true)"
         fi
@@ -168,7 +168,7 @@ _ccs_completion() {
         return 0
         ;;
       --shell)
-        COMPREPLY=( $(compgen -W "bash fish powershell" -- ${cur}) )
+        COMPREPLY=( $(compgen -W "auto bash zsh fish powershell" -- ${cur}) )
         return 0
         ;;
       *)

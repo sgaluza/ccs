@@ -13,6 +13,7 @@ import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 import { isUnifiedMode, loadUnifiedConfig } from '../config/unified-config-loader';
 import { expandPath } from '../utils/helpers';
 import { getCcsDir } from '../utils/config-manager';
+import { ProfileRegistry } from '../auth/profile-registry';
 
 type ShellType = 'bash' | 'fish' | 'powershell';
 type OutputFormat = 'openai' | 'anthropic' | 'raw';
@@ -28,7 +29,7 @@ export function detectShell(flag?: string): ShellType {
   }
   const shell = process.env['SHELL'] || '';
   if (shell.includes('fish')) return 'fish';
-  if (process.platform === 'win32') return 'powershell';
+  if (shell.includes('pwsh') || process.platform === 'win32') return 'powershell';
   return 'bash';
 }
 
@@ -54,11 +55,12 @@ export function transformToOpenAI(envVars: Record<string, string>): Record<strin
   const baseUrl = envVars['ANTHROPIC_BASE_URL'] || '';
   const apiKey = envVars['ANTHROPIC_AUTH_TOKEN'] || '';
   const model = envVars['ANTHROPIC_MODEL'] || '';
-  const result: Record<string, string> = {
-    OPENAI_API_KEY: apiKey,
-    OPENAI_BASE_URL: baseUrl,
-    LOCAL_ENDPOINT: baseUrl,
-  };
+  const result: Record<string, string> = {};
+  if (apiKey) result['OPENAI_API_KEY'] = apiKey;
+  if (baseUrl) {
+    result['OPENAI_BASE_URL'] = baseUrl;
+    result['LOCAL_ENDPOINT'] = baseUrl;
+  }
   if (model) result['OPENAI_MODEL'] = model;
   return result;
 }
@@ -195,7 +197,8 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
   const format = formatStr as OutputFormat;
 
   const shellStr = parseFlag(args, 'shell') || 'auto';
-  const shell = detectShell(shellStr);
+  // zsh uses the same syntax as bash
+  const shell = detectShell(shellStr === 'zsh' ? 'bash' : shellStr);
 
   // Resolve env vars based on profile type
   let envVars: Record<string, string> = {};
@@ -212,9 +215,28 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
     // Settings-based profile (glm, kimi, custom API)
     const resolved = resolveSettingsProfile(profile);
     if (!resolved) {
+      // Check if it's an account-based profile
+      const registry = new ProfileRegistry();
+      const allProfiles = registry.getAllProfiles();
+      if (allProfiles[profile]) {
+        console.error(
+          fail(
+            `'${profile}' is an account-based profile. ` +
+              '`ccs env` only supports CLIProxy and settings profiles.'
+          )
+        );
+        process.exit(1);
+      }
+
       console.error(fail(`Profile '${profile}' not found.`));
       console.error(dim('  Available CLIProxy profiles: ' + CLIPROXY_PROFILES.join(', ')));
-      console.error(dim(`  Check ${getCcsDir()}/config.yaml for custom profiles.`));
+      if (!isUnifiedMode()) {
+        console.error(
+          dim('  Settings profiles require unified config. Run `ccs migrate` to upgrade.')
+        );
+      } else {
+        console.error(dim(`  Check ${getCcsDir()}/config.yaml for custom profiles.`));
+      }
       process.exit(1);
     }
     envVars = resolved;
