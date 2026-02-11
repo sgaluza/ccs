@@ -97,6 +97,14 @@ export interface CompositeTierConfig {
   model: string;
   /** Account nickname (optional, references oauth_accounts) */
   account?: string;
+  /** Fallback provider+model if primary fails */
+  fallback?: {
+    provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp' | 'claude';
+    model: string;
+    account?: string;
+  };
+  /** Per-tier thinking budget override (e.g. 'xhigh', 'medium', 'off') */
+  thinking?: string;
 }
 
 /**

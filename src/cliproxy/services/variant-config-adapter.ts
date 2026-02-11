@@ -41,6 +41,8 @@ export interface VariantConfig {
     sonnet: CompositeTierConfig;
     haiku: CompositeTierConfig;
   };
+  /** Whether any tier has fallback configured */
+  hasFallback?: boolean;
 }
 
 /**
@@ -100,13 +102,20 @@ export function listVariantsFromConfig(): Record<string, VariantConfig> {
         const v = variants[name];
         if ('type' in v && v.type === 'composite') {
           const composite = v as CompositeVariantConfig;
+          const tiers = composite.tiers;
+          const hasFallback = !!(
+            tiers.opus.fallback ||
+            tiers.sonnet.fallback ||
+            tiers.haiku.fallback
+          );
           result[name] = {
-            provider: composite.tiers[composite.default_tier].provider,
+            provider: tiers[composite.default_tier].provider,
             settings: composite.settings,
             port: composite.port,
             type: 'composite',
             default_tier: composite.default_tier,
-            tiers: composite.tiers,
+            tiers,
+            hasFallback,
           };
         } else {
           const single = v as CLIProxyVariantConfig;
