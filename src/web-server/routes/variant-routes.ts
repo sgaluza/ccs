@@ -13,6 +13,8 @@ import {
   listVariants,
   validateProfileName,
   updateVariant,
+  createCompositeVariant,
+  updateCompositeVariant,
 } from '../../cliproxy/services/variant-service';
 
 const router = Router();
@@ -30,6 +32,9 @@ router.get('/', (_req: Request, res: Response) => {
     account: variant.account || 'default',
     port: variant.port, // Include port for port isolation
     model: variant.model,
+    type: variant.type,
+    default_tier: variant.default_tier,
+    tiers: variant.tiers,
   }));
 
   res.json({ variants: variantList });
@@ -40,10 +45,10 @@ router.get('/', (_req: Request, res: Response) => {
  * Uses variant-service for proper port allocation
  */
 router.post('/', (req: Request, res: Response): void => {
-  const { name, provider, model, account } = req.body;
+  const { name, provider, model, account, type, default_tier, tiers } = req.body;
 
-  if (!name || !provider) {
-    res.status(400).json({ error: 'Missing required fields: name, provider' });
+  if (!name) {
+    res.status(400).json({ error: 'Missing required field: name' });
     return;
   }
 
@@ -60,6 +65,37 @@ router.post('/', (req: Request, res: Response): void => {
       error: `Cannot use reserved name '${name}' as variant name`,
       reserved: RESERVED_PROFILE_NAMES,
     });
+    return;
+  }
+
+  // Handle composite variant creation
+  if (type === 'composite') {
+    if (!default_tier || !tiers) {
+      res.status(400).json({ error: 'Missing required fields: default_tier, tiers' });
+      return;
+    }
+
+    const result = createCompositeVariant({ name, defaultTier: default_tier, tiers });
+
+    if (!result.success) {
+      res.status(409).json({ error: result.error });
+      return;
+    }
+
+    res.status(201).json({
+      name,
+      type: 'composite',
+      default_tier,
+      tiers,
+      settings: result.settingsPath,
+      port: result.variant?.port,
+    });
+    return;
+  }
+
+  // Handle single provider variant creation
+  if (!provider) {
+    res.status(400).json({ error: 'Missing required field: provider' });
     return;
   }
 
@@ -94,9 +130,43 @@ router.post('/', (req: Request, res: Response): void => {
 router.put('/:name', (req: Request, res: Response): void => {
   try {
     const { name } = req.params;
-    const { provider, account, model } = req.body;
+    const { provider, account, model, default_tier, tiers } = req.body;
 
-    // Use variant-service for proper update handling
+    // Check if variant is composite - use updateCompositeVariant if so
+    const variants = listVariants();
+    const existing = variants[name];
+
+    if (!existing) {
+      res.status(404).json({ error: `Variant '${name}' not found` });
+      return;
+    }
+
+    if (existing.type === 'composite') {
+      if (!default_tier || !tiers) {
+        res.status(400).json({ error: 'Missing required fields for composite update' });
+        return;
+      }
+
+      const result = updateCompositeVariant(name, { defaultTier: default_tier, tiers });
+
+      if (!result.success) {
+        res.status(404).json({ error: result.error });
+        return;
+      }
+
+      res.json({
+        name,
+        type: 'composite',
+        default_tier,
+        tiers,
+        settings: result.variant?.settings,
+        port: result.variant?.port,
+        updated: true,
+      });
+      return;
+    }
+
+    // Use variant-service for proper update handling (single provider)
     const result = updateVariant(name, { provider, account, model });
 
     if (!result.success) {
