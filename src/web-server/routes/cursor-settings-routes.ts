@@ -2,15 +2,15 @@
  * Cursor Settings Routes - Settings editor and raw settings for Cursor IDE
  */
 
-import type { Router, Request, Response } from 'express';
-import { Router as ExpressRouter } from 'express';
+import type { Request, Response } from 'express';
+import { Router } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getCcsDir } from '../../utils/config-manager';
 import { DEFAULT_CURSOR_CONFIG } from '../../config/unified-config-types';
 import { loadOrCreateUnifiedConfig, saveUnifiedConfig } from '../../config/unified-config-loader';
 
-const router: Router = ExpressRouter();
+const router = Router();
 
 /**
  * GET /api/cursor/settings - Get cursor config (port, auto_start, ghost_mode)
@@ -39,25 +39,23 @@ router.put('/', (req: Request, res: Response): void => {
     }
 
     // Validate input types
-    if (updates && typeof updates === 'object') {
-      if ('port' in updates) {
-        if (typeof updates.port !== 'number' || !Number.isInteger(updates.port)) {
-          res.status(400).json({ error: 'port must be an integer' });
-          return;
-        }
-        if (updates.port < 1 || updates.port > 65535) {
-          res.status(400).json({ error: 'port must be between 1 and 65535' });
-          return;
-        }
-      }
-      if ('auto_start' in updates && typeof updates.auto_start !== 'boolean') {
-        res.status(400).json({ error: 'auto_start must be a boolean' });
+    if ('port' in updates) {
+      if (typeof updates.port !== 'number' || !Number.isInteger(updates.port)) {
+        res.status(400).json({ error: 'port must be an integer' });
         return;
       }
-      if ('ghost_mode' in updates && typeof updates.ghost_mode !== 'boolean') {
-        res.status(400).json({ error: 'ghost_mode must be a boolean' });
+      if (updates.port < 1 || updates.port > 65535) {
+        res.status(400).json({ error: 'port must be between 1 and 65535' });
         return;
       }
+    }
+    if ('auto_start' in updates && typeof updates.auto_start !== 'boolean') {
+      res.status(400).json({ error: 'auto_start must be a boolean' });
+      return;
+    }
+    if ('ghost_mode' in updates && typeof updates.ghost_mode !== 'boolean') {
+      res.status(400).json({ error: 'ghost_mode must be a boolean' });
+      return;
     }
 
     const config = loadOrCreateUnifiedConfig();
@@ -132,7 +130,7 @@ router.put('/raw', (req: Request, res: Response): void => {
   try {
     const { settings, expectedMtime } = req.body;
 
-    if (!settings || typeof settings !== 'object') {
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
       res.status(400).json({ error: 'settings must be a JSON object' });
       return;
     }

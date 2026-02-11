@@ -2,8 +2,8 @@
  * Cursor Routes - Cursor IDE integration via cursor proxy daemon
  */
 
-import type { Router, Request, Response } from 'express';
-import { Router as ExpressRouter } from 'express';
+import type { Request, Response } from 'express';
+import { Router } from 'express';
 import {
   checkAuthStatus,
   autoDetectTokens,
@@ -14,7 +14,7 @@ import { DEFAULT_CURSOR_CONFIG } from '../../config/unified-config-types';
 import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import cursorSettingsRoutes from './cursor-settings-routes';
 
-const router: Router = ExpressRouter();
+const router = Router();
 
 // Mount settings sub-routes
 router.use('/settings', cursorSettingsRoutes);
@@ -34,7 +34,7 @@ async function getDaemonStatus(port: number): Promise<{ running: boolean; port?:
  */
 async function getAvailableModels(): Promise<string[]> {
   // Stub - will be implemented in #520
-  return ['claude-3-opus', 'claude-3-sonnet', 'claude-3-haiku'];
+  return []; // TODO: populated by cursor-models.ts (#520)
 }
 
 /**
