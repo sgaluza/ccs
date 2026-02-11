@@ -521,6 +521,7 @@ export async function execClaudeWithCLIProxy(
       // No enforcement — still warn about duplicates for awareness
       warnCrossProviderDuplicates(provider);
     } else {
+      // 'exit' handlers must be synchronous — restoreAutoPausedAccounts uses sync fs APIs
       process.on('exit', () => {
         restoreAutoPausedAccounts(provider);
       });

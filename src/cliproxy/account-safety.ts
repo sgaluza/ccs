@@ -273,7 +273,8 @@ export function enforceProviderIsolation(provider: CLIProxyProvider): number {
     pauseAccount(p, accountId);
   }
 
-  // Record for crash recovery (re-read to reduce concurrent write race window)
+  // Record for crash recovery (re-read to reduce concurrent write race window).
+  // TOCTOU race is acceptable for a single-user CLI tool — self-heals on next launch.
   const freshData = loadAutoPaused();
   freshData.sessions = freshData.sessions.filter((s) => s.initiator !== provider);
   freshData.sessions.push({
@@ -457,7 +458,7 @@ export async function handleQuotaExhaustion(
     writeQuotaExhausted(accountId, alternative.id, cooldownMinutes);
     return {
       switchedTo: alternative.id,
-      reason: `Quota exhausted, switched to ${alternative.id}`,
+      reason: `Quota exhausted, switched to ${maskEmail(alternative.id)}`,
     };
   }
 

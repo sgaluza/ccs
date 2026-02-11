@@ -173,7 +173,7 @@ describe('Quota Exhaustion Handlers', () => {
           normal_interval_seconds: 300,
           critical_interval_seconds: 60,
           warn_threshold: 20,
-          exhaustion_threshold: 0,
+          exhaustion_threshold: 5,
           cooldown_minutes: 10,
         },
       });
@@ -214,7 +214,7 @@ describe('Quota Exhaustion Handlers', () => {
           normal_interval_seconds: 300,
           critical_interval_seconds: 60,
           warn_threshold: 20,
-          exhaustion_threshold: 0,
+          exhaustion_threshold: 5,
           cooldown_minutes: 10,
         },
       });
@@ -252,7 +252,7 @@ describe('Quota Exhaustion Handlers', () => {
           normal_interval_seconds: 300,
           critical_interval_seconds: 60,
           warn_threshold: 20,
-          exhaustion_threshold: 0,
+          exhaustion_threshold: 5,
           cooldown_minutes: 10,
         },
       });
@@ -299,7 +299,7 @@ describe('Quota Exhaustion Handlers', () => {
           normal_interval_seconds: 300,
           critical_interval_seconds: 60,
           warn_threshold: 20,
-          exhaustion_threshold: 0,
+          exhaustion_threshold: 5,
           cooldown_minutes: 5,
         },
       });
