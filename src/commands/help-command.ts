@@ -129,7 +129,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     [`Configure in ${dirDisplay}/*.settings.json`],
     [
       ['ccs', 'Use default Claude account'],
-      ['ccs glm', 'GLM 4.6 (API key required)'],
+      ['ccs glm', 'GLM 5 (API key required)'],
       ['ccs glmt', 'GLM with thinking mode'],
       ['ccs kimi', 'Kimi for Coding (API key)'],
       ['ccs ollama', 'Local Ollama (http://localhost:11434)'],

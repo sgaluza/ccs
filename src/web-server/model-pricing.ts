@@ -410,31 +410,37 @@ const PRICING_REGISTRY: Record<string, ModelPricing> = {
   },
 
   // ---------------------------------------------------------------------------
-  // GLM Models (Zhipu AI / Z.AI) - Source: better-ccusage
+  // GLM Models (Zhipu AI / Z.AI) - Source: OpenRouter verified pricing
   // ---------------------------------------------------------------------------
-  'glm-4.7': {
-    inputPerMillion: 0.6,
-    outputPerMillion: 2.2,
+  'glm-5': {
+    inputPerMillion: 1.0,
+    outputPerMillion: 3.2,
     cacheCreationPerMillion: 0.0,
-    cacheReadPerMillion: 0.11,
+    cacheReadPerMillion: 0.2,
+  },
+  'glm-4.7': {
+    inputPerMillion: 0.4,
+    outputPerMillion: 1.5,
+    cacheCreationPerMillion: 0.0,
+    cacheReadPerMillion: 0.2,
   },
   'glm-4.6': {
-    inputPerMillion: 0.6,
-    outputPerMillion: 2.2,
+    inputPerMillion: 0.35,
+    outputPerMillion: 1.5,
     cacheCreationPerMillion: 0.0,
-    cacheReadPerMillion: 0.11,
+    cacheReadPerMillion: 0.175,
   },
   'glm-4.6-cc-max': {
-    inputPerMillion: 0.6,
-    outputPerMillion: 2.2,
+    inputPerMillion: 0.35,
+    outputPerMillion: 1.5,
     cacheCreationPerMillion: 0.0,
-    cacheReadPerMillion: 0.11,
+    cacheReadPerMillion: 0.175,
   },
   'glm-4.5': {
-    inputPerMillion: 0.6,
-    outputPerMillion: 2.2,
+    inputPerMillion: 0.35,
+    outputPerMillion: 1.55,
     cacheCreationPerMillion: 0.0,
-    cacheReadPerMillion: 0.11,
+    cacheReadPerMillion: 0.175,
   },
   'glm-4.5-air': {
     inputPerMillion: 0.2,
