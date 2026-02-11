@@ -31,6 +31,23 @@ router.get('/', (_req: Request, res: Response): void => {
 router.put('/', (req: Request, res: Response): void => {
   try {
     const updates = req.body;
+
+    // Validate input types
+    if (updates && typeof updates === 'object') {
+      if ('port' in updates && typeof updates.port !== 'number') {
+        res.status(400).json({ error: 'port must be a number' });
+        return;
+      }
+      if ('auto_start' in updates && typeof updates.auto_start !== 'boolean') {
+        res.status(400).json({ error: 'auto_start must be a boolean' });
+        return;
+      }
+      if ('ghost_mode' in updates && typeof updates.ghost_mode !== 'boolean') {
+        res.status(400).json({ error: 'ghost_mode must be a boolean' });
+        return;
+      }
+    }
+
     const config = loadOrCreateUnifiedConfig();
 
     // Merge updates with existing config
