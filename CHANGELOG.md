@@ -1,3 +1,26 @@
+## [7.43.0](https://github.com/kaitranntt/ccs/compare/v7.42.0...v7.43.0) (2026-02-11)
+
+### Features
+
+* **cliproxy:** add account safety guards to prevent Google account bans ([#516](https://github.com/kaitranntt/ccs/issues/516)) ([e055dac](https://github.com/kaitranntt/ccs/commit/e055dac1996bd3cd3c4e5ee0f11dad22d8d2a838)), closes [#509](https://github.com/kaitranntt/ccs/issues/509) [#512](https://github.com/kaitranntt/ccs/issues/512)
+* **cliproxy:** runtime quota monitoring during active sessions ([#529](https://github.com/kaitranntt/ccs/issues/529)) ([c6c94a0](https://github.com/kaitranntt/ccs/commit/c6c94a0c1e7bf82dd56295a76d833d7d52694718)), closes [#524](https://github.com/kaitranntt/ccs/issues/524)
+* **glm:** update default model to GLM-5 and fix all GLM pricing ([3e26dee](https://github.com/kaitranntt/ccs/commit/3e26dee0134fa576a57f216f232a0215084e74a3)), closes [#532](https://github.com/kaitranntt/ccs/issues/532)
+
+### Bug Fixes
+
+* **cliproxy:** add fork:true for Claude model aliases in config generator ([#523](https://github.com/kaitranntt/ccs/issues/523)) ([4065399](https://github.com/kaitranntt/ccs/commit/4065399d8aa46ccdb115081e461c5651d0afaa2e)), closes [#522](https://github.com/kaitranntt/ccs/issues/522)
+* **cliproxy:** address all review feedback (Low + informational) ([7d049d8](https://github.com/kaitranntt/ccs/commit/7d049d8f1e8655856a1a9636d21f6eb3992752a0))
+* **cliproxy:** mask email in ban detection and fix JSDoc default ([fcc605b](https://github.com/kaitranntt/ccs/commit/fcc605bc1f02af4da518d21c10f8c77b38a793ad))
+* **cliproxy:** migrate deprecated gemini-claude-* model names to upstream claude-* names ([#515](https://github.com/kaitranntt/ccs/issues/515)) ([6afbb72](https://github.com/kaitranntt/ccs/commit/6afbb72b472029358fc3d9b2fed488fd4779695b)), closes [#513](https://github.com/kaitranntt/ccs/issues/513)
+* **glm:** fix missed help text reference and glm-4.5-air pricing ([7d9c538](https://github.com/kaitranntt/ccs/commit/7d9c538248f93089ae6483af4ea1d01e555e2e20))
+* **hooks:** isolate image type check before error-prone processing ([#514](https://github.com/kaitranntt/ccs/issues/514)) ([19de427](https://github.com/kaitranntt/ccs/commit/19de42704f683a29134982dfb643e97c3123bf7c)), closes [#511](https://github.com/kaitranntt/ccs/issues/511)
+
+## [7.42.0](https://github.com/kaitranntt/ccs/compare/v7.41.0...v7.42.0) (2026-02-11)
+
+### Features
+
+* account safety, quota monitoring, and stability fixes ([#530](https://github.com/kaitranntt/ccs/issues/530)) ([0518050](https://github.com/kaitranntt/ccs/commit/051805074eb80db839a4deb8ab1dcb89f29766de)), closes [#515](https://github.com/kaitranntt/ccs/issues/515) [#513](https://github.com/kaitranntt/ccs/issues/513) [#514](https://github.com/kaitranntt/ccs/issues/514) [#511](https://github.com/kaitranntt/ccs/issues/511) [#523](https://github.com/kaitranntt/ccs/issues/523) [#522](https://github.com/kaitranntt/ccs/issues/522) [#516](https://github.com/kaitranntt/ccs/issues/516) [#509](https://github.com/kaitranntt/ccs/issues/509) [#512](https://github.com/kaitranntt/ccs/issues/512) [#529](https://github.com/kaitranntt/ccs/issues/529) [#524](https://github.com/kaitranntt/ccs/issues/524)
+
 ## [7.41.0](https://github.com/kaitranntt/ccs/compare/v7.40.0...v7.41.0) (2026-02-11)
 
 ### Features

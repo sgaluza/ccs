@@ -26,6 +26,7 @@ import {
   encodeMessageId,
   encodeMcpTool,
   wrapConnectRPCFrame,
+  concatArrays,
 } from './cursor-protobuf-encoder.js';
 import {
   decodeVarint,
@@ -45,6 +46,10 @@ export function encodeRequest(
   tools: CursorTool[] = [],
   reasoningEffort: string | null = null
 ): Uint8Array {
+  if (messages.length === 0) {
+    throw new Error('Messages array must not be empty');
+  }
+
   const hasTools = tools?.length > 0;
   const isAgentic = hasTools;
   const formattedMessages: FormattedMessage[] = [];
@@ -159,20 +164,6 @@ export function generateCursorBody(
   const protobuf = buildChatRequest(messages, modelName, tools, reasoningEffort);
   const framed = wrapConnectRPCFrame(protobuf, false); // Cursor doesn't support compressed requests
   return framed;
-}
-
-/**
- * Concatenate multiple Uint8Arrays
- */
-function concatArrays(...arrays: Uint8Array[]): Uint8Array {
-  const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const arr of arrays) {
-    result.set(arr, offset);
-    offset += arr.length;
-  }
-  return result;
 }
 
 // Re-export all functions

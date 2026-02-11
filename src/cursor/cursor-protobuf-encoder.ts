@@ -3,23 +3,16 @@
  * Implements ConnectRPC protobuf wire format encoding
  */
 
-import { randomUUID } from 'crypto';
 import * as zlib from 'zlib';
 import {
   WIRE_TYPE,
-  ROLE,
-  UNIFIED_MODE,
-  THINKING_LEVEL,
   FIELD,
   COMPRESS_FLAG,
+  UNIFIED_MODE,
   type WireType,
   type RoleType,
-  type ThinkingLevelType,
   type CursorTool,
   type CursorToolResult,
-  type CursorMessage,
-  type FormattedMessage,
-  type MessageId,
 } from './cursor-protobuf-schema.js';
 
 /**
@@ -70,7 +63,7 @@ export function encodeField(
 /**
  * Concatenate multiple Uint8Arrays
  */
-function concatArrays(...arrays: Uint8Array[]): Uint8Array {
+export function concatArrays(...arrays: Uint8Array[]): Uint8Array {
   const totalLength = arrays.reduce((sum, arr) => sum + arr.length, 0);
   const result = new Uint8Array(totalLength);
   let offset = 0;

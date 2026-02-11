@@ -4,7 +4,7 @@
  */
 
 import * as zlib from 'zlib';
-import { WIRE_TYPE, FIELD, type WireType } from './cursor-protobuf-schema.js';
+import { WIRE_TYPE, FIELD, COMPRESS_FLAG, type WireType } from './cursor-protobuf-schema.js';
 
 /**
  * Decode a varint from buffer
@@ -14,8 +14,9 @@ export function decodeVarint(buffer: Uint8Array, offset: number): [number, numbe
   let result = 0;
   let shift = 0;
   let pos = offset;
+  const maxBytes = 5;
 
-  while (pos < buffer.length) {
+  while (pos < buffer.length && pos - offset < maxBytes) {
     const b = buffer[pos];
     result |= (b & 0x7f) << shift;
     pos++;
@@ -23,7 +24,7 @@ export function decodeVarint(buffer: Uint8Array, offset: number): [number, numbe
     shift += 7;
   }
 
-  return [result, pos];
+  return [result >>> 0, pos]; // Ensure unsigned
 }
 
 /**
@@ -49,12 +50,21 @@ export function decodeField(
     [value, pos] = decodeVarint(buffer, pos);
   } else if (wireType === WIRE_TYPE.LEN) {
     const [length, pos2] = decodeVarint(buffer, pos);
+    if (pos2 + length > buffer.length) {
+      return [null, null, null, buffer.length];
+    }
     value = buffer.slice(pos2, pos2 + length);
     pos = pos2 + length;
   } else if (wireType === WIRE_TYPE.FIXED64) {
+    if (pos + 8 > buffer.length) {
+      return [null, null, null, buffer.length];
+    }
     value = buffer.slice(pos, pos + 8);
     pos += 8;
   } else if (wireType === WIRE_TYPE.FIXED32) {
+    if (pos + 4 > buffer.length) {
+      return [null, null, null, buffer.length];
+    }
     value = buffer.slice(pos, pos + 4);
     pos += 4;
   } else {
@@ -73,6 +83,7 @@ export function decodeMessage(
   const fields = new Map<number, Array<{ wireType: WireType; value: Uint8Array | number }>>();
   let pos = 0;
 
+  // NOTE: If two fields share the same field number but different wire types, later values overwrite earlier ones.
   while (pos < data.length) {
     const [fieldNum, wireType, value, newPos] = decodeField(data, pos);
     if (fieldNum === null || wireType === null || value === null) break;
@@ -80,7 +91,10 @@ export function decodeMessage(
     if (!fields.has(fieldNum)) {
       fields.set(fieldNum, []);
     }
-    fields.get(fieldNum)!.push({ wireType, value: value as Uint8Array | number });
+    const fieldArray = fields.get(fieldNum);
+    if (fieldArray) {
+      fieldArray.push({ wireType, value: value as Uint8Array | number });
+    }
     pos = newPos;
   }
 
@@ -107,10 +121,17 @@ export function parseConnectRPCFrame(buffer: Buffer): {
   let payload = buffer.slice(5, 5 + length);
 
   // Decompress if gzip
-  if (flags === 0x01 || flags === 0x02 || flags === 0x03) {
+  if (
+    flags === COMPRESS_FLAG.GZIP ||
+    flags === COMPRESS_FLAG.GZIP_ALT ||
+    flags === COMPRESS_FLAG.GZIP_BOTH
+  ) {
     try {
       payload = Buffer.from(zlib.gunzipSync(payload));
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] parseConnectRPCFrame decompression failed:', err);
+      }
       // Decompression failed, use raw payload
     }
   }
@@ -140,48 +161,71 @@ function extractToolCall(toolCallData: Uint8Array): {
 
   // Extract tool call ID
   if (toolCall.has(FIELD.TOOL_ID)) {
-    const fullId = new TextDecoder().decode(toolCall.get(FIELD.TOOL_ID)![0].value as Uint8Array);
-    toolCallId = fullId.split('\n')[0]; // Take first line
+    const idField = toolCall.get(FIELD.TOOL_ID);
+    if (idField && idField[0]) {
+      const fullId = new TextDecoder().decode(idField[0].value as Uint8Array);
+      toolCallId = fullId.split('\n')[0]; // Take first line
+    }
   }
 
   // Extract tool name
   if (toolCall.has(FIELD.TOOL_NAME)) {
-    toolName = new TextDecoder().decode(toolCall.get(FIELD.TOOL_NAME)![0].value as Uint8Array);
+    const nameField = toolCall.get(FIELD.TOOL_NAME);
+    if (nameField && nameField[0]) {
+      toolName = new TextDecoder().decode(nameField[0].value as Uint8Array);
+    }
   }
 
   // Extract is_last flag
   if (toolCall.has(FIELD.TOOL_IS_LAST)) {
-    isLast = (toolCall.get(FIELD.TOOL_IS_LAST)![0].value as number) !== 0;
+    const lastField = toolCall.get(FIELD.TOOL_IS_LAST);
+    if (lastField && lastField[0]) {
+      isLast = (lastField[0].value as number) !== 0;
+    }
   }
 
   // Extract MCP params - nested real tool info
   if (toolCall.has(FIELD.TOOL_MCP_PARAMS)) {
     try {
-      const mcpParams = decodeMessage(toolCall.get(FIELD.TOOL_MCP_PARAMS)![0].value as Uint8Array);
+      const mcpField = toolCall.get(FIELD.TOOL_MCP_PARAMS);
+      if (!mcpField || !mcpField[0]) return null;
+
+      const mcpParams = decodeMessage(mcpField[0].value as Uint8Array);
 
       if (mcpParams.has(FIELD.MCP_TOOLS_LIST)) {
-        const tool = decodeMessage(mcpParams.get(FIELD.MCP_TOOLS_LIST)![0].value as Uint8Array);
+        const toolsList = mcpParams.get(FIELD.MCP_TOOLS_LIST);
+        if (!toolsList || !toolsList[0]) return null;
+
+        const tool = decodeMessage(toolsList[0].value as Uint8Array);
 
         if (tool.has(FIELD.MCP_NESTED_NAME)) {
-          toolName = new TextDecoder().decode(
-            tool.get(FIELD.MCP_NESTED_NAME)![0].value as Uint8Array
-          );
+          const nestedName = tool.get(FIELD.MCP_NESTED_NAME);
+          if (nestedName && nestedName[0]) {
+            toolName = new TextDecoder().decode(nestedName[0].value as Uint8Array);
+          }
         }
 
         if (tool.has(FIELD.MCP_NESTED_PARAMS)) {
-          rawArgs = new TextDecoder().decode(
-            tool.get(FIELD.MCP_NESTED_PARAMS)![0].value as Uint8Array
-          );
+          const nestedParams = tool.get(FIELD.MCP_NESTED_PARAMS);
+          if (nestedParams && nestedParams[0]) {
+            rawArgs = new TextDecoder().decode(nestedParams[0].value as Uint8Array);
+          }
         }
       }
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] extractToolCall MCP parsing failed:', err);
+      }
       // MCP parse error, continue
     }
   }
 
   // Fallback to raw_args
   if (!rawArgs && toolCall.has(FIELD.TOOL_RAW_ARGS)) {
-    rawArgs = new TextDecoder().decode(toolCall.get(FIELD.TOOL_RAW_ARGS)![0].value as Uint8Array);
+    const rawArgsField = toolCall.get(FIELD.TOOL_RAW_ARGS);
+    if (rawArgsField && rawArgsField[0]) {
+      rawArgs = new TextDecoder().decode(rawArgsField[0].value as Uint8Array);
+    }
   }
 
   if (toolCallId && toolName) {
@@ -212,19 +256,29 @@ function extractTextAndThinking(responseData: Uint8Array): {
 
   // Extract text
   if (nested.has(FIELD.RESPONSE_TEXT)) {
-    text = new TextDecoder().decode(nested.get(FIELD.RESPONSE_TEXT)![0].value as Uint8Array);
+    const textField = nested.get(FIELD.RESPONSE_TEXT);
+    if (textField && textField[0]) {
+      text = new TextDecoder().decode(textField[0].value as Uint8Array);
+    }
   }
 
   // Extract thinking
   if (nested.has(FIELD.THINKING)) {
     try {
-      const thinkingMsg = decodeMessage(nested.get(FIELD.THINKING)![0].value as Uint8Array);
-      if (thinkingMsg.has(FIELD.THINKING_TEXT)) {
-        thinking = new TextDecoder().decode(
-          thinkingMsg.get(FIELD.THINKING_TEXT)![0].value as Uint8Array
-        );
+      const thinkingField = nested.get(FIELD.THINKING);
+      if (thinkingField && thinkingField[0]) {
+        const thinkingMsg = decodeMessage(thinkingField[0].value as Uint8Array);
+        if (thinkingMsg.has(FIELD.THINKING_TEXT)) {
+          const thinkingTextField = thinkingMsg.get(FIELD.THINKING_TEXT);
+          if (thinkingTextField && thinkingTextField[0]) {
+            thinking = new TextDecoder().decode(thinkingTextField[0].value as Uint8Array);
+          }
+        }
       }
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] extractTextAndThinking parsing failed:', err);
+      }
       // Thinking parse error, continue
     }
   }
@@ -251,25 +305,32 @@ export function extractTextFromResponse(payload: Uint8Array): {
 
     // Field 1: ClientSideToolV2Call
     if (fields.has(FIELD.TOOL_CALL)) {
-      const toolCall = extractToolCall(fields.get(FIELD.TOOL_CALL)![0].value as Uint8Array);
-      if (toolCall) {
-        return { text: null, error: null, toolCall, thinking: null };
+      const toolCallField = fields.get(FIELD.TOOL_CALL);
+      if (toolCallField && toolCallField[0]) {
+        const toolCall = extractToolCall(toolCallField[0].value as Uint8Array);
+        if (toolCall) {
+          return { text: null, error: null, toolCall, thinking: null };
+        }
       }
     }
 
     // Field 2: StreamUnifiedChatResponse
     if (fields.has(FIELD.RESPONSE)) {
-      const { text, thinking } = extractTextAndThinking(
-        fields.get(FIELD.RESPONSE)![0].value as Uint8Array
-      );
+      const responseField = fields.get(FIELD.RESPONSE);
+      if (responseField && responseField[0]) {
+        const { text, thinking } = extractTextAndThinking(responseField[0].value as Uint8Array);
 
-      if (text || thinking) {
-        return { text, error: null, toolCall: null, thinking };
+        if (text || thinking) {
+          return { text, error: null, toolCall: null, thinking };
+        }
       }
     }
 
     return { text: null, error: null, toolCall: null, thinking: null };
-  } catch {
+  } catch (err) {
+    if (process.env.CCS_DEBUG) {
+      console.error('[cursor] extractTextFromResponse parsing failed:', err);
+    }
     return { text: null, error: null, toolCall: null, thinking: null };
   }
 }

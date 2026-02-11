@@ -39,9 +39,17 @@ function convertMessages(messages: OpenAIMessage[]): CursorMessage[] {
     const msg = messages[i];
 
     if (msg.role === 'system') {
+      let content = '';
+      if (typeof msg.content === 'string') {
+        content = msg.content;
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text' && part.text) content += part.text;
+        }
+      }
       result.push({
         role: 'user',
-        content: `[System Instructions]\n${msg.content}`,
+        content: `[System Instructions]\n${content}`,
       });
       continue;
     }
@@ -113,6 +121,12 @@ function convertMessages(messages: OpenAIMessage[]): CursorMessage[] {
 
         result.push(msgObj);
       }
+      continue;
+    }
+
+    // Unknown role - skip with debug warning
+    if (process.env.CCS_DEBUG) {
+      console.error(`[cursor] Unknown message role: ${msg.role}, skipping`);
     }
   }
 
@@ -124,10 +138,10 @@ function convertMessages(messages: OpenAIMessage[]): CursorMessage[] {
  * Returns modified body with converted messages
  */
 export function buildCursorRequest(
-  model: string,
+  _model: string,
   body: OpenAIRequestBody,
-  stream: boolean,
-  credentials: unknown
+  _stream: boolean,
+  _credentials: unknown
 ): {
   messages: CursorMessage[];
   tools?: CursorTool[];

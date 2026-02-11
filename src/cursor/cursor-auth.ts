@@ -14,7 +14,7 @@
  * - storage.serviceMachineId: Machine ID for checksum
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -52,12 +52,20 @@ export function getTokenStoragePath(): string {
  */
 function queryStateDb(dbPath: string, key: string): string | null {
   try {
-    const result = execSync(
-      `sqlite3 "${dbPath}" "SELECT value FROM itemTable WHERE key='${key}'" 2>/dev/null`,
-      { encoding: 'utf8', timeout: 5000 }
+    // Escape single quotes to prevent SQL injection
+    const sanitizedKey = key.replace(/'/g, "''");
+    const result = execFileSync(
+      'sqlite3',
+      [dbPath, `SELECT value FROM itemTable WHERE key='${sanitizedKey}'`],
+      { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'ignore'] }
     ).trim();
     return result || null;
-  } catch {
+  } catch (err) {
+    // Check if sqlite3 is not installed
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      // sqlite3 not found - could log this if needed
+      return null;
+    }
     return null;
   }
 }
@@ -66,6 +74,15 @@ function queryStateDb(dbPath: string, key: string): string | null {
  * Auto-detect tokens from Cursor's SQLite database
  */
 export function autoDetectTokens(): AutoDetectResult {
+  // sqlite3 CLI is not bundled with Windows
+  if (process.platform === 'win32') {
+    return {
+      found: false,
+      error:
+        'Auto-detection is not supported on Windows. Please import tokens manually using ccs cursor auth --manual.',
+    };
+  }
+
   const dbPath = getTokenStoragePath();
 
   // Check if database exists
@@ -120,9 +137,9 @@ export function validateToken(accessToken: string, machineId: string): boolean {
     return false;
   }
 
-  // Machine ID format validation (should be UUID-like)
-  const uuidRegex = /^[a-f0-9-]{32,}$/i;
-  if (!uuidRegex.test(machineId.replace(/-/g, ''))) {
+  // Machine ID format validation (UUID without hyphens = exactly 32 hex chars)
+  const hexRegex = /^[a-f0-9]{32}$/i;
+  if (!hexRegex.test(machineId.replace(/-/g, ''))) {
     return false;
   }
 
@@ -133,7 +150,9 @@ export function validateToken(accessToken: string, machineId: string): boolean {
  * Extract user info from token if possible
  * Cursor tokens may contain encoded user info as JWT
  */
-export function extractUserInfo(accessToken: string): { email?: string; userId?: string } | null {
+export function extractUserInfo(
+  accessToken: string
+): { email?: string; userId?: string; exp?: number } | null {
   try {
     // Try to decode as JWT
     const parts = accessToken.split('.');
@@ -145,11 +164,21 @@ export function extractUserInfo(accessToken: string): { email?: string; userId?:
       }
       const decoded = JSON.parse(
         Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()
-      );
-      return {
-        email: decoded.email || decoded.sub,
-        userId: decoded.sub || decoded.user_id,
-      };
+      ) as Record<string, unknown>;
+
+      const email = typeof decoded.email === 'string' ? decoded.email : undefined;
+      const userId =
+        typeof decoded.sub === 'string'
+          ? decoded.sub
+          : typeof decoded.user_id === 'string'
+            ? decoded.user_id
+            : undefined;
+      const exp = typeof decoded.exp === 'number' ? decoded.exp : undefined;
+
+      // If all claims are undefined, treat as if JWT parsing failed
+      if (!email && !userId && exp === undefined) return null;
+
+      return { email, userId, exp };
     }
   } catch {
     // Token is not a JWT, that's okay
@@ -172,13 +201,16 @@ export function saveCredentials(credentials: CursorCredentials): void {
   const credPath = getCredentialsPath();
   const dir = path.dirname(credPath);
 
-  // Ensure directory exists
+  // Ensure directory exists with restrictive permissions
   if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   }
 
-  // Write credentials
-  fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), 'utf8');
+  // Write credentials with restrictive permissions
+  fs.writeFileSync(credPath, JSON.stringify(credentials, null, 2), {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
 }
 
 /**
@@ -204,6 +236,16 @@ export function loadCredentials(): CursorCredentials | null {
       'authMethod' in parsed &&
       'importedAt' in parsed
     ) {
+      // Type validation
+      if (
+        typeof parsed.accessToken !== 'string' ||
+        typeof parsed.machineId !== 'string' ||
+        typeof parsed.importedAt !== 'string' ||
+        (parsed.authMethod !== 'auto-detect' && parsed.authMethod !== 'manual')
+      ) {
+        return null;
+      }
+
       return parsed as CursorCredentials;
     }
 
@@ -228,19 +270,45 @@ export function checkAuthStatus(): CursorAuthStatus {
     return { authenticated: false };
   }
 
-  // Calculate token age in hours
+  // Try to get token expiry from JWT exp claim
   let tokenAge: number | undefined;
-  try {
-    const importedDate = new Date(credentials.importedAt);
+  let expired = false;
+  const userInfo = extractUserInfo(credentials.accessToken);
+
+  if (userInfo?.exp) {
+    // Use JWT exp claim for expiry detection
+    const now = Math.floor(Date.now() / 1000);
+    expired = now >= userInfo.exp;
+  }
+
+  // Always use importedAt for tokenAge (more reliable than reverse-engineering JWT lifetime)
+  const TOKEN_EXPIRY_HOURS = 24;
+  const importedDate = new Date(credentials.importedAt);
+  if (!isNaN(importedDate.getTime())) {
     const now = new Date();
     tokenAge = Math.floor((now.getTime() - importedDate.getTime()) / (1000 * 60 * 60));
-  } catch {
-    // Invalid date format
+    // Only set expired from importedAt if JWT exp was not available
+    if (userInfo?.exp === undefined) {
+      expired = tokenAge >= TOKEN_EXPIRY_HOURS;
+    }
   }
 
   return {
     authenticated: true,
     credentials,
     tokenAge,
+    expired,
   };
+}
+
+/**
+ * Delete credentials file
+ */
+export function deleteCredentials(): boolean {
+  try {
+    fs.unlinkSync(getCredentialsPath());
+    return true;
+  } catch {
+    return false;
+  }
 }

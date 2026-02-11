@@ -32,6 +32,22 @@ export interface CursorAuthStatus {
   credentials?: CursorCredentials;
   /** Hours since credentials were imported (if available) */
   tokenAge?: number;
+  /** Whether token has expired (>24 hours old) */
+  expired?: boolean;
+}
+
+/**
+ * Auto-detection result
+ */
+export interface AutoDetectResult {
+  /** Whether tokens were found */
+  found: boolean;
+  /** Access token (if found) */
+  accessToken?: string;
+  /** Machine ID (if found) */
+  machineId?: string;
+  /** Error message (if detection failed) */
+  error?: string;
 }
 
 /**
@@ -58,84 +74,4 @@ export interface CursorModel {
   provider: string;
   /** Whether this is the default model */
   isDefault?: boolean;
-}
-
-/**
- * Message role
- */
-export type MessageRole = 'user' | 'assistant';
-
-/**
- * Cursor message for protobuf
- */
-export interface CursorMessage {
-  /** Message role */
-  role: MessageRole;
-  /** Message content */
-  content: string;
-  /** Tool calls (if any) */
-  tool_calls?: CursorToolCall[];
-  /** Tool results (if any) */
-  tool_results?: CursorToolResult[];
-}
-
-/**
- * Cursor tool call
- */
-export interface CursorToolCall {
-  /** Unique ID for this tool call */
-  id: string;
-  /** Type of tool call */
-  type: 'function';
-  /** Function details */
-  function: {
-    /** Function name */
-    name: string;
-    /** JSON-encoded arguments */
-    arguments: string;
-  };
-  /** Whether this is the last tool call in sequence */
-  isLast?: boolean;
-}
-
-/**
- * Cursor tool result
- */
-export interface CursorToolResult {
-  /** ID of the tool call this result is for */
-  tool_call_id: string;
-  /** Tool name */
-  name: string;
-  /** Result index */
-  index: number;
-  /** Raw arguments */
-  raw_args: string;
-}
-
-/**
- * Result from protobuf extraction
- */
-export interface ProtobufExtractResult {
-  /** Extracted text content */
-  text: string | null;
-  /** Error message (if extraction failed) */
-  error: string | null;
-  /** Extracted tool call (if any) */
-  toolCall: CursorToolCall | null;
-  /** Thinking/reasoning content (if any) */
-  thinking: string | null;
-}
-
-/**
- * Auto-detection result
- */
-export interface AutoDetectResult {
-  /** Whether tokens were found */
-  found: boolean;
-  /** Access token (if found) */
-  accessToken?: string;
-  /** Machine ID (if found) */
-  machineId?: string;
-  /** Error message (if detection failed) */
-  error?: string;
 }

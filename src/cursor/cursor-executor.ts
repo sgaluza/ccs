@@ -8,24 +8,9 @@ import * as zlib from 'zlib';
 import type { IncomingHttpHeaders } from 'http';
 import { generateCursorBody, extractTextFromResponse } from './cursor-protobuf.js';
 import { buildCursorRequest } from './cursor-translator.js';
-import type { CursorMessage, CursorTool } from './cursor-protobuf-schema.js';
+import type { CursorTool, CursorCredentials } from './cursor-protobuf-schema.js';
 
-/** Compression flags for response parsing */
-const COMPRESS_FLAG = {
-  NONE: 0x00,
-  GZIP: 0x01,
-  GZIP_ALT: 0x02,
-  GZIP_BOTH: 0x03,
-} as const;
-
-/** Cursor credentials structure */
-interface CursorCredentials {
-  accessToken: string;
-  providerSpecificData?: {
-    machineId?: string;
-    ghostMode?: boolean;
-  };
-}
+import { COMPRESS_FLAG } from './cursor-protobuf-schema.js';
 
 /** Executor parameters */
 interface ExecutorParams {
@@ -57,35 +42,24 @@ interface Http2Response {
   body: Buffer;
 }
 
-/** Detect cloud environment */
-function isCloudEnv(): boolean {
-  if (typeof caches !== 'undefined' && typeof caches === 'object') return true;
-  try {
-    // Check for EdgeRuntime without causing compilation error
-    if (typeof (globalThis as { EdgeRuntime?: string }).EdgeRuntime !== 'undefined') return true;
-  } catch {
-    // Continue
-  }
-  return false;
-}
-
 /** Lazy import http2 */
 let http2Module: typeof import('http2') | null = null;
 async function getHttp2() {
   if (http2Module) return http2Module;
-  if (!isCloudEnv()) {
-    try {
-      http2Module = await import('http2');
-      return http2Module;
-    } catch {
-      return null;
+  try {
+    http2Module = await import('http2');
+    return http2Module;
+  } catch (err) {
+    if (process.env.CCS_DEBUG) {
+      console.error('[cursor] http2 module not available, falling back to fetch:', err);
     }
+    return null;
   }
-  return null;
 }
 
 /**
  * Decompress payload if needed
+ * NOTE: Uses synchronous gzip for single-request CLI tool. Async not warranted for small payloads.
  */
 function decompressPayload(payload: Buffer, flags: number): Buffer {
   // Check if payload is JSON error
@@ -95,8 +69,10 @@ function decompressPayload(payload: Buffer, flags: number): Buffer {
       if (text.startsWith('{"error"')) {
         return payload;
       }
-    } catch {
-      // Continue
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] JSON error detection failed:', err);
+      }
     }
   }
 
@@ -107,8 +83,11 @@ function decompressPayload(payload: Buffer, flags: number): Buffer {
   ) {
     try {
       return zlib.gunzipSync(payload);
-    } catch {
-      return payload;
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] gzip decompression failed:', err);
+      }
+      return Buffer.alloc(0);
     }
   }
   return payload;
@@ -150,6 +129,8 @@ function createErrorResponse(jsonError: {
 export class CursorExecutor {
   private readonly baseUrl = 'https://api2.cursor.sh';
   private readonly chatPath = '/aiserver.v1.AiService/StreamChat';
+  private readonly CURSOR_CLIENT_VERSION = '2.3.41';
+  private readonly CURSOR_USER_AGENT = 'connect-es/1.6.1';
 
   buildUrl(): string {
     return `${this.baseUrl}${this.chatPath}`;
@@ -160,12 +141,14 @@ export class CursorExecutor {
    */
   generateChecksum(machineId: string): string {
     const timestamp = Math.floor(Date.now() / 1000000);
+    // JS bitwise shifts wrap modulo 32, so >>40 and >>32 give wrong results.
+    // Use Math.trunc division for upper bytes that exceed 32-bit range.
     const byteArray = new Uint8Array([
-      (timestamp >> 40) & 0xff,
-      (timestamp >> 32) & 0xff,
-      (timestamp >> 24) & 0xff,
-      (timestamp >> 16) & 0xff,
-      (timestamp >> 8) & 0xff,
+      Math.trunc(timestamp / 2 ** 40) & 0xff,
+      Math.trunc(timestamp / 2 ** 32) & 0xff,
+      (timestamp >>> 24) & 0xff,
+      (timestamp >>> 16) & 0xff,
+      (timestamp >>> 8) & 0xff,
       timestamp & 0xff,
     ]);
 
@@ -199,25 +182,30 @@ export class CursorExecutor {
 
   buildHeaders(credentials: CursorCredentials): Record<string, string> {
     const accessToken = credentials.accessToken;
-    const machineId = credentials.providerSpecificData?.machineId;
-    const ghostMode = credentials.providerSpecificData?.ghostMode !== false;
+    const machineId = credentials.machineId;
+    const ghostMode = credentials.ghostMode !== false;
 
     if (!machineId) {
       throw new Error('Machine ID is required for Cursor API');
     }
 
-    const cleanToken = accessToken.includes('::') ? accessToken.split('::')[1] : accessToken;
+    const delimIdx = accessToken.indexOf('::');
+    const cleanToken = delimIdx !== -1 ? accessToken.slice(delimIdx + 2) : accessToken;
+
+    if (!cleanToken) {
+      throw new Error('Access token is empty after parsing');
+    }
 
     return {
       authorization: `Bearer ${cleanToken}`,
       'connect-accept-encoding': 'gzip',
       'connect-protocol-version': '1',
       'content-type': 'application/connect+proto',
-      'user-agent': 'connect-es/1.6.1',
+      'user-agent': this.CURSOR_USER_AGENT,
       'x-amzn-trace-id': `Root=${crypto.randomUUID()}`,
       'x-client-key': crypto.createHash('sha256').update(cleanToken).digest('hex'),
       'x-cursor-checksum': this.generateChecksum(machineId),
-      'x-cursor-client-version': '2.3.41',
+      'x-cursor-client-version': this.CURSOR_CLIENT_VERSION,
       'x-cursor-client-type': 'ide',
       'x-cursor-client-os':
         process.platform === 'win32'
@@ -290,7 +278,10 @@ export class CursorExecutor {
       const chunks: Buffer[] = [];
       let responseHeaders: IncomingHttpHeaders = {};
 
-      client.on('error', reject);
+      client.on('error', (err) => {
+        client.close();
+        reject(err);
+      });
 
       const req = client.request({
         ':method': 'POST',
@@ -309,7 +300,7 @@ export class CursorExecutor {
       req.on('end', () => {
         client.close();
         resolve({
-          status: Number(responseHeaders[':status']),
+          status: Number(responseHeaders[':status']) || 500,
           headers: responseHeaders,
           body: Buffer.concat(chunks),
         });
@@ -320,11 +311,18 @@ export class CursorExecutor {
       });
 
       if (signal) {
-        signal.addEventListener('abort', () => {
+        const onAbort = () => {
           req.close();
           client.close();
           reject(new Error('Request aborted'));
-        });
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+
+        const cleanup = () => {
+          signal.removeEventListener('abort', onAbort);
+        };
+        req.on('end', cleanup);
+        req.on('error', cleanup);
       }
 
       req.write(body);
@@ -368,7 +366,7 @@ export class CursorExecutor {
       }
 
       const transformedResponse =
-        stream !== false
+        stream === true
           ? this.transformProtobufToSSE(response.body, model, body)
           : this.transformProtobufToJSON(response.body, model, body);
 
@@ -391,11 +389,93 @@ export class CursorExecutor {
     }
   }
 
-  transformProtobufToJSON(buffer: Buffer, model: string, body: ExecutorParams['body']): Response {
+  /**
+   * Parse protobuf buffer into frames and extract text/toolcalls.
+   * Shared logic between JSON and SSE transformers.
+   */
+  private *parseProtobufFrames(buffer: Buffer): Generator<
+    | { type: 'error'; response: Response }
+    | { type: 'text'; text: string }
+    | {
+        type: 'toolCall';
+        toolCall: {
+          id: string;
+          type: string;
+          function: { name: string; arguments: string };
+          isLast: boolean;
+        };
+      }
+  > {
+    let offset = 0;
+
+    while (offset < buffer.length) {
+      if (offset + 5 > buffer.length) break;
+
+      const flags = buffer[offset];
+      const length = buffer.readUInt32BE(offset + 1);
+
+      if (offset + 5 + length > buffer.length) break;
+
+      let payload = buffer.slice(offset + 5, offset + 5 + length);
+      offset += 5 + length;
+
+      payload = decompressPayload(payload, flags);
+
+      // Check for JSON error format
+      try {
+        const text = payload.toString('utf-8');
+        if (text.startsWith('{') && text.includes('"error"')) {
+          yield { type: 'error', response: createErrorResponse(JSON.parse(text)) };
+          return;
+        }
+      } catch (err) {
+        if (process.env.CCS_DEBUG) {
+          console.error('[cursor] parseProtobufFrames error parsing failed:', err);
+        }
+      }
+
+      const result = extractTextFromResponse(new Uint8Array(payload));
+
+      // Check for protobuf-decoded error
+      if (result.error) {
+        const errorLower = result.error.toLowerCase();
+        const isRateLimit =
+          errorLower.includes('rate limit') ||
+          errorLower.includes('resource_exhausted') ||
+          errorLower.includes('too many requests');
+        yield {
+          type: 'error',
+          response: new Response(
+            JSON.stringify({
+              error: {
+                message: result.error,
+                type: isRateLimit ? 'rate_limit_error' : 'server_error',
+                code: isRateLimit ? 'rate_limited' : 'cursor_error',
+              },
+            }),
+            {
+              status: isRateLimit ? 429 : 400,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          ),
+        };
+        return;
+      }
+
+      if (result.toolCall) {
+        yield { type: 'toolCall', toolCall: result.toolCall };
+      }
+
+      if (result.text) {
+        yield { type: 'text', text: result.text };
+      }
+    }
+  }
+
+  transformProtobufToJSON(buffer: Buffer, model: string, _body: ExecutorParams['body']): Response {
     const responseId = `chatcmpl-cursor-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
 
-    let offset = 0;
     let totalContent = '';
     const toolCalls: Array<{
       id: string;
@@ -413,51 +493,17 @@ export class CursorExecutor {
       }
     >();
 
-    while (offset < buffer.length) {
-      if (offset + 5 > buffer.length) break;
-
-      const flags = buffer[offset];
-      const length = buffer.readUInt32BE(offset + 1);
-
-      if (offset + 5 + length > buffer.length) break;
-
-      let payload = buffer.slice(offset + 5, offset + 5 + length);
-      offset += 5 + length;
-
-      payload = decompressPayload(payload, flags);
-
-      try {
-        const text = payload.toString('utf-8');
-        if (text.startsWith('{') && text.includes('"error"')) {
-          return createErrorResponse(JSON.parse(text));
-        }
-      } catch {
-        // Continue
+    for (const frame of this.parseProtobufFrames(buffer)) {
+      if (frame.type === 'error') {
+        return frame.response;
       }
 
-      const result = extractTextFromResponse(new Uint8Array(payload));
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              message: result.error,
-              type: 'rate_limit_error',
-              code: 'rate_limited',
-            },
-          }),
-          {
-            status: 429,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      if (result.toolCall) {
-        const tc = result.toolCall;
+      if (frame.type === 'toolCall') {
+        const tc = frame.toolCall;
 
         if (toolCallsMap.has(tc.id)) {
-          const existing = toolCallsMap.get(tc.id)!;
+          const existing = toolCallsMap.get(tc.id);
+          if (!existing) continue;
           existing.function.arguments += tc.function.arguments;
           existing.isLast = tc.isLast;
         } else {
@@ -468,7 +514,8 @@ export class CursorExecutor {
         }
 
         if (tc.isLast) {
-          const finalToolCall = toolCallsMap.get(tc.id)!;
+          const finalToolCall = toolCallsMap.get(tc.id);
+          if (!finalToolCall) continue;
           toolCalls.push({
             id: finalToolCall.id,
             type: finalToolCall.type,
@@ -480,12 +527,15 @@ export class CursorExecutor {
         }
       }
 
-      if (result.text) totalContent += result.text;
+      if (frame.type === 'text') {
+        totalContent += frame.text;
+      }
     }
 
     // Finalize remaining tool calls
     for (const id of Array.from(toolCallsMap.keys())) {
-      const tc = toolCallsMap.get(id)!;
+      const tc = toolCallsMap.get(id);
+      if (!tc) continue;
       if (!toolCalls.find((t) => t.id === id)) {
         toolCalls.push({
           id: tc.id,
@@ -540,13 +590,15 @@ export class CursorExecutor {
     });
   }
 
-  transformProtobufToSSE(buffer: Buffer, model: string, body: ExecutorParams['body']): Response {
+  transformProtobufToSSE(buffer: Buffer, model: string, _body: ExecutorParams['body']): Response {
+    // TODO(#531): Implement true streaming — currently buffers entire response before transforming.
+    // This should pipe HTTP/2 data events through a TransformStream for incremental SSE output.
+    // See: https://github.com/kaitranntt/ccs/issues/531
+    // NOTE: Chunk boundary splits may emit duplicate SSE messages if a frame spans multiple chunks.
     const responseId = `chatcmpl-cursor-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
 
     const chunks: string[] = [];
-    let offset = 0;
-    let totalContent = '';
     const toolCalls: Array<{
       id: string;
       type: string;
@@ -564,48 +616,13 @@ export class CursorExecutor {
       }
     >();
 
-    while (offset < buffer.length) {
-      if (offset + 5 > buffer.length) break;
-
-      const flags = buffer[offset];
-      const length = buffer.readUInt32BE(offset + 1);
-
-      if (offset + 5 + length > buffer.length) break;
-
-      let payload = buffer.slice(offset + 5, offset + 5 + length);
-      offset += 5 + length;
-
-      payload = decompressPayload(payload, flags);
-
-      try {
-        const text = payload.toString('utf-8');
-        if (text.startsWith('{') && text.includes('"error"')) {
-          return createErrorResponse(JSON.parse(text));
-        }
-      } catch {
-        // Continue
+    for (const frame of this.parseProtobufFrames(buffer)) {
+      if (frame.type === 'error') {
+        return frame.response;
       }
 
-      const result = extractTextFromResponse(new Uint8Array(payload));
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              message: result.error,
-              type: 'rate_limit_error',
-              code: 'rate_limited',
-            },
-          }),
-          {
-            status: 429,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      if (result.toolCall) {
-        const tc = result.toolCall;
+      if (frame.type === 'toolCall') {
+        const tc = frame.toolCall;
 
         if (chunks.length === 0) {
           chunks.push(
@@ -626,7 +643,8 @@ export class CursorExecutor {
         }
 
         if (toolCallsMap.has(tc.id)) {
-          const existing = toolCallsMap.get(tc.id)!;
+          const existing = toolCallsMap.get(tc.id);
+          if (!existing) continue;
           existing.function.arguments += tc.function.arguments;
           existing.isLast = tc.isLast;
 
@@ -694,8 +712,7 @@ export class CursorExecutor {
         }
       }
 
-      if (result.text) {
-        totalContent += result.text;
+      if (frame.type === 'text') {
         chunks.push(
           `data: ${JSON.stringify({
             id: responseId,
@@ -707,8 +724,8 @@ export class CursorExecutor {
                 index: 0,
                 delta:
                   chunks.length === 0 && toolCalls.length === 0
-                    ? { role: 'assistant', content: result.text }
-                    : { content: result.text },
+                    ? { role: 'assistant', content: frame.text }
+                    : { content: frame.text },
                 finish_reason: null,
               },
             ],
