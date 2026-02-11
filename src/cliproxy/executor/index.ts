@@ -113,6 +113,12 @@ export async function execClaudeWithCLIProxy(
     }
   };
 
+  // Helper: Extract unique providers from composite tiers
+  const compositeProviders =
+    cfg.isComposite && cfg.compositeTiers
+      ? [...new Set(Object.values(cfg.compositeTiers).map((t) => t.provider))]
+      : [];
+
   // 0. Resolve proxy configuration (CLI > ENV > config.yaml > defaults)
   const unifiedConfig = loadOrCreateUnifiedConfig();
 
@@ -421,7 +427,14 @@ export async function execClaudeWithCLIProxy(
 
   // Handle --config
   if (forceConfig && supportsModelConfig(provider)) {
-    await configureProviderModel(provider, true, cfg.customSettingsPath);
+    // Block --config for composite variants (per-tier models in config.yaml)
+    if (cfg.isComposite) {
+      console.log(
+        warn('Composite variants use per-tier config. Edit config.yaml to change tier models.')
+      );
+    } else {
+      await configureProviderModel(provider, true, cfg.customSettingsPath);
+    }
     process.exit(0);
   }
 
@@ -477,7 +490,22 @@ export async function execClaudeWithCLIProxy(
   if (providerConfig.requiresOAuth && !skipLocalAuth) {
     log(`Checking authentication for ${provider}`);
 
-    if (forceAuth || !isAuthenticated(provider)) {
+    // Multi-provider auth check for composite variants
+    if (compositeProviders.length > 0) {
+      const unauthenticatedProviders: string[] = [];
+      for (const p of compositeProviders) {
+        if (!isAuthenticated(p)) {
+          unauthenticatedProviders.push(p);
+        }
+      }
+      if (unauthenticatedProviders.length > 0) {
+        console.error(fail('Composite variant requires authentication for multiple providers:'));
+        for (const p of unauthenticatedProviders) {
+          console.error(`    - ${p} (run "ccs ${p} --auth")`);
+        }
+        process.exit(1);
+      }
+    } else if (forceAuth || !isAuthenticated(provider)) {
       const { triggerOAuth } = await import('../auth-handler');
       const authSuccess = await triggerOAuth(provider, {
         verbose,
@@ -498,8 +526,14 @@ export async function execClaudeWithCLIProxy(
       log(`${provider} already authenticated`);
     }
 
-    // 3a. Proactive token refresh
-    await handleTokenExpiration(provider, verbose);
+    // 3a. Proactive token refresh (multi-provider for composite)
+    if (compositeProviders.length > 0) {
+      for (const p of compositeProviders) {
+        await handleTokenExpiration(p, verbose);
+      }
+    } else {
+      await handleTokenExpiration(provider, verbose);
+    }
 
     // 3a-1. Update lastUsedAt
     const usedAccount = getDefaultAccount(provider);
@@ -510,7 +544,14 @@ export async function execClaudeWithCLIProxy(
 
   // 3b. Preflight quota check (Antigravity only)
   if (!skipLocalAuth) {
-    await handleQuotaCheck(provider);
+    // Multi-tier quota check for composite variants (check if ANY tier uses 'agy')
+    if (compositeProviders.length > 0) {
+      if (compositeProviders.includes('agy')) {
+        await handleQuotaCheck('agy');
+      }
+    } else {
+      await handleQuotaCheck(provider);
+    }
   }
 
   // 3c. Account safety: enforce cross-provider isolation
@@ -533,23 +574,46 @@ export async function execClaudeWithCLIProxy(
     await configureProviderModel(provider, false, cfg.customSettingsPath);
   }
 
-  // 5. Check for broken models
-  const currentModel = getCurrentModel(provider, cfg.customSettingsPath);
-  if (currentModel && isModelBroken(provider, currentModel)) {
-    const modelEntry = findModel(provider, currentModel);
-    const issueUrl = getModelIssueUrl(provider, currentModel);
-    console.error('');
-    console.error(warn(`${modelEntry?.name || currentModel} has known issues with Claude Code`));
-    console.error('    Tool calls will fail. Use "gemini-3-pro-preview" instead.');
-    if (issueUrl) {
-      console.error(`    Tracking: ${issueUrl}`);
+  // 5. Check for broken models (multi-tier for composite)
+  if (compositeProviders.length > 0 && cfg.compositeTiers) {
+    // Check all tier models in composite variant
+    const tiers: Array<'opus' | 'sonnet' | 'haiku'> = ['opus', 'sonnet', 'haiku'];
+    for (const tier of tiers) {
+      const tierConfig = cfg.compositeTiers[tier];
+      if (tierConfig && isModelBroken(tierConfig.provider, tierConfig.model)) {
+        const modelEntry = findModel(tierConfig.provider, tierConfig.model);
+        const issueUrl = getModelIssueUrl(tierConfig.provider, tierConfig.model);
+        console.error('');
+        console.error(
+          warn(
+            `${tier} tier: ${modelEntry?.name || tierConfig.model} has known issues with Claude Code`
+          )
+        );
+        console.error('    Tool calls will fail. Consider changing the model in config.yaml.');
+        if (issueUrl) {
+          console.error(`    Tracking: ${issueUrl}`);
+        }
+        console.error('');
+      }
     }
-    if (skipLocalAuth) {
-      console.error('    Note: Model may be overridden by remote proxy configuration.');
-    } else {
-      console.error(`    Run "ccs ${provider} --config" to change model.`);
+  } else {
+    const currentModel = getCurrentModel(provider, cfg.customSettingsPath);
+    if (currentModel && isModelBroken(provider, currentModel)) {
+      const modelEntry = findModel(provider, currentModel);
+      const issueUrl = getModelIssueUrl(provider, currentModel);
+      console.error('');
+      console.error(warn(`${modelEntry?.name || currentModel} has known issues with Claude Code`));
+      console.error('    Tool calls will fail. Use "gemini-3-pro-preview" instead.');
+      if (issueUrl) {
+        console.error(`    Tracking: ${issueUrl}`);
+      }
+      if (skipLocalAuth) {
+        console.error('    Note: Model may be overridden by remote proxy configuration.');
+      } else {
+        console.error(`    Run "ccs ${provider} --config" to change model.`);
+      }
+      console.error('');
     }
-    console.error('');
   }
 
   // 6. Ensure user settings file exists
@@ -640,6 +704,9 @@ export async function execClaudeWithCLIProxy(
     thinkingOverride,
     extendedContextOverride,
     verbose,
+    isComposite: cfg.isComposite,
+    compositeTiers: cfg.compositeTiers,
+    compositeDefaultTier: cfg.compositeDefaultTier,
   });
 
   if (initialEnvVars.ANTHROPIC_BASE_URL) {
@@ -729,6 +796,9 @@ export async function execClaudeWithCLIProxy(
     thinkingOverride,
     extendedContextOverride,
     verbose,
+    isComposite: cfg.isComposite,
+    compositeTiers: cfg.compositeTiers,
+    compositeDefaultTier: cfg.compositeDefaultTier,
   });
 
   const webSearchEnv = getWebSearchHookEnv();

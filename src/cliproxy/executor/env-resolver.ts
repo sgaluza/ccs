@@ -9,9 +9,15 @@
  * - WebSearch and ImageAnalysis hook integration
  */
 
-import { getEffectiveEnvVars, getRemoteEnvVars, applyThinkingConfig } from '../config-generator';
+import {
+  getEffectiveEnvVars,
+  getRemoteEnvVars,
+  getCompositeEnvVars,
+  applyThinkingConfig,
+} from '../config-generator';
 import { applyExtendedContextConfig } from '../config/extended-context-config';
 import { CLIProxyProvider } from '../types';
+import { CompositeTierConfig } from '../../config/unified-config-types';
 import { getWebSearchHookEnv } from '../../utils/websearch-manager';
 import { getImageAnalysisHookEnv } from '../../utils/hooks/get-image-analysis-hook-env';
 import { CodexReasoningProxy } from '../codex-reasoning-proxy';
@@ -41,6 +47,16 @@ export interface ProxyChainConfig {
   /** Extended context override: true = force on, false = force off, undefined = auto */
   extendedContextOverride?: boolean;
   verbose: boolean;
+  /** Composite variant: true when mixing providers per tier */
+  isComposite?: boolean;
+  /** Composite variant: per-tier provider+model mappings */
+  compositeTiers?: {
+    opus: CompositeTierConfig;
+    sonnet: CompositeTierConfig;
+    haiku: CompositeTierConfig;
+  };
+  /** Composite variant: which tier is the default */
+  compositeDefaultTier?: 'opus' | 'sonnet' | 'haiku';
 }
 
 /**
@@ -60,12 +76,23 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
     extendedContextOverride,
     codexReasoningPort,
     toolSanitizationPort,
+    isComposite,
+    compositeTiers,
+    compositeDefaultTier,
   } = config;
 
-  // Build base env vars - remote or local
+  // Build base env vars - composite, remote, or local
   let envVars: NodeJS.ProcessEnv;
 
-  if (useRemoteProxy && remoteConfig) {
+  if (isComposite && compositeTiers && compositeDefaultTier) {
+    // Composite variant: root URL, per-tier models from different providers
+    envVars = getCompositeEnvVars(
+      compositeTiers,
+      compositeDefaultTier,
+      localPort,
+      customSettingsPath
+    );
+  } else if (useRemoteProxy && remoteConfig) {
     if (httpsTunnel && tunnelPort) {
       // HTTPS remote via local tunnel - use HTTP to tunnel
       envVars = getRemoteEnvVars(

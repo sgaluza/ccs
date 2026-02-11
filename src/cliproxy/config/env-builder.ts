@@ -10,6 +10,7 @@ import { getGlobalEnvConfig } from '../../config/unified-config-loader';
 import { getEffectiveApiKey } from '../auth-token-manager';
 import { expandPath } from '../../utils/helpers';
 import { warn } from '../../utils/ui';
+import { CompositeTierConfig } from '../../config/unified-config-types';
 import {
   validatePort,
   validateRemotePort,
@@ -412,4 +413,65 @@ export function getRemoteEnvVars(
   };
 
   return env;
+}
+
+/**
+ * Get environment variables for composite variant.
+ * Uses root URL (no /api/provider/ path) for model-based routing.
+ * Each tier maps to a different provider's model, routed by CLIProxyAPI.
+ *
+ * @param tiers Per-tier provider+model mappings
+ * @param defaultTier Which tier ANTHROPIC_MODEL equals
+ * @param port Local CLIProxy port
+ * @param customSettingsPath Optional path to user's custom settings file
+ */
+export function getCompositeEnvVars(
+  tiers: { opus: CompositeTierConfig; sonnet: CompositeTierConfig; haiku: CompositeTierConfig },
+  defaultTier: 'opus' | 'sonnet' | 'haiku',
+  port: number = CLIPROXY_DEFAULT_PORT,
+  customSettingsPath?: string
+): Record<string, string> {
+  const globalEnv = getGlobalEnvVars();
+
+  // Load user settings if provided (may contain additional env vars like hooks)
+  let additionalEnvVars: Record<string, string> = {};
+  if (customSettingsPath) {
+    const expandedPath = expandPath(customSettingsPath);
+    if (fs.existsSync(expandedPath)) {
+      try {
+        const content = fs.readFileSync(expandedPath, 'utf-8');
+        const settings: ProviderSettings = JSON.parse(content);
+        if (settings.env && typeof settings.env === 'object') {
+          // Extract non-core env vars (hooks, etc.)
+          const {
+            ANTHROPIC_BASE_URL: _baseUrl,
+            ANTHROPIC_AUTH_TOKEN: _authToken,
+            ANTHROPIC_MODEL: _model,
+            ANTHROPIC_DEFAULT_OPUS_MODEL: _opus,
+            ANTHROPIC_DEFAULT_SONNET_MODEL: _sonnet,
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: _haiku,
+            ...extra
+          } = settings.env as Record<string, string>;
+          additionalEnvVars = extra;
+        }
+      } catch {
+        // Invalid JSON — ignore
+      }
+    }
+  }
+
+  const validPort = validatePort(port);
+  const defaultModel = tiers[defaultTier].model;
+
+  return {
+    ...globalEnv,
+    ...additionalEnvVars,
+    // Root URL — CLIProxyAPI routes based on model name in request body
+    ANTHROPIC_BASE_URL: `http://127.0.0.1:${validPort}`,
+    ANTHROPIC_AUTH_TOKEN: getEffectiveApiKey(),
+    ANTHROPIC_MODEL: defaultModel,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: tiers.opus.model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: tiers.sonnet.model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: tiers.haiku.model,
+  };
 }
