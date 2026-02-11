@@ -443,10 +443,10 @@ const PRICING_REGISTRY: Record<string, ModelPricing> = {
     cacheReadPerMillion: 0.175,
   },
   'glm-4.5-air': {
-    inputPerMillion: 0.2,
-    outputPerMillion: 1.1,
+    inputPerMillion: 0.13,
+    outputPerMillion: 0.85,
     cacheCreationPerMillion: 0.0,
-    cacheReadPerMillion: 0.03,
+    cacheReadPerMillion: 0.025,
   },
 
   // ---------------------------------------------------------------------------

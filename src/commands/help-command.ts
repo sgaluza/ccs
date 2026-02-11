@@ -227,7 +227,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   // Delegation
   printSubSection('Delegation (inside Claude Code CLI)', [
     ['/ccs "task"', 'Delegate task (auto-selects profile)'],
-    ['/ccs --glm "task"', 'Force GLM-4.6 for simple tasks'],
+    ['/ccs --glm "task"', 'Force GLM-5 for simple tasks'],
     ['/ccs --kimi "task"', 'Force Kimi for long context'],
     ['/ccs:continue "follow-up"', 'Continue last delegation session'],
   ]);
