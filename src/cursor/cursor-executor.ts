@@ -109,7 +109,7 @@ function decompressPayload(payload: Buffer, flags: number): Buffer {
       if (process.env.CCS_DEBUG) {
         console.error('[cursor] gzip decompression failed:', err);
       }
-      return payload;
+      return Buffer.alloc(0);
     }
   }
   return payload;
@@ -407,11 +407,88 @@ export class CursorExecutor {
     }
   }
 
+  /**
+   * Parse protobuf buffer into frames and extract text/toolcalls.
+   * Shared logic between JSON and SSE transformers.
+   */
+  private *parseProtobufFrames(buffer: Buffer): Generator<
+    | { type: 'error'; response: Response }
+    | { type: 'text'; text: string }
+    | {
+        type: 'toolCall';
+        toolCall: {
+          id: string;
+          type: string;
+          function: { name: string; arguments: string };
+          isLast: boolean;
+        };
+      }
+  > {
+    let offset = 0;
+
+    while (offset < buffer.length) {
+      if (offset + 5 > buffer.length) break;
+
+      const flags = buffer[offset];
+      const length = buffer.readUInt32BE(offset + 1);
+
+      if (offset + 5 + length > buffer.length) break;
+
+      let payload = buffer.slice(offset + 5, offset + 5 + length);
+      offset += 5 + length;
+
+      payload = decompressPayload(payload, flags);
+
+      // Check for JSON error format
+      try {
+        const text = payload.toString('utf-8');
+        if (text.startsWith('{') && text.includes('"error"')) {
+          yield { type: 'error', response: createErrorResponse(JSON.parse(text)) };
+          return;
+        }
+      } catch (err) {
+        if (process.env.CCS_DEBUG) {
+          console.error('[cursor] parseProtobufFrames error parsing failed:', err);
+        }
+      }
+
+      const result = extractTextFromResponse(new Uint8Array(payload));
+
+      // Check for protobuf-decoded error
+      if (result.error) {
+        yield {
+          type: 'error',
+          response: new Response(
+            JSON.stringify({
+              error: {
+                message: result.error,
+                type: 'rate_limit_error',
+                code: 'rate_limited',
+              },
+            }),
+            {
+              status: 429,
+              headers: { 'Content-Type': 'application/json' },
+            }
+          ),
+        };
+        return;
+      }
+
+      if (result.toolCall) {
+        yield { type: 'toolCall', toolCall: result.toolCall };
+      }
+
+      if (result.text) {
+        yield { type: 'text', text: result.text };
+      }
+    }
+  }
+
   transformProtobufToJSON(buffer: Buffer, model: string, _body: ExecutorParams['body']): Response {
     const responseId = `chatcmpl-cursor-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
 
-    let offset = 0;
     let totalContent = '';
     const toolCalls: Array<{
       id: string;
@@ -429,50 +506,13 @@ export class CursorExecutor {
       }
     >();
 
-    while (offset < buffer.length) {
-      if (offset + 5 > buffer.length) break;
-
-      const flags = buffer[offset];
-      const length = buffer.readUInt32BE(offset + 1);
-
-      if (offset + 5 + length > buffer.length) break;
-
-      let payload = buffer.slice(offset + 5, offset + 5 + length);
-      offset += 5 + length;
-
-      payload = decompressPayload(payload, flags);
-
-      try {
-        const text = payload.toString('utf-8');
-        if (text.startsWith('{') && text.includes('"error"')) {
-          return createErrorResponse(JSON.parse(text));
-        }
-      } catch (err) {
-        if (process.env.CCS_DEBUG) {
-          console.error('[cursor] transformProtobufToJSON error parsing failed:', err);
-        }
+    for (const frame of this.parseProtobufFrames(buffer)) {
+      if (frame.type === 'error') {
+        return frame.response;
       }
 
-      const result = extractTextFromResponse(new Uint8Array(payload));
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              message: result.error,
-              type: 'rate_limit_error',
-              code: 'rate_limited',
-            },
-          }),
-          {
-            status: 429,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      if (result.toolCall) {
-        const tc = result.toolCall;
+      if (frame.type === 'toolCall') {
+        const tc = frame.toolCall;
 
         if (toolCallsMap.has(tc.id)) {
           const existing = toolCallsMap.get(tc.id);
@@ -500,7 +540,9 @@ export class CursorExecutor {
         }
       }
 
-      if (result.text) totalContent += result.text;
+      if (frame.type === 'text') {
+        totalContent += frame.text;
+      }
     }
 
     // Finalize remaining tool calls
@@ -570,7 +612,6 @@ export class CursorExecutor {
     const created = Math.floor(Date.now() / 1000);
 
     const chunks: string[] = [];
-    let offset = 0;
     const toolCalls: Array<{
       id: string;
       type: string;
@@ -588,50 +629,13 @@ export class CursorExecutor {
       }
     >();
 
-    while (offset < buffer.length) {
-      if (offset + 5 > buffer.length) break;
-
-      const flags = buffer[offset];
-      const length = buffer.readUInt32BE(offset + 1);
-
-      if (offset + 5 + length > buffer.length) break;
-
-      let payload = buffer.slice(offset + 5, offset + 5 + length);
-      offset += 5 + length;
-
-      payload = decompressPayload(payload, flags);
-
-      try {
-        const text = payload.toString('utf-8');
-        if (text.startsWith('{') && text.includes('"error"')) {
-          return createErrorResponse(JSON.parse(text));
-        }
-      } catch (err) {
-        if (process.env.CCS_DEBUG) {
-          console.error('[cursor] transformProtobufToJSON error parsing failed:', err);
-        }
+    for (const frame of this.parseProtobufFrames(buffer)) {
+      if (frame.type === 'error') {
+        return frame.response;
       }
 
-      const result = extractTextFromResponse(new Uint8Array(payload));
-
-      if (result.error) {
-        return new Response(
-          JSON.stringify({
-            error: {
-              message: result.error,
-              type: 'rate_limit_error',
-              code: 'rate_limited',
-            },
-          }),
-          {
-            status: 429,
-            headers: { 'Content-Type': 'application/json' },
-          }
-        );
-      }
-
-      if (result.toolCall) {
-        const tc = result.toolCall;
+      if (frame.type === 'toolCall') {
+        const tc = frame.toolCall;
 
         if (chunks.length === 0) {
           chunks.push(
@@ -721,7 +725,7 @@ export class CursorExecutor {
         }
       }
 
-      if (result.text) {
+      if (frame.type === 'text') {
         chunks.push(
           `data: ${JSON.stringify({
             id: responseId,
@@ -733,8 +737,8 @@ export class CursorExecutor {
                 index: 0,
                 delta:
                   chunks.length === 0 && toolCalls.length === 0
-                    ? { role: 'assistant', content: result.text }
-                    : { content: result.text },
+                    ? { role: 'assistant', content: frame.text }
+                    : { content: frame.text },
                 finish_reason: null,
               },
             ],

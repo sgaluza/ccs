@@ -297,18 +297,16 @@ describe('CursorExecutor', () => {
       expect(/^[A-Za-z0-9_-]+$/.test(prefix)).toBe(true);
     });
 
-    it('should generate different checksums over time', async () => {
+    it('should generate valid checksums at different call times', async () => {
       const machineId = 'test-machine-id';
       const checksum1 = executor.generateChecksum(machineId);
 
-      // Wait longer to ensure timestamp changes (microsecond precision)
+      // Wait to ensure timestamp may change (though timestamp granularity is ~16 min)
       await new Promise((resolve) => setTimeout(resolve, 10));
 
       const checksum2 = executor.generateChecksum(machineId);
 
-      // Different timestamps should produce different checksums
-      // If they're still the same, it's extremely rare but acceptable
-      // Just verify format is correct
+      // Verify both checksums are valid (may be same due to timestamp granularity)
       expect(checksum1.endsWith(machineId)).toBe(true);
       expect(checksum2.endsWith(machineId)).toBe(true);
     });
@@ -400,6 +398,205 @@ describe('CursorExecutor', () => {
       const body = JSON.parse(bodyText);
       expect(body.choices[0].message.content).toBe(textContent);
       expect(body.choices[0].finish_reason).toBe('stop');
+    });
+
+    it('should handle JSON error response', async () => {
+      const errorJson = JSON.stringify({
+        error: {
+          code: 'resource_exhausted',
+          message: 'Rate limit exceeded',
+        },
+      });
+      const frame = wrapConnectRPCFrame(new TextEncoder().encode(errorJson), false);
+
+      const result = executor.transformProtobufToJSON(Buffer.from(frame), 'gpt-4', {
+        messages: [],
+      });
+
+      expect(result.status).toBe(429);
+      const bodyText = await result.text();
+      const body = JSON.parse(bodyText);
+      expect(body.error.type).toBe('rate_limit_error');
+    });
+  });
+
+  describe('transformProtobufToSSE', () => {
+    it('should output SSE format', async () => {
+      // Create minimal protobuf response with text
+      const textContent = 'Hello';
+      const responseField = encodeField(FIELD.RESPONSE_TEXT, WIRE_TYPE.LEN, textContent);
+      const responseMsg = encodeField(FIELD.RESPONSE, WIRE_TYPE.LEN, responseField);
+      const frame = wrapConnectRPCFrame(responseMsg, false);
+
+      const result = executor.transformProtobufToSSE(Buffer.from(frame), 'gpt-4', {
+        messages: [],
+      });
+
+      expect(result.status).toBe(200);
+      expect(result.headers.get('content-type')).toBe('text/event-stream');
+
+      const bodyText = await result.text();
+      expect(bodyText).toContain('data: ');
+      expect(bodyText).toContain('data: [DONE]');
+      expect(bodyText).toContain(textContent);
+    });
+
+    it('should handle JSON error response', async () => {
+      const errorJson = JSON.stringify({
+        error: {
+          code: 'resource_exhausted',
+          message: 'Rate limit exceeded',
+        },
+      });
+      const frame = wrapConnectRPCFrame(new TextEncoder().encode(errorJson), false);
+
+      const result = executor.transformProtobufToSSE(Buffer.from(frame), 'gpt-4', {
+        messages: [],
+      });
+
+      expect(result.status).toBe(429);
+      const bodyText = await result.text();
+      const body = JSON.parse(bodyText);
+      expect(body.error.type).toBe('rate_limit_error');
+    });
+  });
+
+  describe('decompressPayload error handling', () => {
+    it('should return empty buffer on decompression failure', () => {
+      // Create invalid gzip data
+      const invalidGzip = Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0xff, 0xff]);
+      const frame = new Uint8Array(5 + invalidGzip.length);
+      frame[0] = 0x01; // GZIP flag
+      frame[1] = 0;
+      frame[2] = 0;
+      frame[3] = 0;
+      frame[4] = invalidGzip.length;
+      frame.set(invalidGzip, 5);
+
+      const result = executor.transformProtobufToJSON(Buffer.from(frame), 'gpt-4', {
+        messages: [],
+      });
+
+      // Should handle gracefully and return valid response
+      expect(result.status).toBe(200);
+    });
+  });
+
+  describe('transformProtobufToSSE', () => {
+    it('should output SSE format for simple text response', async () => {
+      const executor = new CursorExecutor();
+
+      // Minimal protobuf frame with text content
+      const textPayload = new Uint8Array([
+        (FIELD.MSG_CONTENT << 3) | WIRE_TYPE.LEN,
+        4,
+        ...[116, 101, 115, 116], // "test"
+      ]);
+
+      const buffer = Buffer.from(
+        wrapConnectRPCFrame(textPayload, {
+          compress: false,
+        })
+      );
+
+      const result = executor.transformProtobufToSSE(buffer, 'test-model', {
+        messages: [],
+        stream: true,
+      });
+
+      expect(result.status).toBe(200);
+      expect(result.headers.get('Content-Type')).toBe('text/event-stream');
+
+      const body = await result.text();
+      expect(body).toContain('data: ');
+      expect(body).toContain('"object":"chat.completion.chunk"');
+      expect(body).toContain('data: [DONE]');
+    });
+
+    it('should handle error responses in SSE format', () => {
+      const executor = new CursorExecutor();
+
+      // Protobuf frame with error
+      const errorPayload = new Uint8Array([
+        (FIELD.MSG_CONTENT << 3) | WIRE_TYPE.LEN,
+        17,
+        ...[101, 114, 114, 111, 114, 58, 32, 116, 101, 115, 116, 32, 101, 114, 114, 111, 114], // "error: test error"
+      ]);
+
+      const buffer = Buffer.from(
+        wrapConnectRPCFrame(errorPayload, {
+          compress: false,
+        })
+      );
+
+      const result = executor.transformProtobufToSSE(buffer, 'test-model', {
+        messages: [],
+        stream: true,
+      });
+
+      // Error responses should still be valid
+      expect(result.status).toBeGreaterThanOrEqual(200);
+    });
+  });
+
+  describe('error handling', () => {
+    it('should return empty buffer on decompression failure', () => {
+      const executor = new CursorExecutor();
+
+      // Invalid compressed payload (not actually gzipped)
+      const invalidGzipPayload = new Uint8Array([1, 2, 3, 4, 5]);
+      const flags = 0x01; // GZIP flag
+
+      // Wrap with ConnectRPC frame header (flags + length)
+      const length = invalidGzipPayload.length;
+      const frame = new Uint8Array(5 + length);
+      frame[0] = flags;
+      frame[1] = (length >> 24) & 0xff;
+      frame[2] = (length >> 16) & 0xff;
+      frame[3] = (length >> 8) & 0xff;
+      frame[4] = length & 0xff;
+      frame.set(invalidGzipPayload, 5);
+
+      const buffer = Buffer.from(frame);
+
+      // Should not crash - decompression failure returns empty buffer
+      const result = executor.transformProtobufToJSON(buffer, 'test-model', {
+        messages: [],
+        stream: false,
+      });
+
+      expect(result.status).toBe(200);
+    });
+
+    it('should log unknown message roles in debug mode', () => {
+      const originalDebug = process.env.CCS_DEBUG;
+      process.env.CCS_DEBUG = '1';
+
+      const consoleSpy: string[] = [];
+      const originalError = console.error;
+      console.error = (...args: unknown[]) => {
+        const msg = args.map((a) => String(a)).join(' ');
+        consoleSpy.push(msg);
+      };
+
+      try {
+        const messages = [
+          {
+            role: 'unknown_role' as 'user', // Type assertion to bypass TS
+            content: 'test',
+          },
+        ];
+
+        // buildCursorRequest expects (model, body, stream, credentials)
+        buildCursorRequest('test-model', { messages }, false, { machineId: '12345', accessToken: 'test' });
+
+        // Should have logged warning
+        const hasWarning = consoleSpy.some((log) => log.includes('Unknown message role'));
+        expect(hasWarning).toBe(true);
+      } finally {
+        console.error = originalError;
+        process.env.CCS_DEBUG = originalDebug;
+      }
     });
   });
 });

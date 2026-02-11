@@ -75,7 +75,7 @@ export const FIELD = {
   TOOL_RESULT_NAME: 2,
   TOOL_RESULT_INDEX: 3,
   TOOL_RESULT_RAW_ARGS: 5,
-  TOOL_RESULT_RESULT: 8,
+  TOOL_RESULT_RESULT: 8, // Reserved for future tool result parsing
 
   // ===== Model =====
   MODEL_NAME: 1,

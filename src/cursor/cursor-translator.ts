@@ -113,6 +113,12 @@ function convertMessages(messages: OpenAIMessage[]): CursorMessage[] {
 
         result.push(msgObj);
       }
+      continue;
+    }
+
+    // Unknown role - skip with debug warning
+    if (process.env.CCS_DEBUG) {
+      console.error(`[cursor] Unknown message role: ${msg.role}, skipping`);
     }
   }
 
