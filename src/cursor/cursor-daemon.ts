@@ -82,7 +82,7 @@ export async function getDaemonStatus(port: number): Promise<CursorDaemonStatus>
 /**
  * Read PID from file.
  */
-function getPidFromFile(): number | null {
+export function getPidFromFile(): number | null {
   const pidFile = getPidFilePath();
   try {
     if (fs.existsSync(pidFile)) {
@@ -99,7 +99,7 @@ function getPidFromFile(): number | null {
 /**
  * Write PID to file.
  */
-function writePidToFile(pid: number): void {
+export function writePidToFile(pid: number): void {
   const pidFile = getPidFilePath();
   try {
     const dir = path.dirname(pidFile);
@@ -115,7 +115,7 @@ function writePidToFile(pid: number): void {
 /**
  * Remove PID file.
  */
-function removePidFile(): void {
+export function removePidFile(): void {
   const pidFile = getPidFilePath();
   try {
     if (fs.existsSync(pidFile)) {
@@ -208,8 +208,13 @@ export async function startDaemon(
       });
 
       proc.on('exit', (code) => {
-        if (code !== 0 && code !== null) {
-          clearInterval(checkInterval);
+        clearInterval(checkInterval);
+        if (code === 0) {
+          resolve({
+            success: false,
+            error: 'Daemon process exited unexpectedly with code 0',
+          });
+        } else if (code !== null) {
           resolve({
             success: false,
             error: `Daemon process exited with code ${code}`,

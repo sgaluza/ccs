@@ -11,13 +11,15 @@ import {
   stopDaemon,
   getDaemonStatus,
   getAvailableModels,
+  DEFAULT_CURSOR_PORT,
+  DEFAULT_CURSOR_MODEL,
 } from '../cursor';
 import { ok, fail, info, color } from '../utils/ui';
 
 // Temporary default config until #521 adds cursor to unified config
 const DEFAULT_CURSOR_CONFIG = {
-  port: 4242,
-  model: 'gpt-4.1',
+  port: DEFAULT_CURSOR_PORT,
+  model: DEFAULT_CURSOR_MODEL,
 };
 
 /**

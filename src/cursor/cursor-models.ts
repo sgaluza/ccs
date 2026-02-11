@@ -8,6 +8,12 @@
 import * as http from 'http';
 import type { CursorModel } from './types';
 
+/** Default daemon port */
+export const DEFAULT_CURSOR_PORT = 4242;
+
+/** Default model ID */
+export const DEFAULT_CURSOR_MODEL = 'gpt-4.1';
+
 /**
  * Default models available through Cursor IDE.
  * Used as fallback when daemon is not reachable.
@@ -96,7 +102,7 @@ export async function fetchModelsFromDaemon(port: number): Promise<CursorModel[]
                 id: m.id,
                 name: formatModelName(m.id),
                 provider: detectProvider(m.id),
-                isDefault: m.id === 'gpt-4.1',
+                isDefault: m.id === DEFAULT_CURSOR_MODEL,
               }));
               resolve(models.length > 0 ? models : DEFAULT_CURSOR_MODELS);
             } else {
@@ -134,13 +140,13 @@ export async function getAvailableModels(port: number): Promise<CursorModel[]> {
  * Uses gpt-4.1 as it's commonly available.
  */
 export function getDefaultModel(): string {
-  return 'gpt-4.1';
+  return DEFAULT_CURSOR_MODEL;
 }
 
 /**
  * Detect provider from model ID.
  */
-function detectProvider(modelId: string): string {
+export function detectProvider(modelId: string): string {
   if (modelId.includes('claude')) return 'anthropic';
   if (modelId.includes('gpt') || modelId.includes('o3')) return 'openai';
   if (modelId.includes('gemini')) return 'google';
@@ -151,7 +157,7 @@ function detectProvider(modelId: string): string {
 /**
  * Format model ID to human-readable name.
  */
-function formatModelName(modelId: string): string {
+export function formatModelName(modelId: string): string {
   // Find model in catalog for metadata
   const model = DEFAULT_CURSOR_MODELS.find((m) => m.id === modelId);
   if (model) {

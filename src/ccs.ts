@@ -532,6 +532,16 @@ async function main(): Promise<void> {
     return;
   }
 
+  // Special case: cursor command (Cursor IDE integration)
+  // Only route to command handler for known subcommands, otherwise treat as profile
+  const CURSOR_SUBCOMMANDS = ['auth', 'status', 'models', 'start', 'stop', 'help', '--help', '-h'];
+  if (firstArg === 'cursor' && (args.length === 1 || CURSOR_SUBCOMMANDS.includes(args[1]))) {
+    // `ccs cursor <subcommand>` - route to cursor command handler
+    const { handleCursorCommand } = await import('./commands/cursor-command');
+    const exitCode = await handleCursorCommand(args.slice(1));
+    process.exit(exitCode);
+  }
+
   // Special case: copilot command (GitHub Copilot integration)
   // Only route to command handler for known subcommands, otherwise treat as profile
   const COPILOT_SUBCOMMANDS = [
