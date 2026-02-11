@@ -24,7 +24,7 @@ export function decodeVarint(buffer: Uint8Array, offset: number): [number, numbe
     shift += 7;
   }
 
-  return [result, pos];
+  return [result >>> 0, pos]; // Ensure unsigned
 }
 
 /**
@@ -124,7 +124,10 @@ export function parseConnectRPCFrame(buffer: Buffer): {
   if (flags === 0x01 || flags === 0x02 || flags === 0x03) {
     try {
       payload = Buffer.from(zlib.gunzipSync(payload));
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] parseConnectRPCFrame decompression failed:', err);
+      }
       // Decompression failed, use raw payload
     }
   }
@@ -205,7 +208,10 @@ function extractToolCall(toolCallData: Uint8Array): {
           }
         }
       }
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] extractToolCall MCP parsing failed:', err);
+      }
       // MCP parse error, continue
     }
   }
@@ -265,7 +271,10 @@ function extractTextAndThinking(responseData: Uint8Array): {
           }
         }
       }
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] extractTextAndThinking parsing failed:', err);
+      }
       // Thinking parse error, continue
     }
   }
@@ -314,7 +323,10 @@ export function extractTextFromResponse(payload: Uint8Array): {
     }
 
     return { text: null, error: null, toolCall: null, thinking: null };
-  } catch {
+  } catch (err) {
+    if (process.env.CCS_DEBUG) {
+      console.error('[cursor] extractTextFromResponse parsing failed:', err);
+    }
     return { text: null, error: null, toolCall: null, thinking: null };
   }
 }

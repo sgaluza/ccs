@@ -8,16 +8,9 @@ import * as zlib from 'zlib';
 import type { IncomingHttpHeaders } from 'http';
 import { generateCursorBody, extractTextFromResponse } from './cursor-protobuf.js';
 import { buildCursorRequest } from './cursor-translator.js';
-import type { CursorTool } from './cursor-protobuf-schema.js';
+import type { CursorTool, CursorCredentials } from './cursor-protobuf-schema.js';
 
 import { COMPRESS_FLAG } from './cursor-protobuf-schema.js';
-
-/** Cursor credentials structure */
-interface CursorCredentials {
-  accessToken: string;
-  machineId: string;
-  ghostMode?: boolean;
-}
 
 /** Executor parameters */
 interface ExecutorParams {
@@ -60,8 +53,10 @@ function isCloudEnv(): boolean {
   try {
     // Check for EdgeRuntime without causing compilation error
     if (typeof (globalThis as { EdgeRuntime?: string }).EdgeRuntime !== 'undefined') return true;
-  } catch {
-    // Continue
+  } catch (err) {
+    if (process.env.CCS_DEBUG) {
+      console.error('[cursor] EdgeRuntime detection failed:', err);
+    }
   }
   return false;
 }
@@ -74,7 +69,10 @@ async function getHttp2() {
     try {
       http2Module = await import('http2');
       return http2Module;
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] http2 import failed:', err);
+      }
       return null;
     }
   }
@@ -93,8 +91,10 @@ function decompressPayload(payload: Buffer, flags: number): Buffer {
       if (text.startsWith('{"error"')) {
         return payload;
       }
-    } catch {
-      // Continue
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] JSON error detection failed:', err);
+      }
     }
   }
 
@@ -105,7 +105,10 @@ function decompressPayload(payload: Buffer, flags: number): Buffer {
   ) {
     try {
       return zlib.gunzipSync(payload);
-    } catch {
+    } catch (err) {
+      if (process.env.CCS_DEBUG) {
+        console.error('[cursor] gzip decompression failed:', err);
+      }
       return payload;
     }
   }
@@ -148,6 +151,8 @@ function createErrorResponse(jsonError: {
 export class CursorExecutor {
   private readonly baseUrl = 'https://api2.cursor.sh';
   private readonly chatPath = '/aiserver.v1.AiService/StreamChat';
+  private readonly CURSOR_CLIENT_VERSION = '2.3.41';
+  private readonly CURSOR_USER_AGENT = 'connect-es/1.6.1';
 
   buildUrl(): string {
     return `${this.baseUrl}${this.chatPath}`;
@@ -214,11 +219,11 @@ export class CursorExecutor {
       'connect-accept-encoding': 'gzip',
       'connect-protocol-version': '1',
       'content-type': 'application/connect+proto',
-      'user-agent': 'connect-es/1.6.1',
+      'user-agent': this.CURSOR_USER_AGENT,
       'x-amzn-trace-id': `Root=${crypto.randomUUID()}`,
       'x-client-key': crypto.createHash('sha256').update(cleanToken).digest('hex'),
       'x-cursor-checksum': this.generateChecksum(machineId),
-      'x-cursor-client-version': '2.3.41',
+      'x-cursor-client-version': this.CURSOR_CLIENT_VERSION,
       'x-cursor-client-type': 'ide',
       'x-cursor-client-os':
         process.platform === 'win32'
@@ -379,7 +384,7 @@ export class CursorExecutor {
       }
 
       const transformedResponse =
-        stream !== false
+        stream === true
           ? this.transformProtobufToSSE(response.body, model, body)
           : this.transformProtobufToJSON(response.body, model, body);
 
@@ -442,8 +447,10 @@ export class CursorExecutor {
         if (text.startsWith('{') && text.includes('"error"')) {
           return createErrorResponse(JSON.parse(text));
         }
-      } catch {
-        // Continue
+      } catch (err) {
+        if (process.env.CCS_DEBUG) {
+          console.error('[cursor] transformProtobufToJSON error parsing failed:', err);
+        }
       }
 
       const result = extractTextFromResponse(new Uint8Array(payload));
@@ -555,8 +562,9 @@ export class CursorExecutor {
   }
 
   transformProtobufToSSE(buffer: Buffer, model: string, _body: ExecutorParams['body']): Response {
-    // TODO: Implement true streaming — currently buffers entire response before transforming.
+    // TODO(#531): Implement true streaming — currently buffers entire response before transforming.
     // This should pipe HTTP/2 data events through a TransformStream for incremental SSE output.
+    // See: https://github.com/kaitranntt/ccs/issues/531
     // NOTE: Chunk boundary splits may emit duplicate SSE messages if a frame spans multiple chunks.
     const responseId = `chatcmpl-cursor-${Date.now()}`;
     const created = Math.floor(Date.now() / 1000);
@@ -598,8 +606,10 @@ export class CursorExecutor {
         if (text.startsWith('{') && text.includes('"error"')) {
           return createErrorResponse(JSON.parse(text));
         }
-      } catch {
-        // Continue
+      } catch (err) {
+        if (process.env.CCS_DEBUG) {
+          console.error('[cursor] transformProtobufToJSON error parsing failed:', err);
+        }
       }
 
       const result = extractTextFromResponse(new Uint8Array(payload));
