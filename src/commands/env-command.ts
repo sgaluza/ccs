@@ -111,7 +111,16 @@ function resolveSettingsProfile(profileName: string): Record<string, string> | n
   const profileConfig = config.profiles?.[profileName];
   if (!profileConfig) return null;
 
-  if (profileConfig.type === 'api' && profileConfig.settings) {
+  if (profileConfig.type !== 'api') {
+    console.error(
+      fail(
+        `Profile '${profileName}' is type '${profileConfig.type}', not a settings-based API profile.`
+      )
+    );
+    process.exit(1);
+  }
+
+  if (profileConfig.settings) {
     const settingsPath = expandPath(profileConfig.settings);
     const env = loadSettingsFromFile(settingsPath);
     if (Object.keys(env).length > 0) return env;

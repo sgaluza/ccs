@@ -13,7 +13,7 @@ Register-ArgumentCompleter -CommandName ccs -ScriptBlock {
     param($commandName, $wordToComplete, $commandAst, $fakeBoundParameters)
 
     $commands = @('auth', 'api', 'cliproxy', 'doctor', 'env', 'sync', 'update', '--help', '--version', '--shell-completion', '-h', '-v', '-sc')
-    $cliproxyProfiles = @('gemini', 'codex', 'agy', 'qwen')
+    $cliproxyProfiles = @('gemini', 'codex', 'agy', 'qwen', 'iflow', 'kiro', 'ghcp', 'claude')
     $authCommands = @('create', 'list', 'show', 'remove', 'default', '--help', '-h')
     $apiCommands = @('create', 'list', 'remove', '--help', '-h')
     $cliproxyCommands = @('create', 'list', 'remove', '--install', '--latest', '--help', '-h')

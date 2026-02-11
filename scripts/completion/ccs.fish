@@ -173,6 +173,7 @@ complete -c ccs -n '__fish_seen_subcommand_from update' -s h -l help -d 'Show he
 complete -c ccs -n '__fish_seen_subcommand_from doctor' -s h -l help -d 'Show help for doctor command'
 
 # env command completions
+complete -c ccs -n '__fish_seen_subcommand_from env; and not __fish_seen_argument -l format -l shell' -a 'gemini codex agy qwen iflow kiro ghcp claude' -d '[proxy] CLIProxy profile'
 complete -c ccs -n '__fish_seen_subcommand_from env' -l format -d 'Output format'
 complete -c ccs -n '__fish_seen_subcommand_from env; and __fish_seen_argument -l format' -a 'openai anthropic raw' -d 'Format'
 complete -c ccs -n '__fish_seen_subcommand_from env' -l shell -d 'Shell syntax'

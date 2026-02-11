@@ -45,6 +45,10 @@ _ccs() {
     'codex:OpenAI Codex (OAuth)'
     'agy:Antigravity (OAuth)'
     'qwen:Qwen Code (OAuth)'
+    'iflow:iFlow (OAuth)'
+    'kiro:Kiro (OAuth)'
+    'ghcp:GitHub Copilot (OAuth)'
+    'claude:Claude Direct (OAuth)'
   )
 
   # Define known settings profiles with descriptions
