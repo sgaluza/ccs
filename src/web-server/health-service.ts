@@ -89,7 +89,7 @@ export async function runHealthChecks(): Promise<HealthReport> {
   const healthChecks: HealthCheck[] = [];
   healthChecks.push(checkPermissions(ccsDir));
   healthChecks.push(checkCcsSymlinks());
-  healthChecks.push(checkSettingsSymlinks(homedir, ccsDir, claudeDir));
+  healthChecks.push(checkSettingsSymlinks(ccsDir, claudeDir));
   groups.push({ id: 'system-health', name: 'System Health', icon: 'Shield', checks: healthChecks });
 
   // Group 6: CLIProxy

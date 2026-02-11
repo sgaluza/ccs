@@ -24,7 +24,9 @@ declare module 'express-session' {
 const PUBLIC_PATHS = ['/api/auth/login', '/api/auth/check', '/api/auth/setup', '/api/health'];
 
 /** Path to persistent session secret file */
-const SESSION_SECRET_PATH = path.join(getCcsDir(), '.session-secret');
+function getSessionSecretPath() {
+  return path.join(getCcsDir(), '.session-secret');
+}
 
 /**
  * Generate or retrieve persistent session secret.
@@ -38,8 +40,8 @@ function getSessionSecret(): string {
 
   // 2. Try to read persisted secret
   try {
-    if (fs.existsSync(SESSION_SECRET_PATH)) {
-      const secret = fs.readFileSync(SESSION_SECRET_PATH, 'utf-8').trim();
+    if (fs.existsSync(getSessionSecretPath())) {
+      const secret = fs.readFileSync(getSessionSecretPath(), 'utf-8').trim();
       if (secret.length >= 32) {
         return secret;
       }
@@ -51,11 +53,11 @@ function getSessionSecret(): string {
   // 3. Generate and persist new random secret
   const newSecret = crypto.randomBytes(32).toString('hex');
   try {
-    const dir = path.dirname(SESSION_SECRET_PATH);
+    const dir = path.dirname(getSessionSecretPath());
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(SESSION_SECRET_PATH, newSecret, { mode: 0o600 });
+    fs.writeFileSync(getSessionSecretPath(), newSecret, { mode: 0o600 });
   } catch (err) {
     // Log warning - sessions won't persist across restarts
     console.warn('[!] Failed to persist session secret:', (err as Error).message);

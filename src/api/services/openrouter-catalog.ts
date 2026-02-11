@@ -8,7 +8,9 @@ import * as path from 'path';
 import { getCcsDir } from '../../utils/config-manager';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/models';
-const CACHE_FILE = path.join(getCcsDir(), 'openrouter-models-cache.json');
+function getCacheFile() {
+  return path.join(getCcsDir(), 'openrouter-models-cache.json');
+}
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface OpenRouterModel {
@@ -30,8 +32,8 @@ interface CacheData {
 /** Check if cached data is valid */
 function getCachedModels(): OpenRouterModel[] | null {
   try {
-    if (!fs.existsSync(CACHE_FILE)) return null;
-    const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')) as CacheData;
+    if (!fs.existsSync(getCacheFile())) return null;
+    const data = JSON.parse(fs.readFileSync(getCacheFile(), 'utf8')) as CacheData;
     if (Date.now() - data.fetchedAt > CACHE_TTL_MS) return null;
     return data.models;
   } catch {
@@ -42,10 +44,10 @@ function getCachedModels(): OpenRouterModel[] | null {
 /** Save models to cache */
 function setCachedModels(models: OpenRouterModel[]): void {
   try {
-    const dir = path.dirname(CACHE_FILE);
+    const dir = path.dirname(getCacheFile());
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
-      CACHE_FILE,
+      getCacheFile(),
       JSON.stringify({
         models,
         fetchedAt: Date.now(),

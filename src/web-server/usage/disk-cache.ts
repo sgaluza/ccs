@@ -15,8 +15,12 @@ import { ok, info, warn } from '../../utils/ui';
 import { getCcsDir } from '../../utils/config-manager';
 
 // Cache configuration
-const CACHE_DIR = path.join(getCcsDir(), 'cache');
-const CACHE_FILE = path.join(CACHE_DIR, 'usage.json');
+function getCacheDir() {
+  return path.join(getCcsDir(), 'cache');
+}
+function getCacheFile() {
+  return path.join(getCacheDir(), 'usage.json');
+}
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const STALE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days (max age for stale data)
 
@@ -38,8 +42,8 @@ const CACHE_VERSION = 3;
  * Ensure ~/.ccs/cache directory exists
  */
 function ensureCacheDir(): void {
-  if (!fs.existsSync(CACHE_DIR)) {
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
+  if (!fs.existsSync(getCacheDir())) {
+    fs.mkdirSync(getCacheDir(), { recursive: true });
   }
 }
 
@@ -50,11 +54,11 @@ function ensureCacheDir(): void {
  */
 export function readDiskCache(): UsageDiskCache | null {
   try {
-    if (!fs.existsSync(CACHE_FILE)) {
+    if (!fs.existsSync(getCacheFile())) {
       return null;
     }
 
-    const data = fs.readFileSync(CACHE_FILE, 'utf-8');
+    const data = fs.readFileSync(getCacheFile(), 'utf-8');
     const cache: UsageDiskCache = JSON.parse(data);
 
     // Version check - invalidate if schema changed
@@ -112,9 +116,9 @@ export function writeDiskCache(
     };
 
     // Write atomically using temp file + rename
-    const tempFile = CACHE_FILE + '.tmp';
+    const tempFile = getCacheFile() + '.tmp';
     fs.writeFileSync(tempFile, JSON.stringify(cache), 'utf-8');
-    fs.renameSync(tempFile, CACHE_FILE);
+    fs.renameSync(tempFile, getCacheFile());
 
     console.log(ok('Disk cache updated'));
   } catch (err) {
@@ -144,8 +148,8 @@ export function getCacheAge(cache: UsageDiskCache | null): string {
  */
 export function clearDiskCache(): void {
   try {
-    if (fs.existsSync(CACHE_FILE)) {
-      fs.unlinkSync(CACHE_FILE);
+    if (fs.existsSync(getCacheFile())) {
+      fs.unlinkSync(getCacheFile());
       console.log(ok('Disk cache cleared'));
     }
   } catch (err) {

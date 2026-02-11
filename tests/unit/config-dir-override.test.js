@@ -153,5 +153,11 @@ describe('Config Directory Override', function () {
       const { detectCloudSyncPath } = require('../../dist/utils/config-manager');
       assert.strictEqual(detectCloudSyncPath(path.join(os.homedir(), '.ccs')), null);
     });
+
+    it('should not false-positive on substrings (e.g., megauser, Dropbox-api)', function () {
+      const { detectCloudSyncPath } = require('../../dist/utils/config-manager');
+      assert.strictEqual(detectCloudSyncPath('/home/megauser/.ccs'), null);
+      assert.strictEqual(detectCloudSyncPath('/home/kai/Dropbox-api-client/ccs'), null);
+    });
   });
 });

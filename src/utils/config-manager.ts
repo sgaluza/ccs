@@ -73,10 +73,11 @@ const CLOUD_SYNC_PATTERNS = [
  */
 export function detectCloudSyncPath(dir: string): string | null {
   const normalized = dir.replace(/\\/g, '/').toLowerCase();
+  const segments = normalized.split('/');
   for (const pattern of CLOUD_SYNC_PATTERNS) {
-    if (normalized.includes(pattern.toLowerCase())) {
-      return pattern; // Return original casing for display
-    }
+    const patternLower = pattern.toLowerCase();
+    // Exact path segment match to avoid false positives (e.g., "megauser" != "MEGA")
+    if (segments.some((s) => s === patternLower)) return pattern;
   }
   return null;
 }

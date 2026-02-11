@@ -31,22 +31,24 @@ import { getCcsDir } from '../../utils/config-manager';
 // ============================================================================
 
 /** Path to CCS instances directory */
-const CCS_INSTANCES_DIR = path.join(getCcsDir(), 'instances');
+function getCcsInstancesDir() {
+  return path.join(getCcsDir(), 'instances');
+}
 
 /**
  * Get list of CCS instance paths that have usage data
  * Only returns instances with existing projects/ directory
  */
 function getInstancePaths(): string[] {
-  if (!fs.existsSync(CCS_INSTANCES_DIR)) {
+  if (!fs.existsSync(getCcsInstancesDir())) {
     return [];
   }
 
   try {
-    const entries = fs.readdirSync(CCS_INSTANCES_DIR, { withFileTypes: true });
+    const entries = fs.readdirSync(getCcsInstancesDir(), { withFileTypes: true });
     return entries
       .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(CCS_INSTANCES_DIR, entry.name))
+      .map((entry) => path.join(getCcsInstancesDir(), entry.name))
       .filter((instancePath) => {
         // Only include instances that have a projects directory
         const projectsPath = path.join(instancePath, 'projects');
