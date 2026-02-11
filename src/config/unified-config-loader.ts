@@ -15,6 +15,7 @@ import {
   createEmptyUnifiedConfig,
   UNIFIED_CONFIG_VERSION,
   DEFAULT_COPILOT_CONFIG,
+  DEFAULT_CURSOR_CONFIG,
   DEFAULT_GLOBAL_ENV,
   DEFAULT_CLIPROXY_SERVER_CONFIG,
   DEFAULT_QUOTA_MANAGEMENT_CONFIG,
@@ -25,6 +26,7 @@ import {
   ThinkingConfig,
   DashboardAuthConfig,
   ImageAnalysisConfig,
+  CursorConfig,
 } from './unified-config-types';
 import { isUnifiedConfigEnabled } from './feature-flags';
 
@@ -275,6 +277,12 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
       rate_limit: partial.copilot?.rate_limit ?? DEFAULT_COPILOT_CONFIG.rate_limit,
       wait_on_limit: partial.copilot?.wait_on_limit ?? DEFAULT_COPILOT_CONFIG.wait_on_limit,
       model: partial.copilot?.model ?? DEFAULT_COPILOT_CONFIG.model,
+    },
+    // Cursor config - disabled by default, merge with defaults
+    cursor: {
+      port: partial.cursor?.port ?? DEFAULT_CURSOR_CONFIG.port,
+      auto_start: partial.cursor?.auto_start ?? DEFAULT_CURSOR_CONFIG.auto_start,
+      ghost_mode: partial.cursor?.ghost_mode ?? DEFAULT_CURSOR_CONFIG.ghost_mode,
     },
     // Global env - injected into all non-Claude subscription profiles
     global_env: {
@@ -878,5 +886,19 @@ export function getImageAnalysisConfig(): ImageAnalysisConfig {
     timeout: config.image_analysis?.timeout ?? DEFAULT_IMAGE_ANALYSIS_CONFIG.timeout,
     provider_models:
       config.image_analysis?.provider_models ?? DEFAULT_IMAGE_ANALYSIS_CONFIG.provider_models,
+  };
+}
+
+/**
+ * Get cursor configuration.
+ * Returns defaults if not configured.
+ */
+export function getCursorConfig(): CursorConfig {
+  const config = loadOrCreateUnifiedConfig();
+
+  return {
+    port: config.cursor?.port ?? DEFAULT_CURSOR_CONFIG.port,
+    auto_start: config.cursor?.auto_start ?? DEFAULT_CURSOR_CONFIG.auto_start,
+    ghost_mode: config.cursor?.ghost_mode ?? DEFAULT_CURSOR_CONFIG.ghost_mode,
   };
 }
