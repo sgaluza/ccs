@@ -60,7 +60,12 @@ function queryStateDb(dbPath: string, key: string): string | null {
       { encoding: 'utf8', timeout: 5000, stdio: ['pipe', 'pipe', 'ignore'] }
     ).trim();
     return result || null;
-  } catch {
+  } catch (err) {
+    // Check if sqlite3 is not installed
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      // sqlite3 not found - could log this if needed
+      return null;
+    }
     return null;
   }
 }
@@ -145,7 +150,9 @@ export function validateToken(accessToken: string, machineId: string): boolean {
  * Extract user info from token if possible
  * Cursor tokens may contain encoded user info as JWT
  */
-export function extractUserInfo(accessToken: string): { email?: string; userId?: string } | null {
+export function extractUserInfo(
+  accessToken: string
+): { email?: string; userId?: string; exp?: number } | null {
   try {
     // Try to decode as JWT
     const parts = accessToken.split('.');
@@ -161,6 +168,7 @@ export function extractUserInfo(accessToken: string): { email?: string; userId?:
       return {
         email: decoded.email || decoded.sub,
         userId: decoded.sub || decoded.user_id,
+        exp: decoded.exp,
       };
     }
   } catch {
@@ -219,6 +227,16 @@ export function loadCredentials(): CursorCredentials | null {
       'authMethod' in parsed &&
       'importedAt' in parsed
     ) {
+      // Type validation
+      if (
+        typeof parsed.accessToken !== 'string' ||
+        typeof parsed.machineId !== 'string' ||
+        typeof parsed.importedAt !== 'string' ||
+        (parsed.authMethod !== 'auto-detect' && parsed.authMethod !== 'manual')
+      ) {
+        return null;
+      }
+
       return parsed as CursorCredentials;
     }
 
@@ -243,18 +261,27 @@ export function checkAuthStatus(): CursorAuthStatus {
     return { authenticated: false };
   }
 
-  // Calculate token age in hours
+  // Try to get token expiry from JWT exp claim
   let tokenAge: number | undefined;
   let expired = false;
-  const TOKEN_EXPIRY_HOURS = 24;
+  const userInfo = extractUserInfo(credentials.accessToken);
 
-  try {
-    const importedDate = new Date(credentials.importedAt);
-    const now = new Date();
-    tokenAge = Math.floor((now.getTime() - importedDate.getTime()) / (1000 * 60 * 60));
-    expired = tokenAge >= TOKEN_EXPIRY_HOURS;
-  } catch {
-    // Invalid date format
+  if (userInfo?.exp) {
+    // Use JWT exp claim (Unix timestamp in seconds)
+    const now = Math.floor(Date.now() / 1000);
+    expired = now >= userInfo.exp;
+    tokenAge = Math.floor((now - (userInfo.exp - 24 * 60 * 60)) / (60 * 60)); // Assume 24h token
+  } else {
+    // Fallback to importedAt heuristic
+    const TOKEN_EXPIRY_HOURS = 24;
+    try {
+      const importedDate = new Date(credentials.importedAt);
+      const now = new Date();
+      tokenAge = Math.floor((now.getTime() - importedDate.getTime()) / (1000 * 60 * 60));
+      expired = tokenAge >= TOKEN_EXPIRY_HOURS;
+    } catch {
+      // Invalid date format
+    }
   }
 
   return {
@@ -263,4 +290,22 @@ export function checkAuthStatus(): CursorAuthStatus {
     tokenAge,
     expired,
   };
+}
+
+/**
+ * Delete credentials file
+ */
+export function deleteCredentials(): boolean {
+  const credPath = getCredentialsPath();
+
+  if (!fs.existsSync(credPath)) {
+    return false;
+  }
+
+  try {
+    fs.unlinkSync(credPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
