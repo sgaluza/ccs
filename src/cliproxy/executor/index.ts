@@ -497,6 +497,7 @@ export async function execClaudeWithCLIProxy(
       // Handle forceAuth for composite providers
       if (forceAuth) {
         const { triggerOAuth } = await import('../auth-handler');
+        const failures: string[] = [];
         for (const p of compositeProviders) {
           const authSuccess = await triggerOAuth(p, {
             verbose,
@@ -508,9 +509,16 @@ export async function execClaudeWithCLIProxy(
             ...(portForward ? { portForward: true } : {}),
           });
           if (!authSuccess) {
-            const pConfig = getProviderConfig(p as CLIProxyProvider);
-            throw new Error(`Authentication failed for ${pConfig.displayName}`);
+            failures.push(p);
           }
+        }
+        if (failures.length > 0) {
+          const succeeded = compositeProviders.filter((p) => !failures.includes(p));
+          console.error(fail(`Auth failed for: ${failures.join(', ')}`));
+          if (succeeded.length > 0) {
+            console.error(info(`Succeeded: ${succeeded.join(', ')}`));
+          }
+          process.exit(1);
         }
         process.exit(0);
       }
