@@ -151,6 +151,8 @@ router.put('/raw', (req: Request, res: Response): void => {
     fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2) + '\n');
     fs.renameSync(tempPath, settingsPath);
 
+    // TODO: Sync raw settings back to unified config when cursor-daemon is integrated (#520)
+
     const stat = fs.statSync(settingsPath);
     res.json({ success: true, mtime: stat.mtimeMs });
   } catch (error) {

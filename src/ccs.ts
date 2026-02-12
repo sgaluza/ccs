@@ -556,6 +556,7 @@ async function main(): Promise<void> {
   // Special case: cursor command (Cursor IDE integration)
   // Only route to command handler for known subcommands, otherwise treat as profile
   // NOTE: Bare `ccs cursor` falls through to profile detection by design (differs from copilot routing)
+  // Note: cursor does not have enable/disable — it uses daemon start/stop instead
   const CURSOR_SUBCOMMANDS = ['auth', 'status', 'models', 'start', 'stop', 'help', '--help', '-h'];
   if (firstArg === 'cursor' && args.length > 1 && CURSOR_SUBCOMMANDS.includes(args[1])) {
     // `ccs cursor <subcommand>` - route to cursor command handler
