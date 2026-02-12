@@ -2,7 +2,7 @@
  * Cursor Model Catalog
  *
  * Manages available models from Cursor IDE.
- * Based on Cursor's supported models as of Feb 2025.
+ * Based on Cursor's supported models catalog.
  */
 
 import * as http from 'http';
@@ -165,7 +165,7 @@ export function getDefaultModel(): string {
  */
 export function detectProvider(modelId: string): string {
   if (modelId.includes('claude')) return 'anthropic';
-  if (modelId.includes('gpt') || /^o\d/.test(modelId)) return 'openai';
+  if (modelId.includes('gpt') || /^o[1-9]\d*(-|$)/.test(modelId)) return 'openai';
   if (modelId.includes('gemini')) return 'google';
   if (modelId.includes('cursor')) return 'cursor';
   return 'unknown';

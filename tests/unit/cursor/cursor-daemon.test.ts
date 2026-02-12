@@ -137,6 +137,29 @@ describe('startDaemon', () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain('Invalid port');
   });
+
+  it(
+    'starts and stops daemon successfully',
+    async () => {
+      const port = 18765;
+      const result = await startDaemon({ port, model: 'test' });
+      expect(result.success).toBe(true);
+      expect(result.pid).toBeDefined();
+
+      // Verify health
+      const running = await isDaemonRunning(port);
+      expect(running).toBe(true);
+
+      // Stop
+      const stopResult = await stopDaemon();
+      expect(stopResult.success).toBe(true);
+
+      // Verify stopped
+      const stillRunning = await isDaemonRunning(port);
+      expect(stillRunning).toBe(false);
+    },
+    35000
+  );
 });
 
 describe('isDaemonRunning', () => {

@@ -60,7 +60,7 @@ export async function handleCursorCommand(args: string[]): Promise<number> {
     default:
       console.error(fail(`Unknown subcommand: ${subcommand}`));
       console.error('');
-      handleHelp();
+      void handleHelp(); // Print help but keep exit code 1
       return 1;
   }
 }

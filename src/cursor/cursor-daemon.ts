@@ -264,6 +264,18 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
   }
 
   try {
+    // Verify the PID belongs to our daemon before signaling
+    try {
+      const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
+      if (!cmdline.includes('cursor') && !cmdline.includes('/health')) {
+        // PID was reused by an unrelated process
+        removePidFile();
+        return { success: true };
+      }
+    } catch {
+      // /proc not available (macOS/Windows) or process gone — proceed with kill
+    }
+
     // Send SIGTERM to the process
     process.kill(pid, 'SIGTERM');
 
