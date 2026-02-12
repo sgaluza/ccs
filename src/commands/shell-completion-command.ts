@@ -25,10 +25,7 @@ interface ShellCompletionInstallResult {
 }
 
 interface ShellCompletionInstallerLike {
-  install(
-    shell: ShellTarget,
-    options: { force: boolean }
-  ): ShellCompletionInstallResult;
+  install(shell: ShellTarget, options: { force: boolean }): ShellCompletionInstallResult;
 }
 
 export function parseShellCompletionArgs(args: string[]): ShellCompletionParsedArgs {
