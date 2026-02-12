@@ -25,18 +25,31 @@ const VALID_TIERS = ['opus', 'sonnet', 'haiku'] as const;
 /** Validate composite tiers shape and provider/default_tier values. Returns error string or null. */
 function validateCompositeTiers(
   tiers: Record<string, { provider?: string; model?: string }>,
-  defaultTier?: string
+  defaultTier?: string,
+  requireAllTiers = false
 ): string | null {
   // Validate default_tier
   if (defaultTier && !VALID_TIERS.includes(defaultTier as (typeof VALID_TIERS)[number])) {
     return `Invalid default_tier '${defaultTier}': must be one of ${VALID_TIERS.join(', ')}`;
   }
-  // Validate each tier (partial updates allowed - only validate tiers present in request)
+  // Validate each tier
   for (const tier of VALID_TIERS) {
-    // Skip validation for tiers not present in the request (partial updates allowed)
-    if (tiers[tier] === undefined) continue;
+    const tierValue = tiers[tier];
 
-    if (typeof tiers[tier].provider !== 'string' || typeof tiers[tier].model !== 'string') {
+    // For POST/create: all tiers required
+    if (requireAllTiers && tierValue === undefined) {
+      return `Missing required tier '${tier}': all tiers (opus, sonnet, haiku) required for create`;
+    }
+
+    // Skip validation for tiers not present in the request (PUT partial updates)
+    if (tierValue === undefined) continue;
+
+    // Guard against null tier values
+    if (tierValue === null || typeof tierValue !== 'object') {
+      return `Invalid tier config for '${tier}': expected object with provider and model`;
+    }
+
+    if (typeof tierValue.provider !== 'string' || typeof tierValue.model !== 'string') {
       return `Invalid tier config for '${tier}': requires 'provider' and 'model' strings`;
     }
     // Validate non-empty model string (whitespace-only is also invalid)
@@ -118,8 +131,8 @@ router.post('/', (req: Request, res: Response): void => {
       return;
     }
 
-    // Validate tiers shape, providers, and default_tier
-    const tierError = validateCompositeTiers(tiers, default_tier);
+    // Validate tiers shape, providers, and default_tier (all tiers required for create)
+    const tierError = validateCompositeTiers(tiers, default_tier, true);
     if (tierError) {
       res.status(400).json({ error: tierError });
       return;
