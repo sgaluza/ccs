@@ -378,6 +378,19 @@ export class CursorExecutor {
     const http2 = await getHttp2();
     if (!http2) {
       const response = await this.makeFetchRequest(url, headers, body, signal);
+      if (response.status !== 200) {
+        const errorText = response.body?.toString() || 'Unknown error';
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: `[${response.status}]: ${errorText}`,
+              type: response.status === 429 ? 'rate_limit_error' : 'invalid_request_error',
+              code: '',
+            },
+          }),
+          { status: response.status, headers: { 'Content-Type': 'application/json' } }
+        );
+      }
       return this.transformProtobufToSSE(response.body, model, requestBody);
     }
 
@@ -400,6 +413,20 @@ export class CursorExecutor {
         ':scheme': 'https',
         ...headers,
       });
+
+      // Register abort before response headers arrive so cancellation works at all stages
+      let streamClosed = false;
+      if (signal) {
+        const onAbort = () => {
+          streamClosed = true;
+          req.close();
+          client.close();
+        };
+        signal.addEventListener('abort', onAbort, { once: true });
+        const cleanup = () => signal.removeEventListener('abort', onAbort);
+        req.on('end', cleanup);
+        req.on('error', cleanup);
+      }
 
       req.on('response', (hdrs) => {
         const status = Number(hdrs[':status']) || 500;
@@ -441,7 +468,6 @@ export class CursorExecutor {
         >();
         let chunkCount = 0;
         let toolCallCount = 0;
-        let streamClosed = false;
 
         const readable = new ReadableStream<Uint8Array>({
           start(controller) {
@@ -590,17 +616,6 @@ export class CursorExecutor {
               }
               client.close();
             });
-
-            if (signal) {
-              const onAbort = () => {
-                req.close();
-                closeStream();
-              };
-              signal.addEventListener('abort', onAbort, { once: true });
-              const cleanup = () => signal.removeEventListener('abort', onAbort);
-              req.on('end', cleanup);
-              req.on('error', cleanup);
-            }
           },
         });
 
