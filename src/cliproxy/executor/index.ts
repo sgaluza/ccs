@@ -608,7 +608,7 @@ export async function execClaudeWithCLIProxy(
   }
 
   // 4. First-run model configuration
-  if (supportsModelConfig(provider) && !skipLocalAuth) {
+  if (!cfg.isComposite && supportsModelConfig(provider) && !skipLocalAuth) {
     await configureProviderModel(provider, false, cfg.customSettingsPath);
   }
 
@@ -770,11 +770,12 @@ export async function execClaudeWithCLIProxy(
     ? `http://127.0.0.1:${toolSanitizationPort}`
     : initialEnvVars.ANTHROPIC_BASE_URL;
 
-  // 10. Setup Codex reasoning proxy (Codex only)
+  // 10. Setup Codex reasoning proxy (single-provider Codex only)
   let codexReasoningProxy: CodexReasoningProxy | null = null;
   let codexReasoningPort: number | null = null;
 
-  if (provider === 'codex') {
+  // Composite variants require root model-routed endpoints, never provider-pinned codex endpoints.
+  if (provider === 'codex' && !cfg.isComposite) {
     if (!postSanitizationBaseUrl) {
       log('ANTHROPIC_BASE_URL not set for Codex, reasoning proxy disabled');
     } else {

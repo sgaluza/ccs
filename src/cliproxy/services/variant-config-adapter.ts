@@ -98,33 +98,65 @@ export function listVariantsFromConfig(): Record<string, VariantConfig> {
       const unifiedConfig = loadOrCreateUnifiedConfig();
       const variants = unifiedConfig.cliproxy?.variants || {};
       const result: Record<string, VariantConfig> = {};
-      for (const name of Object.keys(variants)) {
-        const v = variants[name];
-        if ('type' in v && v.type === 'composite') {
-          const composite = v as CompositeVariantConfig;
-          const tiers = composite.tiers;
-          const hasFallback = !!(
-            tiers.opus.fallback ||
-            tiers.sonnet.fallback ||
-            tiers.haiku.fallback
+      for (const [name, variantConfig] of Object.entries(variants)) {
+        try {
+          if ('type' in variantConfig && variantConfig.type === 'composite') {
+            const composite = variantConfig as CompositeVariantConfig;
+            const tiers = composite.tiers as Partial<{
+              opus: CompositeTierConfig;
+              sonnet: CompositeTierConfig;
+              haiku: CompositeTierConfig;
+            }> | null;
+
+            if (!tiers || !tiers.opus || !tiers.sonnet || !tiers.haiku || !composite.default_tier) {
+              console.warn(
+                `[!] Skipping malformed composite variant '${name}': missing required tier configuration`
+              );
+              continue;
+            }
+
+            const defaultTierConfig = tiers[composite.default_tier];
+            if (!defaultTierConfig) {
+              console.warn(
+                `[!] Skipping malformed composite variant '${name}': missing default tier '${composite.default_tier}'`
+              );
+              continue;
+            }
+
+            const normalizedTiers = {
+              opus: tiers.opus,
+              sonnet: tiers.sonnet,
+              haiku: tiers.haiku,
+            };
+
+            const hasFallback = !!(
+              normalizedTiers.opus.fallback ||
+              normalizedTiers.sonnet.fallback ||
+              normalizedTiers.haiku.fallback
+            );
+
+            result[name] = {
+              provider: defaultTierConfig.provider,
+              settings: composite.settings,
+              port: composite.port,
+              type: 'composite',
+              default_tier: composite.default_tier,
+              tiers: normalizedTiers,
+              hasFallback,
+            };
+          } else {
+            const single = variantConfig as CLIProxyVariantConfig;
+            result[name] = {
+              provider: single.provider,
+              settings: single.settings,
+              account: single.account,
+              port: single.port,
+            };
+          }
+        } catch (error) {
+          console.warn(
+            `[!] Skipping malformed variant '${name}': ${(error as Error).message || 'invalid config'}`
           );
-          result[name] = {
-            provider: tiers[composite.default_tier].provider,
-            settings: composite.settings,
-            port: composite.port,
-            type: 'composite',
-            default_tier: composite.default_tier,
-            tiers,
-            hasFallback,
-          };
-        } else {
-          const single = v as CLIProxyVariantConfig;
-          result[name] = {
-            provider: single.provider,
-            settings: single.settings,
-            account: single.account,
-            port: single.port,
-          };
         }
       }
       return result;

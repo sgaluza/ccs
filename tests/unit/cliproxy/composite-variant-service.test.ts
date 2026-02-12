@@ -435,4 +435,45 @@ cliproxy:
     expect(variants.test).toBeDefined();
     expect(variants.test.hasFallback).toBe(false);
   });
+
+  it('should skip malformed composite variant and keep valid variants', () => {
+    const configPath = path.join(tmpDir, 'config.yaml');
+    const yamlContent = `version: 2
+accounts: {}
+profiles: {}
+preferences:
+  theme: system
+  telemetry: false
+  auto_update: true
+cliproxy:
+  oauth_accounts: {}
+  providers:
+    - gemini
+    - codex
+    - agy
+  variants:
+    bad:
+      type: composite
+      default_tier: sonnet
+      tiers:
+        opus:
+          provider: agy
+          model: claude-opus-4-6-thinking
+        sonnet:
+          provider: agy
+          model: claude-sonnet-4-5-thinking
+      settings: cliproxy/bad.settings.json
+      port: 8318
+    good:
+      provider: gemini
+      settings: cliproxy/good.settings.json
+      port: 8319
+`;
+    fs.writeFileSync(configPath, yamlContent, 'utf-8');
+
+    const variants = listVariantsFromConfig();
+    expect(variants.bad).toBeUndefined();
+    expect(variants.good).toBeDefined();
+    expect(variants.good.provider).toBe('gemini');
+  });
 });
