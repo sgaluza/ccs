@@ -116,7 +116,9 @@ export function detectFailedTier(
   tiers: { opus: CompositeTierConfig; sonnet: CompositeTierConfig; haiku: CompositeTierConfig }
 ): 'opus' | 'sonnet' | 'haiku' | null {
   for (const tier of ['opus', 'sonnet', 'haiku'] as const) {
-    if (stderr.includes(tiers[tier].model)) return tier;
+    // Strip thinking suffix (e.g., "model(high)" → "model") for matching
+    const model = tiers[tier].model.replace(/\([^)]+\)$/, '');
+    if (stderr.includes(model)) return tier;
   }
   return null;
 }
