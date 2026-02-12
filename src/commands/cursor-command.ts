@@ -160,7 +160,7 @@ async function handleStatus(): Promise<number> {
   console.log(`Authentication: ${authIcon} ${authText}`);
 
   if (authStatus.authenticated && authStatus.tokenAge !== undefined) {
-    console.log(`  Token age:    ${authStatus.tokenAge.toFixed(1)} hours`);
+    console.log(`  Token age:    ${authStatus.tokenAge} hours`);
   }
 
   // Daemon status

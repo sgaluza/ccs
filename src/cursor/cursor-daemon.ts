@@ -179,7 +179,8 @@ export async function startDaemon(
         `,
       ];
 
-      proc = spawn(process.execPath, args, {
+      // Append --ccs-daemon marker for PID validation in stopDaemon
+      proc = spawn(process.execPath, [...args, '--ccs-daemon'], {
         stdio: 'ignore',
         detached: true,
       });
@@ -267,7 +268,7 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
     // Verify the PID belongs to our daemon before signaling
     try {
       const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if (!cmdline.includes('cursor') && !cmdline.includes('/health')) {
+      if (!cmdline.includes('--ccs-daemon')) {
         // PID was reused by an unrelated process
         removePidFile();
         return { success: true };

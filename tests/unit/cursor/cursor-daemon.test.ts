@@ -141,7 +141,7 @@ describe('startDaemon', () => {
   it(
     'starts and stops daemon successfully',
     async () => {
-      const port = 18765;
+      const port = 10000 + Math.floor(Math.random() * 50000);
       const result = await startDaemon({ port, model: 'test' });
       expect(result.success).toBe(true);
       expect(result.pid).toBeDefined();
