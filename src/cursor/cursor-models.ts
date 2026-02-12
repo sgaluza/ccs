@@ -78,6 +78,13 @@ export const DEFAULT_CURSOR_MODELS: CursorModel[] = [
  */
 export async function fetchModelsFromDaemon(port: number): Promise<CursorModel[]> {
   return new Promise((resolve) => {
+    let resolved = false;
+    const safeResolve = (models: CursorModel[]) => {
+      if (resolved) return;
+      resolved = true;
+      resolve(models);
+    };
+
     const req = http.request(
       {
         // Use 127.0.0.1 instead of localhost for more reliable local connections
@@ -95,7 +102,7 @@ export async function fetchModelsFromDaemon(port: number): Promise<CursorModel[]
           data += chunk;
           if (data.length > MAX_BODY_SIZE) {
             req.destroy();
-            resolve(DEFAULT_CURSOR_MODELS);
+            safeResolve(DEFAULT_CURSOR_MODELS);
           }
         });
 
@@ -109,24 +116,24 @@ export async function fetchModelsFromDaemon(port: number): Promise<CursorModel[]
                 provider: detectProvider(m.id),
                 isDefault: m.id === DEFAULT_CURSOR_MODEL,
               }));
-              resolve(models.length > 0 ? models : DEFAULT_CURSOR_MODELS);
+              safeResolve(models.length > 0 ? models : DEFAULT_CURSOR_MODELS);
             } else {
-              resolve(DEFAULT_CURSOR_MODELS);
+              safeResolve(DEFAULT_CURSOR_MODELS);
             }
           } catch {
-            resolve(DEFAULT_CURSOR_MODELS);
+            safeResolve(DEFAULT_CURSOR_MODELS);
           }
         });
       }
     );
 
     req.on('error', () => {
-      resolve(DEFAULT_CURSOR_MODELS);
+      safeResolve(DEFAULT_CURSOR_MODELS);
     });
 
     req.on('timeout', () => {
       req.destroy();
-      resolve(DEFAULT_CURSOR_MODELS);
+      safeResolve(DEFAULT_CURSOR_MODELS);
     });
 
     req.end();

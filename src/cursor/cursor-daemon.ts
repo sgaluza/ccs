@@ -184,7 +184,7 @@ export async function startDaemon(
         `,
       ];
 
-      proc = spawn('node', args, {
+      proc = spawn(process.execPath, args, {
         stdio: ['ignore', 'pipe', 'pipe'],
         detached: true,
         shell: process.platform === 'win32',
