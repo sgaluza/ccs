@@ -40,8 +40,24 @@ function validateCompositeTiers(
     ) {
       return `Invalid tier config for '${tier}': requires 'provider' and 'model' strings`;
     }
+    // Validate non-empty model string (whitespace-only is also invalid)
+    if (!tiers[tier].model?.trim()) {
+      return `Invalid model for tier '${tier}': model cannot be empty or whitespace`;
+    }
     if (!CLIPROXY_SUPPORTED_PROVIDERS.includes(tiers[tier].provider as CLIProxyProvider)) {
       return `Invalid provider '${tiers[tier].provider}' for tier '${tier}': must be one of ${CLIPROXY_SUPPORTED_PROVIDERS.join(', ')}`;
+    }
+    // Check for circular fallback (fallback points to same provider+model)
+    const tierConfig = tiers[tier] as {
+      provider: string;
+      model: string;
+      fallback?: { provider?: string; model?: string };
+    };
+    if (tierConfig.fallback) {
+      const fb = tierConfig.fallback;
+      if (fb.provider === tierConfig.provider && fb.model === tierConfig.model) {
+        return `Circular fallback in tier '${tier}': fallback cannot point to same provider and model`;
+      }
     }
   }
   return null;
@@ -161,6 +177,9 @@ router.post('/', (req: Request, res: Response): void => {
 /**
  * PUT /api/cliproxy/:name - Update cliproxy variant
  * Uses variant-service for consistent behavior with CLI
+ *
+ * TODO: Add file-based locking (e.g., proper-lockfile) to prevent concurrent modification
+ * Current behavior: last-write-wins if two requests modify same variant simultaneously
  */
 router.put('/:name', (req: Request, res: Response): void => {
   try {
