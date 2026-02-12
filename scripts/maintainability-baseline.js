@@ -118,27 +118,6 @@ function parseArgs(argv) {
   return options;
 }
 
-function collectFilesFromFileSystem(dirPath) {
-  const collected = [];
-  const entries = fs
-    .readdirSync(dirPath, { withFileTypes: true })
-    .sort((left, right) => left.name.localeCompare(right.name));
-
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      collected.push(...collectFilesFromFileSystem(fullPath));
-      continue;
-    }
-
-    if (entry.isFile()) {
-      collected.push(fullPath);
-    }
-  }
-
-  return collected;
-}
-
 function collectTrackedFilesFromGit() {
   try {
     const output = execFileSync('git', ['ls-files', '-z', '--', 'src'], {
@@ -169,17 +148,14 @@ function collectTrackedFilesFromGit() {
         }
       });
   } catch {
-    return null;
+    throw new Error(
+      'Unable to enumerate tracked files via git. Run this command from a git checkout with git installed.'
+    );
   }
 }
 
 function collectFilesInSrc() {
-  const trackedFiles = collectTrackedFilesFromGit();
-  if (trackedFiles !== null) {
-    return trackedFiles;
-  }
-
-  return collectFilesFromFileSystem(SRC_DIR);
+  return collectTrackedFilesFromGit();
 }
 
 function countLines(content) {
