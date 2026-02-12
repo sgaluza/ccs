@@ -37,17 +37,17 @@ const compositeSchema = z.object({
   tiers: z.object({
     opus: z.object({
       provider: z.enum(CLIPROXY_PROVIDERS, { message: 'Provider is required' }),
-      model: z.string().min(1, 'Model is required'),
+      model: z.string().trim().min(1, 'Model is required'),
       account: z.string().optional(),
     }),
     sonnet: z.object({
       provider: z.enum(CLIPROXY_PROVIDERS, { message: 'Provider is required' }),
-      model: z.string().min(1, 'Model is required'),
+      model: z.string().trim().min(1, 'Model is required'),
       account: z.string().optional(),
     }),
     haiku: z.object({
       provider: z.enum(CLIPROXY_PROVIDERS, { message: 'Provider is required' }),
-      model: z.string().min(1, 'Model is required'),
+      model: z.string().trim().min(1, 'Model is required'),
       account: z.string().optional(),
     }),
   }),
