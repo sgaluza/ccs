@@ -119,39 +119,41 @@ function parseArgs(argv) {
 }
 
 function collectTrackedFilesFromGit() {
+  let output;
   try {
-    const output = execFileSync('git', ['ls-files', '-z', '--', 'src'], {
+    output = execFileSync('git', ['ls-files', '-z', '--', 'src'], {
       cwd: PROJECT_ROOT,
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-
-    if (!output) {
-      return [];
-    }
-
-    return output
-      .split('\0')
-      .filter(Boolean)
-      .sort((left, right) => left.localeCompare(right))
-      .map(relativePath => path.resolve(PROJECT_ROOT, relativePath))
-      .filter(filePath => {
-        const relativeToSrc = path.relative(SRC_DIR, filePath);
-        if (relativeToSrc.startsWith('..') || path.isAbsolute(relativeToSrc)) {
-          return false;
-        }
-
-        try {
-          return fs.statSync(filePath).isFile();
-        } catch {
-          return false;
-        }
-      });
   } catch {
     throw new Error(
       'Unable to enumerate tracked files via git. Run this command from a git checkout with git installed.'
     );
   }
+
+  if (!output) {
+    return [];
+  }
+
+  return output
+    .split('\0')
+    .filter(Boolean)
+    .sort((left, right) => left.localeCompare(right))
+    .map(relativePath => path.resolve(PROJECT_ROOT, relativePath))
+    .filter(filePath => {
+      const relativeToSrc = path.relative(SRC_DIR, filePath);
+      if (relativeToSrc.startsWith('..') || path.isAbsolute(relativeToSrc)) {
+        return false;
+      }
+
+      const stats = fs.statSync(filePath);
+      if (!stats.isFile()) {
+        throw new Error(`Tracked path is not a file: ${path.relative(PROJECT_ROOT, filePath)}`);
+      }
+
+      return true;
+    });
 }
 
 function collectFilesInSrc() {
@@ -227,6 +229,18 @@ function runCheck(checkPath, currentMetrics) {
   const resolvedCheckPath = path.resolve(process.cwd(), checkPath);
   const baselineContent = fs.readFileSync(resolvedCheckPath, 'utf8');
   const baselineMetrics = JSON.parse(baselineContent);
+
+  if (baselineMetrics.sourceDirectory !== currentMetrics.sourceDirectory) {
+    throw new Error(
+      `Baseline sourceDirectory mismatch: expected "${currentMetrics.sourceDirectory}", got "${baselineMetrics.sourceDirectory}"`
+    );
+  }
+
+  if (baselineMetrics.largeFileThresholdLoc !== currentMetrics.largeFileThresholdLoc) {
+    throw new Error(
+      `Baseline largeFileThresholdLoc mismatch: expected ${currentMetrics.largeFileThresholdLoc}, got ${baselineMetrics.largeFileThresholdLoc}`
+    );
+  }
 
   const gatedKeys = [
     'processExitReferenceCount',
