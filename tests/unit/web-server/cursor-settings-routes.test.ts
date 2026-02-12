@@ -124,6 +124,7 @@ describe('Cursor Settings Routes Logic', () => {
 
       // Simulate the whitelist merge from the route
       const cursorConfig: CursorConfig = {
+        enabled: updates.enabled ?? config.cursor?.enabled ?? false,
         port: updates.port ?? config.cursor?.port ?? 3000,
         auto_start: updates.auto_start ?? config.cursor?.auto_start ?? false,
         ghost_mode: updates.ghost_mode ?? config.cursor?.ghost_mode ?? false,
@@ -136,11 +137,12 @@ describe('Cursor Settings Routes Logic', () => {
 
     it('updates port only', () => {
       const config = loadOrCreateUnifiedConfig();
-      config.cursor = { port: 3000, auto_start: false, ghost_mode: false };
+      config.cursor = { enabled: false, port: 3000, auto_start: false, ghost_mode: false };
       saveUnifiedConfig(config);
 
       const updates = { port: 4000 };
       const cursorConfig: CursorConfig = {
+        enabled: updates.enabled ?? config.cursor?.enabled ?? false,
         port: updates.port ?? config.cursor?.port ?? 3000,
         auto_start: updates.auto_start ?? config.cursor?.auto_start ?? false,
         ghost_mode: updates.ghost_mode ?? config.cursor?.ghost_mode ?? false,
@@ -153,11 +155,12 @@ describe('Cursor Settings Routes Logic', () => {
 
     it('updates auto_start only', () => {
       const config = loadOrCreateUnifiedConfig();
-      config.cursor = { port: 3000, auto_start: false, ghost_mode: false };
+      config.cursor = { enabled: false, port: 3000, auto_start: false, ghost_mode: false };
       saveUnifiedConfig(config);
 
       const updates = { auto_start: true };
       const cursorConfig: CursorConfig = {
+        enabled: updates.enabled ?? config.cursor?.enabled ?? false,
         port: updates.port ?? config.cursor?.port ?? 3000,
         auto_start: updates.auto_start ?? config.cursor?.auto_start ?? false,
         ghost_mode: updates.ghost_mode ?? config.cursor?.ghost_mode ?? false,
@@ -170,11 +173,12 @@ describe('Cursor Settings Routes Logic', () => {
 
     it('updates ghost_mode only', () => {
       const config = loadOrCreateUnifiedConfig();
-      config.cursor = { port: 3000, auto_start: false, ghost_mode: false };
+      config.cursor = { enabled: false, port: 3000, auto_start: false, ghost_mode: false };
       saveUnifiedConfig(config);
 
       const updates = { ghost_mode: true };
       const cursorConfig: CursorConfig = {
+        enabled: updates.enabled ?? config.cursor?.enabled ?? false,
         port: updates.port ?? config.cursor?.port ?? 3000,
         auto_start: updates.auto_start ?? config.cursor?.auto_start ?? false,
         ghost_mode: updates.ghost_mode ?? config.cursor?.ghost_mode ?? false,
