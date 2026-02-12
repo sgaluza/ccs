@@ -7,6 +7,7 @@
 
 import * as http from 'http';
 import type { CursorModel } from './types';
+import { isDaemonRunning } from './cursor-daemon';
 
 /** Default daemon port */
 export const DEFAULT_CURSOR_PORT = 4242;
@@ -142,8 +143,12 @@ export async function fetchModelsFromDaemon(port: number): Promise<CursorModel[]
 
 /**
  * Get available models (from daemon or defaults).
+ * Checks daemon health first to avoid 5s timeout when daemon is not running.
  */
 export async function getAvailableModels(port: number): Promise<CursorModel[]> {
+  if (!(await isDaemonRunning(port))) {
+    return DEFAULT_CURSOR_MODELS;
+  }
   return fetchModelsFromDaemon(port);
 }
 

@@ -13,6 +13,7 @@ import {
   isDaemonRunning,
   getDaemonStatus,
   stopDaemon,
+  startDaemon,
 } from '../../../src/cursor/cursor-daemon';
 
 // Test isolation
@@ -113,6 +114,26 @@ describe('removePidFile', () => {
 
   it('does not throw when PID file does not exist', () => {
     expect(() => removePidFile()).not.toThrow();
+  });
+});
+
+describe('startDaemon', () => {
+  it('rejects invalid port (0)', async () => {
+    const result = await startDaemon({ port: 0, model: 'test' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid port');
+  });
+
+  it('rejects invalid port (65536)', async () => {
+    const result = await startDaemon({ port: 65536, model: 'test' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid port');
+  });
+
+  it('rejects non-integer port', async () => {
+    const result = await startDaemon({ port: 3.14, model: 'test' });
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Invalid port');
   });
 });
 

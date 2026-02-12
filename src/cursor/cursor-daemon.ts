@@ -150,6 +150,7 @@ export async function startDaemon(
       if (resolved) return;
       resolved = true;
       if (checkTimeout) clearTimeout(checkTimeout);
+      if (!result.success) removePidFile();
       resolve(result);
     };
 
@@ -280,11 +281,13 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
       }
     }
 
-    // Escalate to SIGKILL if process still alive after SIGTERM attempts
-    try {
-      process.kill(pid, 'SIGKILL');
-    } catch {
-      // Already dead — good
+    // Escalate to SIGKILL only if SIGTERM wait loop exhausted
+    if (attempts >= 10) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // Already dead — good
+      }
     }
 
     removePidFile();
