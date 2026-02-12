@@ -201,6 +201,8 @@ All criteria achieved:
   - `bun run maintainability:check`
   - `npm run maintainability:check`
 
+The baseline/check scripts enumerate git-tracked files under `src` for deterministic results, with filesystem traversal fallback when git is unavailable.
+
 The check mode supports a maintainability regression gate that blocks increases in:
 - `process.exit` references
 - synchronous fs API references

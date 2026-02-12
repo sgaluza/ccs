@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -117,7 +118,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function collectFiles(dirPath) {
+function collectFilesFromFileSystem(dirPath) {
   const collected = [];
   const entries = fs
     .readdirSync(dirPath, { withFileTypes: true })
@@ -126,7 +127,7 @@ function collectFiles(dirPath) {
   for (const entry of entries) {
     const fullPath = path.join(dirPath, entry.name);
     if (entry.isDirectory()) {
-      collected.push(...collectFiles(fullPath));
+      collected.push(...collectFilesFromFileSystem(fullPath));
       continue;
     }
 
@@ -136,6 +137,49 @@ function collectFiles(dirPath) {
   }
 
   return collected;
+}
+
+function collectTrackedFilesFromGit() {
+  try {
+    const output = execFileSync('git', ['ls-files', '-z', '--', 'src'], {
+      cwd: PROJECT_ROOT,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+
+    if (!output) {
+      return [];
+    }
+
+    return output
+      .split('\0')
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right))
+      .map(relativePath => path.resolve(PROJECT_ROOT, relativePath))
+      .filter(filePath => {
+        const relativeToSrc = path.relative(SRC_DIR, filePath);
+        if (relativeToSrc.startsWith('..') || path.isAbsolute(relativeToSrc)) {
+          return false;
+        }
+
+        try {
+          return fs.statSync(filePath).isFile();
+        } catch {
+          return false;
+        }
+      });
+  } catch {
+    return null;
+  }
+}
+
+function collectFilesInSrc() {
+  const trackedFiles = collectTrackedFilesFromGit();
+  if (trackedFiles !== null) {
+    return trackedFiles;
+  }
+
+  return collectFilesFromFileSystem(SRC_DIR);
 }
 
 function countLines(content) {
@@ -160,7 +204,7 @@ function collectMetrics() {
     throw new Error(`Directory not found: ${SRC_DIR}`);
   }
 
-  const files = collectFiles(SRC_DIR);
+  const files = collectFilesInSrc();
 
   let typeScriptFileCount = 0;
   let locInSrc = 0;
