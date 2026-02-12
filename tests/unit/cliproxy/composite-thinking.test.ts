@@ -284,6 +284,56 @@ describe('applyThinkingConfig - composite variant integration', () => {
     expect(result.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5-20251001');
   });
 
+  it('should disable all tier thinking when CLI override is explicitly off', () => {
+    const envVars: NodeJS.ProcessEnv = {
+      ANTHROPIC_MODEL: 'claude-sonnet-4-5-thinking',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-6-thinking',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5-thinking',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-4-5-20251001',
+    };
+
+    const compositeTierThinking = {
+      opus: 'xhigh',
+      sonnet: 'medium',
+      haiku: 'low',
+    };
+
+    const result = applyThinkingConfig(
+      envVars,
+      'agy' as CLIProxyProvider,
+      'off',
+      compositeTierThinking
+    );
+
+    expect(result.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5-thinking');
+    expect(result.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
+    expect(result.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-5-thinking');
+    expect(result.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5-20251001');
+  });
+
+  it('uses per-tier provider capability checks for mixed-provider composites', () => {
+    const envVars: NodeJS.ProcessEnv = {
+      ANTHROPIC_MODEL: 'gemini-2.5-pro',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gemini-2.5-pro',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5-thinking',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-4-5-20251001',
+    };
+
+    const result = applyThinkingConfig(
+      envVars,
+      'gemini' as CLIProxyProvider,
+      undefined,
+      {
+        sonnet: 'high',
+      },
+      {
+        sonnet: { provider: 'agy' as CLIProxyProvider },
+      }
+    );
+
+    expect(result.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-5-thinking(high)');
+  });
+
   it('should handle numeric budgets in per-tier thinking', () => {
     const envVars: NodeJS.ProcessEnv = {
       ANTHROPIC_MODEL: 'claude-sonnet-4-5-thinking',

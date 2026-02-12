@@ -26,9 +26,9 @@ import {
   ThinkingConfig,
   DashboardAuthConfig,
   ImageAnalysisConfig,
-  CLIPROXY_SUPPORTED_PROVIDERS,
   CursorConfig,
 } from './unified-config-types';
+import { validateCompositeTiers } from '../cliproxy/composite-validator';
 import { isUnifiedConfigEnabled } from './feature-flags';
 
 const CONFIG_YAML = 'config.yaml';
@@ -212,32 +212,17 @@ export function loadUnifiedConfig(): UnifiedConfig | null {
  * Warns about invalid providers in composite variant configurations.
  */
 function validateCompositeVariants(config: UnifiedConfig): void {
-  const validProviders = new Set<string>(CLIPROXY_SUPPORTED_PROVIDERS);
   const variants = config.cliproxy?.variants;
   if (!variants) return;
 
   for (const [name, variant] of Object.entries(variants)) {
     if ('type' in variant && variant.type === 'composite') {
-      // Guard against malformed composite variants
-      if (!variant.tiers || typeof variant.tiers !== 'object') {
-        console.warn(`[!] Composite variant '${name}' missing tiers object, skipping validation`);
-        continue;
-      }
-
-      for (const [tier, tierConfig] of Object.entries(variant.tiers as Record<string, unknown>)) {
-        if (!tierConfig || typeof tierConfig !== 'object') {
-          console.warn(
-            `[!] Variant '${name}': invalid config in ${tier} tier (expected object, got ${tierConfig === null ? 'null' : typeof tierConfig})`
-          );
-          continue;
-        }
-
-        const provider = (tierConfig as { provider?: unknown }).provider;
-        if (typeof provider !== 'string' || !validProviders.has(provider)) {
-          console.warn(
-            `[!] Variant '${name}': invalid provider '${String(provider)}' in ${tier} tier`
-          );
-        }
+      const error = validateCompositeTiers(variant.tiers, {
+        defaultTier: variant.default_tier,
+        requireAllTiers: true,
+      });
+      if (error) {
+        console.warn(`[!] Variant '${name}': invalid composite config (${error})`);
       }
     }
   }

@@ -17,6 +17,7 @@ import { isUnifiedMode } from '../../config/unified-config-loader';
 import { deleteConfigForPort } from '../config-generator';
 import { hasActiveSessions, deleteSessionLockForPort } from '../session-tracker';
 import { warn } from '../../utils/ui';
+import { validateCompositeTiers } from '../composite-validator';
 import {
   createSettingsFile,
   createSettingsFileUnified,
@@ -309,6 +310,14 @@ export function createCompositeVariant(
   try {
     const { name, defaultTier, tiers } = options;
 
+    const validationError = validateCompositeTiers(tiers, {
+      defaultTier,
+      requireAllTiers: true,
+    });
+    if (validationError) {
+      return { success: false, error: validationError };
+    }
+
     // Validate all tier providers against backend compatibility
     const tierNames: Array<'opus' | 'sonnet' | 'haiku'> = ['opus', 'sonnet', 'haiku'];
     for (const tier of tierNames) {
@@ -387,6 +396,15 @@ export function updateCompositeVariant(
       haiku: { ...existing.tiers.haiku, ...updates.tiers?.haiku },
     };
 
+    const newDefaultTier = updates.defaultTier ?? existing.default_tier ?? 'sonnet';
+    const validationError = validateCompositeTiers(mergedTiers, {
+      defaultTier: newDefaultTier,
+      requireAllTiers: true,
+    });
+    if (validationError) {
+      return { success: false, error: validationError };
+    }
+
     // Validate all tier providers against backend compatibility
     const tierNames: Array<'opus' | 'sonnet' | 'haiku'> = ['opus', 'sonnet', 'haiku'];
     for (const tier of tierNames) {
@@ -394,13 +412,6 @@ export function updateCompositeVariant(
       if (backendError) {
         return { success: false, error: `${tier} tier: ${backendError}` };
       }
-    }
-
-    const newDefaultTier = updates.defaultTier ?? existing.default_tier ?? 'sonnet';
-
-    // Delete old settings file
-    if (existing.settings) {
-      deleteSettingsFile(existing.settings);
     }
 
     // Create new settings file with updated config

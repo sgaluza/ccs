@@ -6,7 +6,10 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
-import { updateCompositeVariant } from '../../../src/cliproxy/services/variant-service';
+import {
+  createCompositeVariant,
+  updateCompositeVariant,
+} from '../../../src/cliproxy/services/variant-service';
 import {
   saveCompositeVariantUnified,
   listVariantsFromConfig,
@@ -173,6 +176,51 @@ cliproxy:
     expect(result.variant?.tiers?.haiku.provider).toBe('gemini');
   });
 
+  it('should preserve optional tier fields when updating provider/model only', () => {
+    const initialConfig: CompositeVariantConfig = {
+      type: 'composite',
+      default_tier: 'sonnet',
+      tiers: {
+        opus: {
+          provider: 'agy',
+          model: 'claude-opus-4-6-thinking',
+          fallback: { provider: 'gemini', model: 'gemini-2.5-flash' },
+          thinking: 'xhigh',
+          account: 'team-a',
+        },
+        sonnet: { provider: 'agy', model: 'claude-sonnet-4-5-thinking' },
+        haiku: { provider: 'agy', model: 'claude-haiku-4-5-20251001' },
+      },
+      settings: 'cliproxy/composite-test.settings.json',
+      port: 8318,
+    };
+    saveCompositeVariantUnified('test', initialConfig);
+
+    const settingsDir = path.join(tmpDir, 'cliproxy');
+    fs.mkdirSync(settingsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(settingsDir, 'composite-test.settings.json'),
+      JSON.stringify({ env: {} }),
+      'utf-8'
+    );
+
+    const result = updateCompositeVariant('test', {
+      tiers: {
+        opus: { provider: 'gemini', model: 'gemini-2.5-pro' },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.variant?.tiers?.opus.provider).toBe('gemini');
+    expect(result.variant?.tiers?.opus.model).toBe('gemini-2.5-pro');
+    expect(result.variant?.tiers?.opus.fallback).toEqual({
+      provider: 'gemini',
+      model: 'gemini-2.5-flash',
+    });
+    expect(result.variant?.tiers?.opus.thinking).toBe('xhigh');
+    expect(result.variant?.tiers?.opus.account).toBe('team-a');
+  });
+
   it('should return error when variant does not exist', () => {
     const result = updateCompositeVariant('nonexistent', {
       tiers: {
@@ -216,6 +264,87 @@ cliproxy:
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('not a composite variant');
+  });
+});
+
+describe('createCompositeVariant', () => {
+  let tmpDir: string;
+  let originalCcsDir: string | undefined;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-composite-test-'));
+    originalCcsDir = process.env.CCS_DIR;
+    process.env.CCS_DIR = tmpDir;
+
+    const configPath = path.join(tmpDir, 'config.yaml');
+    fs.writeFileSync(
+      configPath,
+      `version: 2
+accounts: {}
+profiles: {}
+preferences:
+  theme: system
+  telemetry: false
+  auto_update: true
+cliproxy:
+  oauth_accounts: {}
+  providers:
+    - gemini
+    - codex
+    - agy
+  variants: {}
+`,
+      'utf-8'
+    );
+  });
+
+  afterEach(() => {
+    if (originalCcsDir !== undefined) {
+      process.env.CCS_DIR = originalCcsDir;
+    } else {
+      delete process.env.CCS_DIR;
+    }
+
+    if (tmpDir && fs.existsSync(tmpDir)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns validation error for missing required tier in create flow', () => {
+    const result = createCompositeVariant({
+      name: 'broken',
+      defaultTier: 'sonnet',
+      tiers: {
+        opus: { provider: 'gemini', model: 'gemini-2.5-pro' },
+        sonnet: { provider: 'agy', model: 'claude-sonnet-4-5-thinking' },
+      } as unknown as {
+        opus: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+        sonnet: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+        haiku: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Missing required tier 'haiku'");
+  });
+
+  it('returns validation error for null tier payload in create flow', () => {
+    const result = createCompositeVariant({
+      name: 'broken-null',
+      defaultTier: 'sonnet',
+      tiers: {
+        opus: null,
+        sonnet: { provider: 'agy', model: 'claude-sonnet-4-5-thinking' },
+        haiku: { provider: 'agy', model: 'claude-haiku-4-5-20251001' },
+      } as unknown as {
+        opus: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+        sonnet: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+        haiku: { provider: 'gemini' | 'codex' | 'agy'; model: string };
+      },
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Invalid tier config for 'opus'");
   });
 });
 

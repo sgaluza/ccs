@@ -840,6 +840,18 @@ export async function execClaudeWithCLIProxy(
     compositeDefaultTier: cfg.compositeDefaultTier,
   });
 
+  if (cfg.isComposite && cfg.compositeTiers && cfg.compositeDefaultTier) {
+    const mode = useRemoteProxy
+      ? proxyConfig.protocol === 'https'
+        ? 'remote-https'
+        : 'remote-http'
+      : 'local';
+    const defaultTierProvider = cfg.compositeTiers[cfg.compositeDefaultTier]?.provider ?? provider;
+    log(
+      `Composite self-check: mode=${mode}, baseUrl=${env.ANTHROPIC_BASE_URL || 'unset'}, defaultTier=${cfg.compositeDefaultTier}, defaultProvider=${defaultTierProvider}`
+    );
+  }
+
   const webSearchEnv = getWebSearchHookEnv();
   logEnvironment(env, webSearchEnv, verbose);
 

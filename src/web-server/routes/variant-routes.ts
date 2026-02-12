@@ -7,7 +7,6 @@
 import { Router, Request, Response } from 'express';
 import { isReservedName, RESERVED_PROFILE_NAMES } from '../../config/reserved-names';
 import type { CLIProxyProvider } from '../../cliproxy/types';
-import { CLIPROXY_SUPPORTED_PROVIDERS } from '../../config/unified-config-types';
 import {
   createVariant,
   removeVariant,
@@ -17,63 +16,12 @@ import {
   createCompositeVariant,
   updateCompositeVariant,
 } from '../../cliproxy/services/variant-service';
+import {
+  validateCompositeDefaultTier,
+  validateCompositeTiers,
+} from '../../cliproxy/composite-validator';
 
 const router = Router();
-
-const VALID_TIERS = ['opus', 'sonnet', 'haiku'] as const;
-
-/** Validate composite tiers shape and provider/default_tier values. Returns error string or null. */
-function validateCompositeTiers(
-  tiers: Record<string, { provider?: string; model?: string }>,
-  defaultTier?: string,
-  requireAllTiers = false
-): string | null {
-  // Validate default_tier
-  if (defaultTier && !VALID_TIERS.includes(defaultTier as (typeof VALID_TIERS)[number])) {
-    return `Invalid default_tier '${defaultTier}': must be one of ${VALID_TIERS.join(', ')}`;
-  }
-  // Validate each tier
-  for (const tier of VALID_TIERS) {
-    const tierValue = tiers[tier];
-
-    // For POST/create: all tiers required
-    if (requireAllTiers && tierValue === undefined) {
-      return `Missing required tier '${tier}': all tiers (opus, sonnet, haiku) required for create`;
-    }
-
-    // Skip validation for tiers not present in the request (PUT partial updates)
-    if (tierValue === undefined) continue;
-
-    // Guard against null tier values
-    if (tierValue === null || typeof tierValue !== 'object') {
-      return `Invalid tier config for '${tier}': expected object with provider and model`;
-    }
-
-    if (typeof tierValue.provider !== 'string' || typeof tierValue.model !== 'string') {
-      return `Invalid tier config for '${tier}': requires 'provider' and 'model' strings`;
-    }
-    // Validate non-empty model string (whitespace-only is also invalid)
-    if (!tiers[tier].model?.trim()) {
-      return `Invalid model for tier '${tier}': model cannot be empty or whitespace`;
-    }
-    if (!CLIPROXY_SUPPORTED_PROVIDERS.includes(tiers[tier].provider as CLIProxyProvider)) {
-      return `Invalid provider '${tiers[tier].provider}' for tier '${tier}': must be one of ${CLIPROXY_SUPPORTED_PROVIDERS.join(', ')}`;
-    }
-    // Check for circular fallback (fallback points to same provider+model)
-    const tierConfig = tiers[tier] as {
-      provider: string;
-      model: string;
-      fallback?: { provider?: string; model?: string };
-    };
-    if (tierConfig.fallback) {
-      const fb = tierConfig.fallback;
-      if (fb.provider === tierConfig.provider && fb.model === tierConfig.model) {
-        return `Circular fallback in tier '${tier}': fallback cannot point to same provider and model`;
-      }
-    }
-  }
-  return null;
-}
 
 /**
  * GET /api/cliproxy - List cliproxy variants
@@ -132,7 +80,10 @@ router.post('/', (req: Request, res: Response): void => {
     }
 
     // Validate tiers shape, providers, and default_tier (all tiers required for create)
-    const tierError = validateCompositeTiers(tiers, default_tier, true);
+    const tierError = validateCompositeTiers(tiers, {
+      defaultTier: default_tier,
+      requireAllTiers: true,
+    });
     if (tierError) {
       res.status(400).json({ error: tierError });
       return;
@@ -221,26 +172,30 @@ router.put('/:name', (req: Request, res: Response): void => {
 
       // Validate tiers shape, providers, and default_tier if provided
       if (tiers) {
-        const tierError = validateCompositeTiers(tiers, default_tier);
+        const tierError = validateCompositeTiers(tiers, {
+          defaultTier: default_tier,
+        });
         if (tierError) {
           res.status(400).json({ error: tierError });
           return;
         }
-      } else if (
-        default_tier &&
-        !VALID_TIERS.includes(default_tier as (typeof VALID_TIERS)[number])
-      ) {
-        res.status(400).json({
-          error: `Invalid default_tier '${default_tier}': must be one of ${VALID_TIERS.join(', ')}`,
-        });
-        return;
+      } else {
+        const defaultTierError = validateCompositeDefaultTier(default_tier);
+        if (defaultTierError) {
+          res.status(400).json({
+            error: defaultTierError,
+          });
+          return;
+        }
       }
 
       const result = updateCompositeVariant(name, { defaultTier: default_tier, tiers });
 
       if (!result.success) {
         const status = result.error?.includes('not found') ? 404 : 400;
-        res.status(status).json({ error: result.error });
+        res.status(status).json({
+          error: result.error,
+        });
         return;
       }
 

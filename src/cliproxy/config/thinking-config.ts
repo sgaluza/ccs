@@ -108,6 +108,16 @@ export function applyThinkingConfig(
     return result;
   }
 
+  // Explicit "off" (CLI override or manual config override) must disable ALL tier thinking.
+  const explicitOffOverride =
+    thinkingOverride === 'off' ||
+    (thinkingOverride === undefined &&
+      thinkingConfig.mode === 'manual' &&
+      thinkingConfig.override === 'off');
+  if (explicitOffOverride) {
+    return result;
+  }
+
   // Get base model to check thinking support
   const baseModel = result.ANTHROPIC_MODEL || '';
   if (!supportsThinking(provider, baseModel)) {
@@ -152,10 +162,8 @@ export function applyThinkingConfig(
   }
   thinkingValue = validation.value;
 
-  // P1 FIX: If validation says 'off' AND no per-tier thinking config, skip ALL processing
-  // This distinguishes between:
-  // 1. "off" with no per-tier config → no thinking anywhere
-  // 2. "off" with per-tier config → skip main model, process tiers with their own values
+  // If auto-detection resolves default tier to "off", skip the main model but still allow
+  // explicit per-tier thinking values for other tiers.
   if (thinkingValue === 'off') {
     const hasPerTierThinking =
       compositeTierThinking &&
