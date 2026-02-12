@@ -102,7 +102,7 @@ export async function handleQuotaCheck(provider: CLIProxyProvider): Promise<void
 
 /** Error patterns indicating provider failure */
 export const PROVIDER_ERROR_PATTERNS = [
-  /Error:\s*4[012][0-9]/i,
+  /Error:\s*4[0-9]{2}/i,
   /Error:\s*5[0-9]{2}/i,
   /overloaded/i,
   /quota.*exceeded/i,

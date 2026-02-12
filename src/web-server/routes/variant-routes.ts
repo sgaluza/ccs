@@ -157,8 +157,8 @@ router.put('/:name', (req: Request, res: Response): void => {
     }
 
     if (existing.type === 'composite') {
-      if (!default_tier || !tiers) {
-        res.status(400).json({ error: 'Missing required fields for composite update' });
+      if (!default_tier && !tiers) {
+        res.status(400).json({ error: 'Must provide at least default_tier or tiers' });
         return;
       }
 
@@ -182,7 +182,8 @@ router.put('/:name', (req: Request, res: Response): void => {
       const result = updateCompositeVariant(name, { defaultTier: default_tier, tiers });
 
       if (!result.success) {
-        res.status(404).json({ error: result.error });
+        const status = result.error?.includes('not found') ? 404 : 400;
+        res.status(status).json({ error: result.error });
         return;
       }
 
