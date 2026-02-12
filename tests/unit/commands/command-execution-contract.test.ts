@@ -56,4 +56,57 @@ describe('runCommandWithContract', () => {
     await expect(promise).rejects.toThrow('validation failed');
     expect(lifecycle).toEqual(['parse', 'validate']);
   });
+
+  it('awaits async validate before execute and render', async () => {
+    const lifecycle: string[] = [];
+
+    const result = await runCommandWithContract(['--flag'], {
+      parse: (rawArgs) => {
+        lifecycle.push('parse');
+        return { parsed: true, value: rawArgs[0] };
+      },
+      validate: async () => {
+        lifecycle.push('validate:start');
+        await Promise.resolve();
+        lifecycle.push('validate:end');
+      },
+      execute: (parsedArgs) => {
+        lifecycle.push('execute');
+        return { output: parsedArgs.value.toUpperCase() };
+      },
+      render: () => {
+        lifecycle.push('render');
+      },
+    });
+
+    expect(lifecycle).toEqual(['parse', 'validate:start', 'validate:end', 'execute', 'render']);
+    expect(result.result).toEqual({ output: '--FLAG' });
+  });
+
+  it('short-circuits after async validate failure', async () => {
+    const lifecycle: string[] = [];
+
+    const promise = runCommandWithContract([], {
+      parse: () => {
+        lifecycle.push('parse');
+        return { valid: false };
+      },
+      validate: async () => {
+        lifecycle.push('validate:start');
+        await Promise.resolve();
+        lifecycle.push('validate:reject');
+        throw new Error('async validation failed');
+      },
+      execute: () => {
+        lifecycle.push('execute');
+        return { ok: true };
+      },
+      render: () => {
+        lifecycle.push('render');
+      },
+    });
+
+    await expect(promise).rejects.toThrow('async validation failed');
+    expect(lifecycle).toEqual(['parse', 'validate:start', 'validate:reject']);
+  });
 });

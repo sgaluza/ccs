@@ -7,7 +7,7 @@
 
 export interface CommandExecutionContract<TParsedArgs, TExecutionResult> {
   parse(rawArgs: string[]): TParsedArgs;
-  validate(parsedArgs: TParsedArgs): void;
+  validate(parsedArgs: TParsedArgs): void | Promise<void>;
   execute(parsedArgs: TParsedArgs): Promise<TExecutionResult> | TExecutionResult;
   render(
     result: TExecutionResult,
@@ -23,7 +23,7 @@ export async function runCommandWithContract<TParsedArgs, TExecutionResult>(
   contract: CommandExecutionContract<TParsedArgs, TExecutionResult>
 ): Promise<{ parsedArgs: TParsedArgs; result: TExecutionResult }> {
   const parsedArgs = contract.parse(rawArgs);
-  contract.validate(parsedArgs);
+  await contract.validate(parsedArgs);
   const result = await contract.execute(parsedArgs);
   await contract.render(result, { rawArgs, parsedArgs });
   return { parsedArgs, result };
