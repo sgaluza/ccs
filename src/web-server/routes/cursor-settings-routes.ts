@@ -52,6 +52,10 @@ router.put('/', (req: Request, res: Response): void => {
         return;
       }
     }
+    if ('enabled' in updates && typeof updates.enabled !== 'boolean') {
+      res.status(400).json({ error: 'enabled must be a boolean' });
+      return;
+    }
     if ('auto_start' in updates && typeof updates.auto_start !== 'boolean') {
       res.status(400).json({ error: 'auto_start must be a boolean' });
       return;
@@ -64,8 +68,9 @@ router.put('/', (req: Request, res: Response): void => {
     const config = loadOrCreateUnifiedConfig();
 
     // Merge updates with existing config
-    // Only known fields (port, auto_start, ghost_mode) are merged — unknown properties are ignored
+    // Only known fields are merged — unknown properties are ignored
     config.cursor = {
+      enabled: updates.enabled ?? config.cursor?.enabled ?? DEFAULT_CURSOR_CONFIG.enabled,
       port: updates.port ?? config.cursor?.port ?? DEFAULT_CURSOR_CONFIG.port,
       auto_start:
         updates.auto_start ?? config.cursor?.auto_start ?? DEFAULT_CURSOR_CONFIG.auto_start,

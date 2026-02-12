@@ -72,6 +72,7 @@ router.get('/status', async (_req: Request, res: Response): Promise<void> => {
     const daemonStatus = await getDaemonStatus(cursorConfig.port);
 
     res.json({
+      enabled: cursorConfig.enabled,
       authenticated: authStatus.authenticated,
       daemon_running: daemonStatus.running,
       port: cursorConfig.port,
@@ -153,9 +154,10 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
 });
 
 /**
- * POST /api/cursor/start - Start cursor proxy daemon
+ * POST /api/cursor/daemon/start - Start cursor proxy daemon
+ * Path matches copilot convention: /api/{provider}/daemon/{action}
  */
-router.post('/start', async (_req: Request, res: Response): Promise<void> => {
+router.post('/daemon/start', async (_req: Request, res: Response): Promise<void> => {
   try {
     const config = loadOrCreateUnifiedConfig();
     const cursorConfig = config.cursor ?? DEFAULT_CURSOR_CONFIG;
@@ -167,9 +169,10 @@ router.post('/start', async (_req: Request, res: Response): Promise<void> => {
 });
 
 /**
- * POST /api/cursor/stop - Stop cursor proxy daemon
+ * POST /api/cursor/daemon/stop - Stop cursor proxy daemon
+ * Path matches copilot convention: /api/{provider}/daemon/{action}
  */
-router.post('/stop', async (_req: Request, res: Response): Promise<void> => {
+router.post('/daemon/stop', async (_req: Request, res: Response): Promise<void> => {
   try {
     const result = await stopDaemon();
     res.json(result);

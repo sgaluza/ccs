@@ -236,6 +236,8 @@ export interface CopilotConfig {
  * Enables Cursor IDE usage via cursor proxy daemon.
  */
 export interface CursorConfig {
+  /** Enable Cursor integration (default: false) */
+  enabled: boolean;
   /** Port for cursor proxy daemon (default: 20129) */
   port: number;
   /** Auto-start daemon when CCS starts (default: false) */
@@ -657,6 +659,7 @@ export const DEFAULT_COPILOT_CONFIG: CopilotConfig = {
  * Disabled by default, ghost mode enabled for privacy.
  */
 export const DEFAULT_CURSOR_CONFIG: CursorConfig = {
+  enabled: false,
   port: 20129,
   auto_start: false,
   ghost_mode: true,

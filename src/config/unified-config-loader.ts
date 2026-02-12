@@ -280,6 +280,7 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
     },
     // Cursor config - disabled by default, merge with defaults
     cursor: {
+      enabled: partial.cursor?.enabled ?? DEFAULT_CURSOR_CONFIG.enabled,
       port: partial.cursor?.port ?? DEFAULT_CURSOR_CONFIG.port,
       auto_start: partial.cursor?.auto_start ?? DEFAULT_CURSOR_CONFIG.auto_start,
       ghost_mode: partial.cursor?.ghost_mode ?? DEFAULT_CURSOR_CONFIG.ghost_mode,
@@ -915,10 +916,5 @@ export function getImageAnalysisConfig(): ImageAnalysisConfig {
  */
 export function getCursorConfig(): CursorConfig {
   const config = loadOrCreateUnifiedConfig();
-
-  return {
-    port: config.cursor?.port ?? DEFAULT_CURSOR_CONFIG.port,
-    auto_start: config.cursor?.auto_start ?? DEFAULT_CURSOR_CONFIG.auto_start,
-    ghost_mode: config.cursor?.ghost_mode ?? DEFAULT_CURSOR_CONFIG.ghost_mode,
-  };
+  return config.cursor ?? { ...DEFAULT_CURSOR_CONFIG };
 }
