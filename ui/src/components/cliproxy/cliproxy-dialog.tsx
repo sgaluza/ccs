@@ -106,7 +106,7 @@ export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
     try {
       await createMutation.mutateAsync({
         name: data.name,
-        provider: 'gemini',
+        provider: data.tiers[data.default_tier].provider,
         type: 'composite',
         default_tier: data.default_tier,
         tiers: data.tiers,
