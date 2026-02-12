@@ -31,13 +31,12 @@ function validateCompositeTiers(
   if (defaultTier && !VALID_TIERS.includes(defaultTier as (typeof VALID_TIERS)[number])) {
     return `Invalid default_tier '${defaultTier}': must be one of ${VALID_TIERS.join(', ')}`;
   }
-  // Validate each tier
+  // Validate each tier (partial updates allowed - only validate tiers present in request)
   for (const tier of VALID_TIERS) {
-    if (
-      !tiers[tier] ||
-      typeof tiers[tier].provider !== 'string' ||
-      typeof tiers[tier].model !== 'string'
-    ) {
+    // Skip validation for tiers not present in the request (partial updates allowed)
+    if (tiers[tier] === undefined) continue;
+
+    if (typeof tiers[tier].provider !== 'string' || typeof tiers[tier].model !== 'string') {
       return `Invalid tier config for '${tier}': requires 'provider' and 'model' strings`;
     }
     // Validate non-empty model string (whitespace-only is also invalid)

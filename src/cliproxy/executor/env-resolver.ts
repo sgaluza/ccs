@@ -81,55 +81,74 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
     compositeDefaultTier,
   } = config;
 
-  // Build base env vars - composite, remote, or local
+  // Build base env vars - check remote mode first
   let envVars: NodeJS.ProcessEnv;
 
-  if (isComposite && compositeTiers && compositeDefaultTier) {
-    // Composite variant: root URL, per-tier models from different providers
-    envVars = getCompositeEnvVars(
-      compositeTiers,
-      compositeDefaultTier,
-      localPort,
-      customSettingsPath
-    );
-  } else if (useRemoteProxy && remoteConfig) {
+  if (useRemoteProxy && remoteConfig) {
     if (httpsTunnel && tunnelPort) {
-      // HTTPS remote via local tunnel - use HTTP to tunnel
-      envVars = getRemoteEnvVars(
-        provider,
-        {
-          host: '127.0.0.1',
-          port: tunnelPort,
-          protocol: 'http', // Tunnel speaks HTTP locally
-          authToken: remoteConfig.authToken,
-        },
-        customSettingsPath
-      );
+      // HTTPS remote via local tunnel
+      if (isComposite && compositeTiers && compositeDefaultTier) {
+        envVars = getCompositeEnvVars(
+          compositeTiers,
+          compositeDefaultTier,
+          tunnelPort,
+          customSettingsPath
+        );
+      } else {
+        envVars = getRemoteEnvVars(
+          provider,
+          {
+            host: '127.0.0.1',
+            port: tunnelPort,
+            protocol: 'http', // Tunnel speaks HTTP locally
+            authToken: remoteConfig.authToken,
+          },
+          customSettingsPath
+        );
+      }
     } else {
       // HTTP remote - direct connection
-      envVars = getRemoteEnvVars(
-        provider,
-        {
-          host: remoteConfig.host,
-          port: remoteConfig.port,
-          protocol: remoteConfig.protocol,
-          authToken: remoteConfig.authToken,
-        },
-        customSettingsPath
-      );
+      if (isComposite && compositeTiers && compositeDefaultTier) {
+        envVars = getCompositeEnvVars(
+          compositeTiers,
+          compositeDefaultTier,
+          remoteConfig.port,
+          customSettingsPath
+        );
+      } else {
+        envVars = getRemoteEnvVars(
+          provider,
+          {
+            host: remoteConfig.host,
+            port: remoteConfig.port,
+            protocol: remoteConfig.protocol,
+            authToken: remoteConfig.authToken,
+          },
+          customSettingsPath
+        );
+      }
     }
   } else {
     // Local proxy mode
-    const remoteRewriteConfig = remoteConfig
-      ? {
-          host: remoteConfig.host,
-          port: remoteConfig.port,
-          protocol: remoteConfig.protocol,
-          authToken: remoteConfig.authToken,
-        }
-      : undefined;
+    if (isComposite && compositeTiers && compositeDefaultTier) {
+      envVars = getCompositeEnvVars(
+        compositeTiers,
+        compositeDefaultTier,
+        localPort,
+        customSettingsPath
+      );
+    } else {
+      const remoteRewriteConfig = remoteConfig
+        ? {
+            host: remoteConfig.host,
+            port: remoteConfig.port,
+            protocol: remoteConfig.protocol,
+            authToken: remoteConfig.authToken,
+          }
+        : undefined;
 
-    envVars = getEffectiveEnvVars(provider, localPort, customSettingsPath, remoteRewriteConfig);
+      envVars = getEffectiveEnvVars(provider, localPort, customSettingsPath, remoteRewriteConfig);
+    }
   }
 
   // Extract per-tier thinking from composite config

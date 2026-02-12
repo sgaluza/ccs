@@ -380,11 +380,11 @@ export function updateCompositeVariant(
       return { success: false, error: `Variant '${name}' is not a composite variant` };
     }
 
-    // Merge tiers (keep unchanged tiers from existing)
+    // Deep merge tiers to preserve optional fields (fallback, thinking, account)
     const mergedTiers = {
-      opus: updates.tiers?.opus ?? existing.tiers.opus,
-      sonnet: updates.tiers?.sonnet ?? existing.tiers.sonnet,
-      haiku: updates.tiers?.haiku ?? existing.tiers.haiku,
+      opus: { ...existing.tiers.opus, ...updates.tiers?.opus },
+      sonnet: { ...existing.tiers.sonnet, ...updates.tiers?.sonnet },
+      haiku: { ...existing.tiers.haiku, ...updates.tiers?.haiku },
     };
 
     // Validate all tier providers against backend compatibility
