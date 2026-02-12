@@ -92,7 +92,13 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
           compositeTiers,
           compositeDefaultTier,
           tunnelPort,
-          customSettingsPath
+          customSettingsPath,
+          {
+            host: '127.0.0.1',
+            port: tunnelPort,
+            protocol: 'http',
+            authToken: remoteConfig.authToken,
+          }
         );
       } else {
         envVars = getRemoteEnvVars(
@@ -113,7 +119,13 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
           compositeTiers,
           compositeDefaultTier,
           remoteConfig.port,
-          customSettingsPath
+          customSettingsPath,
+          {
+            host: remoteConfig.host,
+            port: remoteConfig.port,
+            protocol: remoteConfig.protocol,
+            authToken: remoteConfig.authToken,
+          }
         );
       } else {
         envVars = getRemoteEnvVars(
@@ -164,7 +176,7 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
   }
 
   // Apply thinking configuration to model (auto tier-based or manual override)
-  applyThinkingConfig(envVars, provider, thinkingOverride, compositeTierThinking);
+  applyThinkingConfig(envVars, provider, thinkingOverride, compositeTierThinking, compositeTiers);
 
   // Apply extended context suffix for 1M token context window
   // Auto-enabled for Gemini, opt-in for Claude (--1m flag)

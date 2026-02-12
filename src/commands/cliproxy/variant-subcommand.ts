@@ -170,7 +170,11 @@ export async function handleCreate(
 
   // Clean up old variant if --force is set
   if (variantExists(name) && parsedArgs.force) {
-    removeVariant(name);
+    const removeResult = removeVariant(name);
+    if (!removeResult.success) {
+      console.log(fail(`Cannot overwrite variant '${name}': ${removeResult.error}`));
+      process.exit(1);
+    }
   }
 
   // Composite mode: select provider+model per tier

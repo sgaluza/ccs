@@ -216,6 +216,12 @@ function validateCompositeVariants(config: UnifiedConfig): void {
 
   for (const [name, variant] of Object.entries(variants)) {
     if ('type' in variant && variant.type === 'composite') {
+      // Guard against malformed composite variants
+      if (!variant.tiers || typeof variant.tiers !== 'object') {
+        console.warn(`[!] Composite variant '${name}' missing tiers object, skipping validation`);
+        continue;
+      }
+
       for (const [tier, tierConfig] of Object.entries(variant.tiers)) {
         if (!validProviders.has(tierConfig.provider)) {
           console.warn(

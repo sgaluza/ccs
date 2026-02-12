@@ -68,13 +68,21 @@ export function getThinkingValueForTier(
 }
 
 /**
+ * Composite tier config for provider lookup (subset of full CompositeTierConfig)
+ */
+interface CompositeTierProvider {
+  provider?: CLIProxyProvider;
+}
+
+/**
  * Apply thinking configuration to env vars.
  * Modifies ANTHROPIC_MODEL and tier models with thinking suffixes.
  *
  * @param envVars - Environment variables to modify
- * @param provider - CLIProxy provider
+ * @param provider - CLIProxy provider (default provider for base model)
  * @param thinkingOverride - Optional CLI override (takes priority over config)
  * @param compositeTierThinking - Optional per-tier thinking overrides for composite variants
+ * @param compositeTiers - Optional per-tier provider config for composite variants
  * @returns Modified env vars with thinking suffixes applied
  */
 export function applyThinkingConfig(
@@ -85,6 +93,11 @@ export function applyThinkingConfig(
     opus?: string;
     sonnet?: string;
     haiku?: string;
+  },
+  compositeTiers?: {
+    opus?: CompositeTierProvider;
+    sonnet?: CompositeTierProvider;
+    haiku?: CompositeTierProvider;
   }
 ): NodeJS.ProcessEnv {
   const thinkingConfig = getThinkingConfig();
@@ -158,13 +171,22 @@ export function applyThinkingConfig(
 
   for (const tierVar of tierModels) {
     const model = result[tierVar];
-    if (model && supportsThinking(provider, model)) {
+    if (model) {
       // Get tier-specific thinking value
       const tier = tierVar.includes('OPUS')
         ? 'opus'
         : tierVar.includes('SONNET')
           ? 'sonnet'
           : 'haiku';
+
+      // P2 FIX: Use tier-specific provider from compositeTiers for mixed-provider composites
+      // Falls back to the default provider if not a composite or tier not specified
+      const tierProvider = compositeTiers?.[tier]?.provider ?? provider;
+
+      // Check if this tier's model supports thinking (using tier-specific provider)
+      if (!supportsThinking(tierProvider, model)) {
+        continue;
+      }
 
       // Priority chain: CLI --thinking > per-tier config > global config > defaults
       let tierThinkingValue: string | number;
@@ -177,8 +199,8 @@ export function applyThinkingConfig(
           // Per-tier config from composite variant
           tierThinkingValue = perTierValue;
         } else {
-          // Global config or defaults
-          tierThinkingValue = getThinkingValueForTier(tier, provider, thinkingConfig);
+          // Global config or defaults (use tier-specific provider for provider overrides)
+          tierThinkingValue = getThinkingValueForTier(tier, tierProvider, thinkingConfig);
         }
       }
 
