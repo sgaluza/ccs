@@ -63,10 +63,13 @@ function ensureDir(dir: string): void {
 }
 
 /**
- * Write settings file atomically
+ * Write settings file atomically using temp file + rename.
+ * The renameSync is atomic on POSIX systems, preventing partial writes on crash.
  */
 function writeSettings(filePath: string, settings: SettingsFile): void {
-  fs.writeFileSync(filePath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+  const tempPath = `${filePath}.tmp.${process.pid}`;
+  fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+  fs.renameSync(tempPath, filePath);
 }
 
 /**
@@ -248,7 +251,9 @@ export function updateSettingsModel(settingsPath: string, model: string): void {
       delete (settings.env as unknown as Record<string, string>).ANTHROPIC_MODEL;
     }
 
-    fs.writeFileSync(resolvedPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+    const tempPath = `${resolvedPath}.tmp.${process.pid}`;
+    fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2) + '\n', 'utf8');
+    fs.renameSync(tempPath, resolvedPath);
   } catch {
     // Ignore errors - settings file may be invalid
   }

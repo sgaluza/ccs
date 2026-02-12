@@ -15,7 +15,7 @@ import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import { DEFAULT_BACKEND } from '../platform-detector';
 import { isUnifiedMode } from '../../config/unified-config-loader';
 import { deleteConfigForPort } from '../config-generator';
-import { deleteSessionLockForPort } from '../session-tracker';
+import { hasActiveSessions, deleteSessionLockForPort } from '../session-tracker';
 import { warn } from '../../utils/ui';
 import {
   createSettingsFile,
@@ -154,6 +154,22 @@ export function createVariant(
  */
 export function removeVariant(name: string): VariantOperationResult {
   try {
+    // First check if variant exists and has active sessions
+    const variants = listVariantsFromConfig();
+    const existingVariant = variants[name];
+
+    if (!existingVariant) {
+      return { success: false, error: `Variant '${name}' not found` };
+    }
+
+    // Check for active sessions on this variant's port before deletion
+    if (existingVariant.port && hasActiveSessions(existingVariant.port)) {
+      return {
+        success: false,
+        error: `Cannot delete variant '${name}': CLIProxy is running with active sessions. Stop the session first.`,
+      };
+    }
+
     let variant: VariantConfig | null;
 
     if (isUnifiedMode()) {
@@ -179,11 +195,7 @@ export function removeVariant(name: string): VariantOperationResult {
       }
     }
 
-    if (!variant) {
-      return { success: false, error: `Variant '${name}' not found` };
-    }
-
-    return { success: true, variant };
+    return { success: true, variant: variant ?? undefined };
   } catch (error) {
     return { success: false, error: (error as Error).message };
   }
