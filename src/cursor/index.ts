@@ -29,6 +29,8 @@ export {
   fetchModelsFromDaemon,
   getAvailableModels,
   getDefaultModel,
+  detectProvider,
+  formatModelName,
 } from './cursor-models';
 
 // Executor

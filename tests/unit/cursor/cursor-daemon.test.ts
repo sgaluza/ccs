@@ -15,6 +15,8 @@ import {
   stopDaemon,
   startDaemon,
 } from '../../../src/cursor/cursor-daemon';
+import { getCcsDir } from '../../../src/utils/config-manager';
+import { handleCursorCommand } from '../../../src/commands/cursor-command';
 
 // Test isolation
 let originalCcsHome: string | undefined;
@@ -41,8 +43,8 @@ afterEach(() => {
   }
 });
 
-// CCS_HOME is set to tempDir; getCcsDir() appends '.ccs' to it
-const ccsDir = () => path.join(tempDir, '.ccs');
+// Use getCcsDir() for consistent path resolution with production code
+const getTestCursorDir = () => path.join(getCcsDir(), 'cursor');
 
 describe('getPidFromFile', () => {
   it('returns null when no PID file exists', () => {
@@ -50,25 +52,25 @@ describe('getPidFromFile', () => {
   });
 
   it('returns PID when valid PID file exists', () => {
-    const cursorDir = path.join(ccsDir(), 'cursor');
-    fs.mkdirSync(cursorDir, { recursive: true });
-    fs.writeFileSync(path.join(cursorDir, 'daemon.pid'), '12345');
+    const dir = getTestCursorDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'daemon.pid'), '12345');
 
     expect(getPidFromFile()).toBe(12345);
   });
 
   it('returns null when PID file contains invalid content', () => {
-    const cursorDir = path.join(ccsDir(), 'cursor');
-    fs.mkdirSync(cursorDir, { recursive: true });
-    fs.writeFileSync(path.join(cursorDir, 'daemon.pid'), 'not-a-number');
+    const dir = getTestCursorDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'daemon.pid'), 'not-a-number');
 
     expect(getPidFromFile()).toBeNull();
   });
 
   it('trims whitespace from PID file content', () => {
-    const cursorDir = path.join(ccsDir(), 'cursor');
-    fs.mkdirSync(cursorDir, { recursive: true });
-    fs.writeFileSync(path.join(cursorDir, 'daemon.pid'), '  42  \n');
+    const dir = getTestCursorDir();
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'daemon.pid'), '  42  \n');
 
     expect(getPidFromFile()).toBe(42);
   });
@@ -78,25 +80,25 @@ describe('writePidToFile', () => {
   it('creates PID file with correct content', () => {
     writePidToFile(12345);
 
-    const pidFile = path.join(ccsDir(), 'cursor', 'daemon.pid');
+    const pidFile = path.join(getTestCursorDir(), 'daemon.pid');
     expect(fs.existsSync(pidFile)).toBe(true);
     expect(fs.readFileSync(pidFile, 'utf8')).toBe('12345');
   });
 
   it('creates cursor directory if it does not exist', () => {
-    const cursorDir = path.join(ccsDir(), 'cursor');
-    expect(fs.existsSync(cursorDir)).toBe(false);
+    const dir = getTestCursorDir();
+    expect(fs.existsSync(dir)).toBe(false);
 
     writePidToFile(999);
 
-    expect(fs.existsSync(cursorDir)).toBe(true);
+    expect(fs.existsSync(dir)).toBe(true);
   });
 
   it('overwrites existing PID file', () => {
     writePidToFile(111);
     writePidToFile(222);
 
-    const pidFile = path.join(ccsDir(), 'cursor', 'daemon.pid');
+    const pidFile = path.join(getTestCursorDir(), 'daemon.pid');
     expect(fs.readFileSync(pidFile, 'utf8')).toBe('222');
   });
 });
@@ -104,7 +106,7 @@ describe('writePidToFile', () => {
 describe('removePidFile', () => {
   it('removes existing PID file', () => {
     writePidToFile(12345);
-    const pidFile = path.join(ccsDir(), 'cursor', 'daemon.pid');
+    const pidFile = path.join(getTestCursorDir(), 'daemon.pid');
     expect(fs.existsSync(pidFile)).toBe(true);
 
     removePidFile();
@@ -177,7 +179,14 @@ describe('stopDaemon', () => {
     expect(result.error).toBeUndefined();
 
     // PID file should be removed
-    const pidFile = path.join(ccsDir(), 'cursor', 'daemon.pid');
+    const pidFile = path.join(getTestCursorDir(), 'daemon.pid');
     expect(fs.existsSync(pidFile)).toBe(false);
+  });
+});
+
+describe('handleCursorCommand', () => {
+  it('returns exit code 1 for unknown subcommand', async () => {
+    const exitCode = await handleCursorCommand(['nonexistent']);
+    expect(exitCode).toBe(1);
   });
 });

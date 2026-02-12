@@ -23,6 +23,18 @@ const DEFAULT_CURSOR_CONFIG = {
   model: DEFAULT_CURSOR_MODEL,
 };
 
+/** Valid cursor subcommands — imported by ccs.ts for routing */
+export const CURSOR_SUBCOMMANDS = [
+  'auth',
+  'status',
+  'models',
+  'start',
+  'stop',
+  'help',
+  '--help',
+  '-h',
+] as const;
+
 /**
  * Handle cursor subcommand.
  */
