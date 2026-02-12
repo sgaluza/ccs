@@ -492,6 +492,28 @@ export async function execClaudeWithCLIProxy(
 
     // Multi-provider auth check for composite variants
     if (compositeProviders.length > 0) {
+      // Handle forceAuth for composite providers
+      if (forceAuth) {
+        const { triggerOAuth } = await import('../auth-handler');
+        for (const p of compositeProviders) {
+          const authSuccess = await triggerOAuth(p, {
+            verbose,
+            add: addAccount,
+            ...(forceHeadless ? { headless: true } : {}),
+            ...(setNickname ? { nickname: setNickname } : {}),
+            ...(noIncognito ? { noIncognito: true } : {}),
+            ...(pasteCallback ? { pasteCallback: true } : {}),
+            ...(portForward ? { portForward: true } : {}),
+          });
+          if (!authSuccess) {
+            const pConfig = getProviderConfig(p as CLIProxyProvider);
+            throw new Error(`Authentication failed for ${pConfig.displayName}`);
+          }
+        }
+        process.exit(0);
+      }
+
+      // Check for unauthenticated providers
       const unauthenticatedProviders: string[] = [];
       for (const p of compositeProviders) {
         if (!isAuthenticated(p)) {
