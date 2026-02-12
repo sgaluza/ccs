@@ -199,13 +199,14 @@ router.put('/:name', (req: Request, res: Response): void => {
         return;
       }
 
+      const persisted = result.variant;
       res.json({
         name,
         type: 'composite',
-        default_tier,
-        tiers,
-        settings: result.variant?.settings,
-        port: result.variant?.port,
+        default_tier: persisted?.default_tier,
+        tiers: persisted?.tiers,
+        settings: persisted?.settings,
+        port: persisted?.port,
         updated: true,
       });
       return;
@@ -215,7 +216,8 @@ router.put('/:name', (req: Request, res: Response): void => {
     const result = updateVariant(name, { provider, account, model });
 
     if (!result.success) {
-      res.status(404).json({ error: result.error });
+      const status = result.error?.includes('not found') ? 404 : 400;
+      res.status(status).json({ error: result.error });
       return;
     }
 

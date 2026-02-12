@@ -26,6 +26,7 @@ import {
   getRelativeSettingsPath,
   getCompositeRelativeSettingsPath,
   updateSettingsModel,
+  updateSettingsProviderAndModel,
 } from './variant-settings';
 import {
   VariantConfig,
@@ -230,10 +231,30 @@ export function updateVariant(name: string, updates: UpdateVariantOptions): Vari
       return { success: false, error: 'Composite variant update not supported' };
     }
 
-    // Update model in settings file if provided
-    if (updates.model !== undefined && existing.settings) {
+    const providerChanged =
+      updates.provider !== undefined && updates.provider !== existing.provider;
+    const hasModelUpdate = updates.model !== undefined && updates.model.trim().length > 0;
+
+    if (providerChanged && !hasModelUpdate) {
+      return {
+        success: false,
+        error: 'Changing provider requires model update in the same request',
+      };
+    }
+
+    // Update settings file
+    if (existing.settings) {
       const settingsPath = existing.settings.replace(/^~/, os.homedir());
-      updateSettingsModel(settingsPath, updates.model);
+      if (providerChanged) {
+        updateSettingsProviderAndModel(
+          settingsPath,
+          updates.provider as CLIProxyProfileName,
+          updates.model?.trim() || '',
+          existing.port
+        );
+      } else if (updates.model !== undefined) {
+        updateSettingsModel(settingsPath, updates.model);
+      }
     }
 
     // Update config entry if provider or account changed
@@ -272,7 +293,7 @@ export function updateVariant(name: string, updates: UpdateVariantOptions): Vari
       success: true,
       variant: {
         provider: updates.provider ?? existing.provider,
-        model: updates.model ?? existing.model,
+        model: updates.model?.trim() || existing.model,
         account: updates.account !== undefined ? updates.account : existing.account,
         port: existing.port,
         settings: existing.settings,
@@ -414,12 +435,16 @@ export function updateCompositeVariant(
       }
     }
 
+    // Preserve existing settings path when configured; otherwise use default path.
+    const settingsRef = existing.settings || getCompositeRelativeSettingsPath(name);
+
     // Create new settings file with updated config
     const settingsPath = createCompositeSettingsFile(
       name,
       mergedTiers,
       newDefaultTier,
-      existing.port
+      existing.port,
+      settingsRef
     );
 
     // Save updated composite config to unified config
@@ -427,7 +452,7 @@ export function updateCompositeVariant(
       type: 'composite',
       default_tier: newDefaultTier,
       tiers: mergedTiers,
-      settings: getCompositeRelativeSettingsPath(name),
+      settings: settingsRef,
       port: existing.port,
     };
     saveCompositeVariantUnified(name, compositeConfig);
@@ -441,6 +466,7 @@ export function updateCompositeVariant(
         default_tier: newDefaultTier,
         tiers: mergedTiers,
         port: existing.port,
+        settings: settingsRef,
       },
     };
   } catch (error) {

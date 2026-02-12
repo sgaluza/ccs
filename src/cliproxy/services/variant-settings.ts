@@ -21,6 +21,7 @@ import { warn } from '../../utils/ui';
 
 /** Environment settings structure */
 interface SettingsEnv {
+  [key: string]: string;
   ANTHROPIC_BASE_URL: string;
   ANTHROPIC_AUTH_TOKEN: string;
   ANTHROPIC_MODEL: string;
@@ -30,7 +31,8 @@ interface SettingsEnv {
 }
 
 interface SettingsFile {
-  env: SettingsEnv;
+  env: Record<string, string>;
+  [key: string]: unknown;
 }
 
 /**
@@ -179,23 +181,64 @@ export function createCompositeSettingsFile(
   name: string,
   tiers: { opus: CompositeTierConfig; sonnet: CompositeTierConfig; haiku: CompositeTierConfig },
   defaultTier: 'opus' | 'sonnet' | 'haiku',
-  port: number = CLIPROXY_DEFAULT_PORT
+  port: number = CLIPROXY_DEFAULT_PORT,
+  settingsPathOverride?: string
 ): string {
   const ccsDir = getCcsDir();
-  const settingsPath = path.join(ccsDir, `composite-${name}.settings.json`);
+  const defaultSettingsPath = path.join(ccsDir, `composite-${name}.settings.json`);
+  const settingsPath = settingsPathOverride
+    ? (() => {
+        const expanded = expandPath(settingsPathOverride);
+        return path.isAbsolute(expanded) ? expanded : path.join(ccsDir, expanded);
+      })()
+    : defaultSettingsPath;
+  const settingsDir = path.dirname(settingsPath);
 
-  const settings: SettingsFile = {
-    env: buildCompositeSettingsEnv(tiers, defaultTier, port),
-  };
+  const coreEnv = buildCompositeSettingsEnv(tiers, defaultTier, port);
+  let settings: SettingsFile = { env: coreEnv };
 
-  ensureDir(ccsDir);
+  // Preserve non-core env vars and non-env fields (hooks/presets/etc.) when regenerating.
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const content = fs.readFileSync(settingsPath, 'utf-8');
+      const parsed = JSON.parse(content) as SettingsFile;
+
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const existingEnv =
+          parsed.env && typeof parsed.env === 'object' && !Array.isArray(parsed.env)
+            ? (parsed.env as Record<string, string>)
+            : {};
+        const {
+          ANTHROPIC_BASE_URL: _baseUrl,
+          ANTHROPIC_AUTH_TOKEN: _authToken,
+          ANTHROPIC_MODEL: _model,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: _opus,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: _sonnet,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: _haiku,
+          ...extraEnv
+        } = existingEnv;
+
+        settings = {
+          ...parsed,
+          env: {
+            ...extraEnv,
+            ...coreEnv,
+          },
+        };
+      }
+    } catch {
+      // Invalid JSON — overwrite with a clean settings object.
+    }
+  }
+
+  ensureDir(settingsDir);
   writeSettings(settingsPath, settings);
 
-  // Inject WebSearch hooks into variant settings
-  ensureProfileHooks(`composite-${name}`);
-
-  // Inject Image Analyzer hooks into variant settings
-  ensureImageAnalyzerHooks(`composite-${name}`);
+  // Hook injectors target ~/.ccs/<profile>.settings.json; only run for default path.
+  if (path.resolve(settingsPath) === path.resolve(defaultSettingsPath)) {
+    ensureProfileHooks(`composite-${name}`);
+    ensureImageAnalyzerHooks(`composite-${name}`);
+  }
 
   return settingsPath;
 }
@@ -257,4 +300,62 @@ export function updateSettingsModel(settingsPath: string, model: string): void {
   } catch {
     // Ignore errors - settings file may be invalid
   }
+}
+
+/**
+ * Update provider + model core env vars in an existing single-provider settings file.
+ * Preserves non-core env vars and top-level settings keys (hooks, presets, etc.).
+ */
+export function updateSettingsProviderAndModel(
+  settingsPath: string,
+  provider: CLIProxyProfileName,
+  model: string,
+  port: number = CLIPROXY_DEFAULT_PORT
+): void {
+  const resolvedPath = expandPath(settingsPath);
+  const fileName = path.basename(resolvedPath);
+  if (fileName.startsWith('composite-')) {
+    console.log(
+      warn('Cannot update provider/model for composite variant. Edit config.yaml tiers directly.')
+    );
+    return;
+  }
+
+  const coreEnv = buildSettingsEnv(provider, model, port);
+  let settings: SettingsFile = { env: coreEnv };
+
+  if (fs.existsSync(resolvedPath)) {
+    try {
+      const content = fs.readFileSync(resolvedPath, 'utf8');
+      const parsed = JSON.parse(content) as SettingsFile;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const existingEnv =
+          parsed.env && typeof parsed.env === 'object' && !Array.isArray(parsed.env)
+            ? (parsed.env as Record<string, string>)
+            : {};
+        const {
+          ANTHROPIC_BASE_URL: _baseUrl,
+          ANTHROPIC_AUTH_TOKEN: _authToken,
+          ANTHROPIC_MODEL: _model,
+          ANTHROPIC_DEFAULT_OPUS_MODEL: _opus,
+          ANTHROPIC_DEFAULT_SONNET_MODEL: _sonnet,
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: _haiku,
+          ...extraEnv
+        } = existingEnv;
+
+        settings = {
+          ...parsed,
+          env: {
+            ...extraEnv,
+            ...coreEnv,
+          },
+        };
+      }
+    } catch {
+      // Keep default and overwrite malformed file.
+    }
+  }
+
+  ensureDir(path.dirname(resolvedPath));
+  writeSettings(resolvedPath, settings);
 }

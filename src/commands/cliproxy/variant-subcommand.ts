@@ -522,7 +522,14 @@ export async function handleEdit(
       )) as CLIProxyProfileName;
     }
 
-    const changeModel = await InteractivePrompt.confirm('Change model?', { default: false });
+    const providerChanged = !!(newProvider && newProvider !== variant.provider);
+    if (providerChanged) {
+      console.log(info('Provider changed. Model selection is required.'));
+    }
+
+    const changeModel = providerChanged
+      ? true
+      : await InteractivePrompt.confirm('Change model?', { default: false });
     let newModel = variant.model || '';
     if (changeModel) {
       const providerForModel = newProvider || (variant.provider as CLIProxyProfileName);
