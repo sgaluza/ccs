@@ -66,6 +66,8 @@
     "format:check": "prettier --check src/",
     "validate": "bun run typecheck && bun run lint:fix && bun run format:check && bun run test:all",
     "verify:bundle": "node scripts/verify-bundle.js",
+    "maintainability:baseline": "node scripts/maintainability-baseline.js --out docs/metrics/maintainability-baseline.json",
+    "maintainability:check": "node scripts/maintainability-baseline.js --check docs/metrics/maintainability-baseline.json",
     "test": "bun run build && bun run test:all",
     "test:ci": "bun run test:all",
     "test:all": "bun test tests/unit tests/integration tests/npm",

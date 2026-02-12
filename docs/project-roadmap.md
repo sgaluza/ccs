@@ -191,6 +191,21 @@ All criteria achieved:
 - [x] Clear domain boundaries
 - [x] Consistent naming conventions
 
+## Maintainability Gate (Issue #539 Foundation)
+
+- Baseline metrics artifact: `docs/metrics/maintainability-baseline.json`
+- Generate or refresh baseline:
+  - `bun run maintainability:baseline`
+  - `npm run maintainability:baseline`
+- Run regression check gate:
+  - `bun run maintainability:check`
+  - `npm run maintainability:check`
+
+The check mode supports a maintainability regression gate that blocks increases in:
+- `process.exit` references
+- synchronous fs API references
+- files over 350 LOC
+
 ---
 
 ## Related Documentation
