@@ -162,9 +162,9 @@ function stripComments(sourceText) {
     }
 
     if (inSingleQuote) {
-      output += current;
+      output += current === '\n' || current === '\r' ? current : ' ';
       if (current === '\\') {
-        output += next ?? '';
+        output += next === '\n' || next === '\r' ? next : ' ';
         index += 2;
         continue;
       }
@@ -176,9 +176,9 @@ function stripComments(sourceText) {
     }
 
     if (inDoubleQuote) {
-      output += current;
+      output += current === '\n' || current === '\r' ? current : ' ';
       if (current === '\\') {
-        output += next ?? '';
+        output += next === '\n' || next === '\r' ? next : ' ';
         index += 2;
         continue;
       }
@@ -190,9 +190,9 @@ function stripComments(sourceText) {
     }
 
     if (inTemplateLiteral) {
-      output += current;
+      output += current === '\n' || current === '\r' ? current : ' ';
       if (current === '\\') {
-        output += next ?? '';
+        output += next === '\n' || next === '\r' ? next : ' ';
         index += 2;
         continue;
       }
@@ -219,21 +219,21 @@ function stripComments(sourceText) {
 
     if (current === "'") {
       inSingleQuote = true;
-      output += current;
+      output += ' ';
       index += 1;
       continue;
     }
 
     if (current === '"') {
       inDoubleQuote = true;
-      output += current;
+      output += ' ';
       index += 1;
       continue;
     }
 
     if (current === '`') {
       inTemplateLiteral = true;
-      output += current;
+      output += ' ';
       index += 1;
       continue;
     }
