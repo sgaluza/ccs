@@ -9,7 +9,7 @@ import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
-import type { CursorConfig, CursorDaemonStatus } from './types';
+import type { CursorDaemonConfig, CursorDaemonStatus } from './types';
 import { getCcsDir } from '../utils/config-manager';
 
 /**
@@ -25,6 +25,16 @@ function getCursorDir(): string {
  */
 function getPidFilePath(): string {
   return path.join(getCursorDir(), 'daemon.pid');
+}
+
+/**
+ * Resolve daemon entrypoint script path for the current runtime.
+ * - Dist runtime: cursor-daemon-entry.js
+ * - Bun source runtime (tests/dev): cursor-daemon-entry.ts
+ */
+function resolveDaemonEntrypoint(): string {
+  const isBunRuntime = process.execPath.toLowerCase().includes('bun');
+  return path.join(__dirname, isBunRuntime ? 'cursor-daemon-entry.ts' : 'cursor-daemon-entry.js');
 }
 
 /**
@@ -128,7 +138,7 @@ export function removePidFile(): void {
  * @returns Promise that resolves when daemon is ready
  */
 export async function startDaemon(
-  config: CursorConfig
+  config: CursorDaemonConfig
 ): Promise<{ success: boolean; pid?: number; error?: string }> {
   // Check if already running
   if (await isDaemonRunning(config.port)) {
@@ -140,8 +150,16 @@ export async function startDaemon(
     return { success: false, error: `Invalid port: ${config.port}` };
   }
 
-  // For now, create a simple structure that will be filled in later
-  // The actual server implementation will be added in a separate task
+  const daemonEntry = resolveDaemonEntrypoint();
+  try {
+    await fs.promises.access(daemonEntry, fs.constants.R_OK);
+  } catch {
+    return {
+      success: false,
+      error: 'Cursor daemon entrypoint not found. Run `bun run build` and retry.',
+    };
+  }
+
   return new Promise((resolve) => {
     let proc: ChildProcess;
     let resolved = false;
@@ -157,30 +175,16 @@ export async function startDaemon(
     let checkTimeout: NodeJS.Timeout | null = null;
 
     try {
-      // Spawn a placeholder Node.js process
-      // TODO: Replace with actual CursorExecutor-based server
       const args = [
-        '-e',
-        `
-        const http = require('http');
-        const server = http.createServer((req, res) => {
-          if (req.url === '/health') {
-            res.writeHead(200);
-            res.end('OK');
-          } else if (req.url === '/v1/models') {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ data: [] }));
-          } else {
-            res.writeHead(404);
-            res.end('Not found');
-          }
-        });
-        server.listen(${config.port}, '127.0.0.1');
-        `,
+        daemonEntry,
+        '--port',
+        String(config.port),
+        '--ghost-mode',
+        String(config.ghost_mode !== false),
+        '--ccs-daemon',
       ];
 
-      // Append --ccs-daemon marker for PID validation in stopDaemon
-      proc = spawn(process.execPath, [...args, '--ccs-daemon'], {
+      proc = spawn(process.execPath, args, {
         stdio: 'ignore',
         detached: true,
       });
