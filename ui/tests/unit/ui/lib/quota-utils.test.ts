@@ -386,7 +386,8 @@ describe('getMinCodexQuota', () => {
           resetAt: '2026-01-30T14:30:32Z',
         },
       ];
-      expect(getMinCodexQuota(windows)).toBe(8.7);
+      // Core account quota should ignore code-review windows.
+      expect(getMinCodexQuota(windows)).toBe(21.1);
     });
   });
 });
@@ -439,10 +440,10 @@ describe('getCodexResetTime', () => {
           usedPercent: 50,
           remainingPercent: 50,
           resetAfterSeconds: 1800,
-          resetAt: '2026-01-30T16:00:00Z',
+          resetAt: '2026-01-30T09:00:00Z',
         },
       ];
-      // Should return earliest (alphabetically sorted)
+      // Should ignore code-review reset when choosing main account reset.
       expect(getCodexResetTime(windows)).toBe('2026-01-30T10:00:00Z');
     });
   });
@@ -516,9 +517,10 @@ describe('getCodexResetTime', () => {
           usedPercent: 75,
           remainingPercent: 25,
           resetAfterSeconds: 5400,
-          resetAt: '2026-01-30T18:45:00Z',
+          resetAt: '2026-01-30T08:15:00Z',
         },
       ];
+      // Code-review windows should not drive the main account reset.
       expect(getCodexResetTime(windows)).toBe('2026-01-30T09:30:00Z');
     });
   });
