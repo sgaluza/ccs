@@ -103,20 +103,46 @@ function getCodexWindowKind(label: string): CodexWindowKind {
   return 'unknown';
 }
 
-function getCodexWindowDisplayLabel(label: string): string {
-  switch (getCodexWindowKind(label)) {
+function getCodexWindowCadence(
+  resetAfterSeconds: number | null | undefined
+): '5h' | 'weekly' | null {
+  if (
+    typeof resetAfterSeconds !== 'number' ||
+    !isFinite(resetAfterSeconds) ||
+    resetAfterSeconds <= 0
+  ) {
+    return null;
+  }
+
+  if (resetAfterSeconds <= 6 * 60 * 60) return '5h';
+  if (resetAfterSeconds >= 24 * 60 * 60) return 'weekly';
+  return null;
+}
+
+function getCodexWindowDisplayLabel(
+  window: Pick<CodexQuotaResult['windows'][number], 'label' | 'resetAfterSeconds'>
+): string {
+  const cadence = getCodexWindowCadence(window.resetAfterSeconds);
+
+  switch (getCodexWindowKind(window.label)) {
     case 'usage-5h':
+      if (cadence === 'weekly') return 'Weekly usage limit';
       return '5h usage limit';
     case 'usage-weekly':
+      if (cadence === '5h') return '5h usage limit';
       return 'Weekly usage limit';
     case 'code-review-5h':
+      if (cadence === 'weekly') return 'Code review (weekly)';
       return 'Code review (5h)';
     case 'code-review-weekly':
+      if (cadence === '5h') return 'Code review (5h)';
       return 'Code review (weekly)';
     case 'code-review':
+      if (cadence === '5h') return 'Code review (5h)';
+      if (cadence === 'weekly') return 'Code review (weekly)';
       return 'Code review';
     case 'unknown':
-      return label;
+      return window.label;
   }
 }
 
@@ -255,7 +281,7 @@ function displayCodexQuotaSection(results: { account: string; quota: CodexQuotaR
         ? dim(` Resets ${formatResetTime(window.resetAfterSeconds)}`)
         : '';
       console.log(
-        `    ${getCodexWindowDisplayLabel(window.label).padEnd(24)} ${bar} ${window.remainingPercent.toFixed(0)}%${resetLabel}`
+        `    ${getCodexWindowDisplayLabel(window).padEnd(24)} ${bar} ${window.remainingPercent.toFixed(0)}%${resetLabel}`
       );
     }
     console.log('');

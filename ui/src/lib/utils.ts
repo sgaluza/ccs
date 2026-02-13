@@ -337,17 +337,47 @@ export function getCodexWindowKind(label: string): CodexWindowKind {
 /**
  * Convert raw Codex window labels into user-facing labels.
  */
-export function getCodexWindowDisplayLabel(label: string): string {
+function getCodexWindowCadence(
+  resetAfterSeconds: number | null | undefined
+): '5h' | 'weekly' | null {
+  if (
+    typeof resetAfterSeconds !== 'number' ||
+    !isFinite(resetAfterSeconds) ||
+    resetAfterSeconds <= 0
+  ) {
+    return null;
+  }
+
+  if (resetAfterSeconds <= 6 * 60 * 60) return '5h';
+  if (resetAfterSeconds >= 24 * 60 * 60) return 'weekly';
+  return null;
+}
+
+export function getCodexWindowDisplayLabel(
+  labelOrWindow: string | Pick<CodexQuotaWindow, 'label' | 'resetAfterSeconds'>,
+  resetAfterSecondsOverride?: number | null
+): string {
+  const label = typeof labelOrWindow === 'string' ? labelOrWindow : labelOrWindow.label;
+  const cadence = getCodexWindowCadence(
+    typeof labelOrWindow === 'string' ? resetAfterSecondsOverride : labelOrWindow.resetAfterSeconds
+  );
+
   switch (getCodexWindowKind(label)) {
     case 'usage-5h':
+      if (cadence === 'weekly') return 'Weekly usage limit';
       return '5h usage limit';
     case 'usage-weekly':
+      if (cadence === '5h') return '5h usage limit';
       return 'Weekly usage limit';
     case 'code-review-5h':
+      if (cadence === 'weekly') return 'Code review (weekly)';
       return 'Code review (5h)';
     case 'code-review-weekly':
+      if (cadence === '5h') return 'Code review (5h)';
       return 'Code review (weekly)';
     case 'code-review':
+      if (cadence === '5h') return 'Code review (5h)';
+      if (cadence === 'weekly') return 'Code review (weekly)';
       return 'Code review';
     case 'unknown':
       return label;

@@ -9,6 +9,7 @@ import {
   getEarliestResetTime,
   getMinCodexQuota,
   getCodexResetTime,
+  getCodexWindowDisplayLabel,
   getMinGeminiQuota,
   getGeminiResetTime,
   getProviderMinQuota,
@@ -523,6 +524,34 @@ describe('getCodexResetTime', () => {
       // Code-review windows should not drive the main account reset.
       expect(getCodexResetTime(windows)).toBe('2026-01-30T09:30:00Z');
     });
+  });
+});
+
+describe('getCodexWindowDisplayLabel', () => {
+  it('labels code review primary window as weekly when reset cadence is weekly', () => {
+    expect(
+      getCodexWindowDisplayLabel({
+        label: 'Code Review (Primary)',
+        resetAfterSeconds: 604800,
+      })
+    ).toBe('Code review (weekly)');
+  });
+
+  it('labels code review primary window as 5h when reset cadence is short', () => {
+    expect(
+      getCodexWindowDisplayLabel({
+        label: 'Code Review (Primary)',
+        resetAfterSeconds: 18000,
+      })
+    ).toBe('Code review (5h)');
+  });
+
+  it('keeps secondary usage label as weekly by default', () => {
+    expect(getCodexWindowDisplayLabel('Secondary')).toBe('Weekly usage limit');
+  });
+
+  it('uses cadence override when provided with string label', () => {
+    expect(getCodexWindowDisplayLabel('Primary', 604800)).toBe('Weekly usage limit');
   });
 });
 
