@@ -275,7 +275,7 @@ if (require.main === module) {
   const server = startCursorDaemonServer(options);
 
   const shutdown = () => {
-    server.close(() => process.exit(0));
+    server.close();
   };
 
   process.on('SIGTERM', shutdown);

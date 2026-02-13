@@ -40,6 +40,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
+interface CursorConfigDraft {
+  port: string;
+  auto_start: boolean;
+  ghost_mode: boolean;
+}
+
+function buildConfigDraft(config?: {
+  port?: number;
+  auto_start?: boolean;
+  ghost_mode?: boolean;
+}): CursorConfigDraft {
+  return {
+    port: String(config?.port ?? 20129),
+    auto_start: config?.auto_start ?? false,
+    ghost_mode: config?.ghost_mode ?? true,
+  };
+}
+
 function StatusItem({
   icon: Icon,
   label,
@@ -100,15 +118,7 @@ export function CursorPage() {
     isStoppingDaemon,
   } = useCursor();
 
-  const [configDraft, setConfigDraft] = useState<{
-    port: string;
-    auto_start: boolean;
-    ghost_mode: boolean;
-  }>({
-    port: '20129',
-    auto_start: false,
-    ghost_mode: true,
-  });
+  const [configDraft, setConfigDraft] = useState<CursorConfigDraft>(() => buildConfigDraft());
   const [configDirty, setConfigDirty] = useState(false);
   const [rawConfigText, setRawConfigText] = useState<string>('{}');
   const [rawConfigDirty, setRawConfigDirty] = useState(false);
@@ -116,14 +126,22 @@ export function CursorPage() {
   const [manualToken, setManualToken] = useState('');
   const [manualMachineId, setManualMachineId] = useState('');
 
-  const effectivePort = configDirty ? configDraft.port : String(config?.port ?? 20129);
-  const effectiveAutoStart = configDirty ? configDraft.auto_start : Boolean(config?.auto_start);
-  const effectiveGhostMode = configDirty
-    ? configDraft.ghost_mode
-    : Boolean(config?.ghost_mode ?? true);
+  const pristineConfigDraft = buildConfigDraft(config);
+
+  const effectivePort = configDirty ? configDraft.port : pristineConfigDraft.port;
+  const effectiveAutoStart = configDirty ? configDraft.auto_start : pristineConfigDraft.auto_start;
+  const effectiveGhostMode = configDirty ? configDraft.ghost_mode : pristineConfigDraft.ghost_mode;
   const effectiveRawConfigText = rawConfigDirty
     ? rawConfigText
     : JSON.stringify(rawSettings?.settings ?? {}, null, 2);
+
+  const updateConfigDraft = (updater: (draft: CursorConfigDraft) => CursorConfigDraft) => {
+    setConfigDraft((previousDraft) => {
+      const baseDraft = configDirty ? previousDraft : pristineConfigDraft;
+      return updater(baseDraft);
+    });
+    setConfigDirty(true);
+  };
 
   const canStart = Boolean(status?.enabled && status?.authenticated && !status?.token_expired);
   const integrationBadge = useMemo(
@@ -145,11 +163,13 @@ export function CursorPage() {
         ghost_mode: effectiveGhostMode,
       });
       setConfigDirty(false);
-      setConfigDraft({
-        port: String(parsedPort),
-        auto_start: effectiveAutoStart,
-        ghost_mode: effectiveGhostMode,
-      });
+      setConfigDraft(
+        buildConfigDraft({
+          port: parsedPort,
+          auto_start: effectiveAutoStart,
+          ghost_mode: effectiveGhostMode,
+        })
+      );
       toast.success('Cursor config saved');
     } catch (error) {
       toast.error((error as Error).message || 'Failed to save config');
@@ -426,8 +446,7 @@ export function CursorPage() {
                         max={65535}
                         value={effectivePort}
                         onChange={(e) => {
-                          setConfigDirty(true);
-                          setConfigDraft((prev) => ({ ...prev, port: e.target.value }));
+                          updateConfigDraft((draft) => ({ ...draft, port: e.target.value }));
                         }}
                       />
                     </div>
@@ -443,8 +462,7 @@ export function CursorPage() {
                         id="cursor-auto-start"
                         checked={effectiveAutoStart}
                         onCheckedChange={(value) => {
-                          setConfigDirty(true);
-                          setConfigDraft((prev) => ({ ...prev, auto_start: value }));
+                          updateConfigDraft((draft) => ({ ...draft, auto_start: value }));
                         }}
                       />
                     </div>
@@ -460,8 +478,7 @@ export function CursorPage() {
                         id="cursor-ghost-mode"
                         checked={effectiveGhostMode}
                         onCheckedChange={(value) => {
-                          setConfigDirty(true);
-                          setConfigDraft((prev) => ({ ...prev, ghost_mode: value }));
+                          updateConfigDraft((draft) => ({ ...draft, ghost_mode: value }));
                         }}
                       />
                     </div>

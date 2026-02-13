@@ -141,6 +141,28 @@ ccs ollama    # Local Ollama (no API key needed)
 ccs glm       # GLM (API key)
 ```
 
+### Cursor IDE Quick Start
+
+```bash
+ccs cursor enable
+ccs cursor auth
+ccs cursor start
+ccs cursor status
+```
+
+If auto-detect is unavailable:
+
+```bash
+ccs cursor auth --manual --token <token> --machine-id <machine-id>
+```
+
+Defaults:
+- Port: `20129`
+- Ghost mode: enabled
+- Dashboard page: `ccs config` -> `Cursor IDE`
+
+Detailed guide: [`docs/cursor-integration.md`](./docs/cursor-integration.md)
+
 ### Parallel Workflows
 
 Run multiple terminals with different providers:
@@ -327,6 +349,7 @@ See [Remote Proxy documentation](https://docs.ccs.kaitran.ca/features/remote-pro
 | Multi-Account Claude | [docs.ccs.kaitran.ca/providers/claude-accounts](https://docs.ccs.kaitran.ca/providers/claude-accounts) |
 | API Profiles | [docs.ccs.kaitran.ca/providers/api-profiles](https://docs.ccs.kaitran.ca/providers/api-profiles) |
 | Remote Proxy | [docs.ccs.kaitran.ca/features/remote-proxy](https://docs.ccs.kaitran.ca/features/remote-proxy) |
+| Cursor IDE (local guide) | [./docs/cursor-integration.md](./docs/cursor-integration.md) |
 | CLI Reference | [docs.ccs.kaitran.ca/reference/cli-commands](https://docs.ccs.kaitran.ca/reference/cli-commands) |
 | Architecture | [docs.ccs.kaitran.ca/reference/architecture](https://docs.ccs.kaitran.ca/reference/architecture) |
 | Troubleshooting | [docs.ccs.kaitran.ca/reference/troubleshooting](https://docs.ccs.kaitran.ca/reference/troubleshooting) |

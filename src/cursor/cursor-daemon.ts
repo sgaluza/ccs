@@ -28,13 +28,38 @@ function getPidFilePath(): string {
 }
 
 /**
- * Resolve daemon entrypoint script path for the current runtime.
- * - Dist runtime: cursor-daemon-entry.js
- * - Bun source runtime (tests/dev): cursor-daemon-entry.ts
+ * Resolve daemon entrypoint candidates for current runtime.
+ * - Dist runtime always uses JS artifact.
+ * - Bun source runtime prefers TS, then falls back to JS.
  */
-function resolveDaemonEntrypoint(): string {
+function getDaemonEntrypointCandidates(): string[] {
+  const jsEntry = path.join(__dirname, 'cursor-daemon-entry.js');
+  const tsEntry = path.join(__dirname, 'cursor-daemon-entry.ts');
   const isBunRuntime = process.execPath.toLowerCase().includes('bun');
-  return path.join(__dirname, isBunRuntime ? 'cursor-daemon-entry.ts' : 'cursor-daemon-entry.js');
+  const runningFromDist = __filename.endsWith('.js');
+
+  if (runningFromDist) {
+    return [jsEntry];
+  }
+
+  if (isBunRuntime) {
+    return [tsEntry, jsEntry];
+  }
+
+  return [jsEntry];
+}
+
+async function resolveDaemonEntrypoint(): Promise<string | null> {
+  for (const candidate of getDaemonEntrypointCandidates()) {
+    try {
+      await fs.promises.access(candidate, fs.constants.R_OK);
+      return candidate;
+    } catch {
+      // Try next candidate
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -150,10 +175,8 @@ export async function startDaemon(
     return { success: false, error: `Invalid port: ${config.port}` };
   }
 
-  const daemonEntry = resolveDaemonEntrypoint();
-  try {
-    await fs.promises.access(daemonEntry, fs.constants.R_OK);
-  } catch {
+  const daemonEntry = await resolveDaemonEntrypoint();
+  if (!daemonEntry) {
     return {
       success: false,
       error: 'Cursor daemon entrypoint not found. Run `bun run build` and retry.',
