@@ -174,6 +174,17 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
         },
       },
       {
+        id: 'gpt-5.2-codex',
+        name: 'GPT-5.2 Codex',
+        description: 'Previous stable Codex model',
+        thinking: {
+          type: 'levels',
+          levels: ['medium', 'high', 'xhigh'],
+          maxLevel: 'xhigh',
+          dynamicAllowed: false,
+        },
+      },
+      {
         id: 'gpt-5-mini',
         name: 'GPT-5 Mini',
         description: 'Capped at high reasoning (no xhigh)',
