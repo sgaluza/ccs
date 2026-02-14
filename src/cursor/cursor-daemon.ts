@@ -5,7 +5,7 @@
  * Uses CursorExecutor for OpenAI-compatible API proxy to Cursor backend.
  */
 
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, spawnSync, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
@@ -77,8 +77,26 @@ export async function isDaemonRunning(port: number): Promise<boolean> {
         timeout: 3000,
       },
       (res) => {
-        res.resume(); // Drain response body
-        resolve(res.statusCode === 200);
+        let body = '';
+        res.setEncoding('utf8');
+
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            resolve(false);
+            return;
+          }
+
+          try {
+            const payload = JSON.parse(body) as { service?: string };
+            resolve(payload.service === 'cursor-daemon');
+          } catch {
+            resolve(false);
+          }
+        });
       }
     );
 
@@ -93,6 +111,79 @@ export async function isDaemonRunning(port: number): Promise<boolean> {
 
     req.end();
   });
+}
+
+type DaemonOwnershipStatus = 'owned' | 'not-owned' | 'not-running' | 'unknown';
+
+function getProcessCommandLine(pid: number): string | null {
+  if (process.platform === 'linux') {
+    try {
+      // /proc cmdline uses null separators between arguments.
+      return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
+    } catch {
+      return null;
+    }
+  }
+
+  if (process.platform === 'darwin') {
+    try {
+      const result = spawnSync('ps', ['-p', String(pid), '-o', 'command='], {
+        encoding: 'utf8',
+      });
+      if (result.error || result.status !== 0) {
+        return null;
+      }
+      return result.stdout.trim();
+    } catch {
+      return null;
+    }
+  }
+
+  if (process.platform === 'win32') {
+    const command = `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" | Select-Object -ExpandProperty CommandLine)`;
+    const shells = ['powershell.exe', 'powershell', 'pwsh.exe', 'pwsh'];
+    for (const shell of shells) {
+      try {
+        const result = spawnSync(shell, ['-NoProfile', '-Command', command], {
+          encoding: 'utf8',
+        });
+        if (result.error) {
+          continue;
+        }
+        if (result.status !== 0) {
+          return null;
+        }
+        return result.stdout.trim();
+      } catch {
+        // Try next shell candidate
+      }
+    }
+    return null;
+  }
+
+  return null;
+}
+
+function verifyDaemonOwnership(pid: number): DaemonOwnershipStatus {
+  try {
+    process.kill(pid, 0);
+  } catch (err) {
+    const error = err as NodeJS.ErrnoException;
+    if (error.code === 'ESRCH') {
+      return 'not-running';
+    }
+    return 'unknown';
+  }
+
+  const commandLine = getProcessCommandLine(pid);
+  if (!commandLine) {
+    return 'unknown';
+  }
+
+  const looksLikeCursorDaemon =
+    commandLine.includes('--ccs-daemon') && commandLine.includes('cursor-daemon-entry');
+
+  return looksLikeCursorDaemon ? 'owned' : 'not-owned';
 }
 
 /**
@@ -292,16 +383,23 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
   }
 
   try {
-    // Verify the PID belongs to our daemon before signaling
-    try {
-      const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if (!cmdline.includes('--ccs-daemon')) {
-        // PID was reused by an unrelated process
-        removePidFile();
-        return { success: true };
-      }
-    } catch {
-      // /proc not available (macOS/Windows) or process gone — proceed with kill
+    const ownership = verifyDaemonOwnership(pid);
+    if (ownership === 'not-running') {
+      removePidFile();
+      return { success: true };
+    }
+
+    if (ownership === 'not-owned') {
+      // PID was reused by an unrelated process.
+      removePidFile();
+      return { success: true };
+    }
+
+    if (ownership === 'unknown') {
+      return {
+        success: false,
+        error: `Refusing to stop PID ${pid}: unable to verify daemon ownership`,
+      };
     }
 
     // Send SIGTERM to the process

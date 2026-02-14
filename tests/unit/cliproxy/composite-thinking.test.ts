@@ -334,6 +334,32 @@ describe('applyThinkingConfig - composite variant integration', () => {
     expect(result.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-5-thinking(high)');
   });
 
+  it('applies tier thinking even when default model does not support thinking', () => {
+    const envVars: NodeJS.ProcessEnv = {
+      ANTHROPIC_MODEL: 'gpt-4o-mini',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'gpt-4o-mini',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4-5-thinking',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku-4-5-20251001',
+    };
+
+    const result = applyThinkingConfig(
+      envVars,
+      'codex' as CLIProxyProvider,
+      undefined,
+      {
+        sonnet: 'high',
+      },
+      {
+        sonnet: { provider: 'agy' as CLIProxyProvider },
+      }
+    );
+
+    // Default model provider/model do not support thinking.
+    expect(result.ANTHROPIC_MODEL).toBe('gpt-4o-mini');
+    // Supported mixed-provider tier must still receive its configured thinking value.
+    expect(result.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-5-thinking(high)');
+  });
+
   it('should handle numeric budgets in per-tier thinking', () => {
     const envVars: NodeJS.ProcessEnv = {
       ANTHROPIC_MODEL: 'claude-sonnet-4-5-thinking',
@@ -468,13 +494,11 @@ describe('applyThinkingConfig - composite variant integration', () => {
       compositeTierThinking
     );
 
-    // Base model check uses ANTHROPIC_MODEL with suffix — supportsThinking
-    // may not recognize suffixed model names, causing early return.
-    // All models preserved as-is.
+    // Existing suffix on main model should be preserved.
     expect(result.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-5-thinking(high)');
     expect(result.ANTHROPIC_MODEL).toBe('claude-sonnet-4-5-thinking(high)');
-    // Opus stays unchanged because function returned early
-    expect(result.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
+    // Other supported tiers still receive configured thinking.
+    expect(result.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking(xhigh)');
   });
 
   it('should use codex effort suffix style when provider is codex', () => {

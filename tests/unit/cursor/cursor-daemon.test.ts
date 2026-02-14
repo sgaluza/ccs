@@ -6,6 +6,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as http from 'http';
+import { spawn } from 'child_process';
 import {
   getPidFromFile,
   writePidToFile,
@@ -180,6 +182,37 @@ describe('isDaemonRunning', () => {
     const result = await isDaemonRunning(19999);
     expect(result).toBe(false);
   });
+
+  it('returns false when /health is 200 but service is not cursor-daemon', async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, service: 'not-cursor-daemon' }));
+        return;
+      }
+
+      res.writeHead(404);
+      res.end();
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => resolve());
+    });
+
+    try {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        throw new Error('Unable to resolve test server port');
+      }
+
+      const result = await isDaemonRunning(address.port);
+      expect(result).toBe(false);
+    } finally {
+      await new Promise<void>((resolve) => {
+        server.close(() => resolve());
+      });
+    }
+  });
 });
 
 describe('getDaemonStatus', () => {
@@ -216,6 +249,36 @@ describe('stopDaemon', () => {
     // PID file should be removed
     const pidFile = path.join(getTestCursorDir(), 'daemon.pid');
     expect(fs.existsSync(pidFile)).toBe(false);
+  });
+
+  it('does not terminate unrelated process from stale PID file', async () => {
+    const unrelatedProcess = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000);'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    unrelatedProcess.unref();
+
+    const unrelatedPid = unrelatedProcess.pid;
+    expect(unrelatedPid).toBeDefined();
+    if (!unrelatedPid) {
+      throw new Error('Failed to spawn unrelated process');
+    }
+
+    writePidToFile(unrelatedPid);
+
+    try {
+      const result = await stopDaemon();
+      expect(result.success).toBe(true);
+
+      // Unrelated process should still be alive.
+      expect(() => process.kill(unrelatedPid, 0)).not.toThrow();
+    } finally {
+      try {
+        process.kill(unrelatedPid, 'SIGTERM');
+      } catch {
+        // Process already exited.
+      }
+    }
   });
 });
 
