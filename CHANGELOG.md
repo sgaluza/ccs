@@ -1,3 +1,16 @@
+## [7.45.0](https://github.com/kaitranntt/ccs/compare/v7.44.0...v7.45.0) (2026-02-14)
+
+### Features
+
+* **cursor-ui:** restore Cursor dashboard UX and icon assets ([7ab7a15](https://github.com/kaitranntt/ccs/commit/7ab7a156ebfb696e1d2f275b58c32115800283c2)), closes [#555](https://github.com/kaitranntt/ccs/issues/555)
+* **cursor:** sync model mapping across config and raw settings ([7b73658](https://github.com/kaitranntt/ccs/commit/7b73658f8700c7d6f3804f00df29de4c14243028)), closes [#555](https://github.com/kaitranntt/ccs/issues/555)
+
+### Bug Fixes
+
+* **cursor-settings:** remove sync fs calls in settings sync ([4f086aa](https://github.com/kaitranntt/ccs/commit/4f086aa34adb32be42527e0f3a77c4369e88df72))
+* **cursor-ui:** label cursor dashboard as beta ([b40fe86](https://github.com/kaitranntt/ccs/commit/b40fe866ec293fc08dbb877a000a87addd3ab16d))
+* **cursor-ui:** restore info card order and list scrolling ([decdffe](https://github.com/kaitranntt/ccs/commit/decdffea61f543beca508ce209b543bbeee81a4c))
+
 ## [7.44.0](https://github.com/kaitranntt/ccs/compare/v7.43.0...v7.44.0) (2026-02-14)
 
 ### Features
