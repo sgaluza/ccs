@@ -35,8 +35,8 @@ import {
   isDeviceCodeProvider,
   isNicknameRequiredProvider,
   KIRO_AUTH_METHOD_OPTIONS,
-  KiroAuthMethod,
 } from '@/lib/provider-config';
+import type { KiroAuthMethod } from '@/lib/provider-config';
 import { toast } from 'sonner';
 
 interface AddAccountDialogProps {
