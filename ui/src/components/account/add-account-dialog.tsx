@@ -1,7 +1,7 @@
 /**
  * Add Account Dialog Component
  * Uses /start-url to get OAuth URL + polls for completion via management API.
- * For Device Code flows (ghcp, qwen): Uses /start endpoint which spawns CLIProxy
+ * For Device Code flows (ghcp, qwen, kiro): Uses /start endpoint which spawns CLIProxy
  * binary and emits WebSocket events. DeviceCodeDialog handles user code display.
  * Shows auth URL + callback paste field. Polling auto-closes on success.
  * For Kiro: Also shows "Import from IDE" option.
@@ -22,7 +22,7 @@ import { Loader2, ExternalLink, User, Download, Copy, Check } from 'lucide-react
 import { useKiroImport } from '@/hooks/use-cliproxy';
 import { useCliproxyAuthFlow } from '@/hooks/use-cliproxy-auth-flow';
 import { applyDefaultPreset } from '@/lib/preset-utils';
-import { isDeviceCodeProvider } from '@/lib/provider-config';
+import { isDeviceCodeProvider, isNicknameRequiredProvider } from '@/lib/provider-config';
 import { toast } from 'sonner';
 
 interface AddAccountDialogProps {
@@ -44,18 +44,23 @@ export function AddAccountDialog({
   const [nickname, setNickname] = useState('');
   const [callbackUrl, setCallbackUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
   const wasAuthenticatingRef = useRef(false);
   const authFlow = useCliproxyAuthFlow();
   const kiroImportMutation = useKiroImport();
 
   const isKiro = provider === 'kiro';
   const isDeviceCode = isDeviceCodeProvider(provider);
+  const requiresNickname = isNicknameRequiredProvider(provider);
   const isPending = authFlow.isAuthenticating || kiroImportMutation.isPending;
+  const nicknameTrimmed = nickname.trim();
+  const errorMessage = localError || authFlow.error;
 
   const resetAndClose = () => {
     setNickname('');
     setCallbackUrl('');
     setCopied(false);
+    setLocalError(null);
     wasAuthenticatingRef.current = false;
     onClose();
   };
@@ -103,13 +108,18 @@ export function AddAccountDialog({
   };
 
   /**
-   * Authenticate via /start-url + polling only.
-   * Does NOT call /start (which spawns a local CLIProxy binary that kills running instances).
-   * /start-url uses the management API to get auth URL, then polls for completion.
+   * Start auth flow using provider capabilities.
+   * - Device code providers use /start and rely on WebSocket events for code display.
+   * - Authorization code providers use /start-url and polling.
    */
   const handleAuthenticate = () => {
+    if (requiresNickname && !nicknameTrimmed) {
+      setLocalError(`Nickname is required for ${displayName} accounts.`);
+      return;
+    }
+    setLocalError(null);
     wasAuthenticatingRef.current = true;
-    authFlow.startAuth(provider, { nickname: nickname.trim() || undefined });
+    authFlow.startAuth(provider, { nickname: nicknameTrimmed || undefined });
   };
 
   const handleKiroImport = () => {
@@ -157,20 +167,27 @@ export function AddAccountDialog({
           {/* Nickname input - only show before auth starts */}
           {!showAuthUI && (
             <div className="space-y-2">
-              <Label htmlFor="nickname">Nickname (optional)</Label>
+              <Label htmlFor="nickname">
+                {requiresNickname ? 'Nickname (required)' : 'Nickname (optional)'}
+              </Label>
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-muted-foreground" />
                 <Input
                   id="nickname"
                   value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
+                  onChange={(e) => {
+                    setNickname(e.target.value);
+                    setLocalError(null);
+                  }}
                   placeholder="e.g., work, personal"
                   disabled={isPending}
                   className="flex-1"
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                A friendly name to identify this account. Auto-generated from email if left empty.
+                {requiresNickname
+                  ? 'Required for this provider. Use a unique friendly name (e.g., work, personal).'
+                  : 'A friendly name to identify this account. Auto-generated from email if left empty.'}
               </p>
             </div>
           )}
@@ -190,11 +207,6 @@ export function AddAccountDialog({
                     : 'Complete the authentication in your browser. This dialog closes automatically.'}
                 </p>
               </div>
-
-              {/* Error display */}
-              {authFlow.error && !authFlow.authUrl && (
-                <p className="text-xs text-center text-destructive">{authFlow.error}</p>
-              )}
 
               {/* Auth URL section - only for Authorization Code flows, NOT Device Code */}
               {authFlow.authUrl && !authFlow.isDeviceCodeFlow && (
@@ -273,6 +285,9 @@ export function AddAccountDialog({
             </div>
           )}
 
+          {/* Persist error visibility outside auth-only UI states */}
+          {errorMessage && <p className="text-xs text-center text-destructive">{errorMessage}</p>}
+
           {/* Kiro import loading */}
           {kiroImportMutation.isPending && (
             <p className="text-sm text-center text-muted-foreground">
@@ -302,7 +317,10 @@ export function AddAccountDialog({
               </Button>
             )}
             {!showAuthUI && (
-              <Button onClick={handleAuthenticate} disabled={isPending}>
+              <Button
+                onClick={handleAuthenticate}
+                disabled={isPending || (requiresNickname && !nicknameTrimmed)}
+              >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Authenticate
               </Button>

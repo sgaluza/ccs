@@ -19,7 +19,7 @@ interface AuthFlowState {
   oauthState: string | null;
   /** Whether callback is being submitted */
   isSubmittingCallback: boolean;
-  /** Whether this is a device code flow (ghcp, qwen) - dialog handled separately via WebSocket */
+  /** Whether this is a device code flow (ghcp, qwen, kiro) - dialog handled separately via WebSocket */
   isDeviceCodeFlow: boolean;
 }
 

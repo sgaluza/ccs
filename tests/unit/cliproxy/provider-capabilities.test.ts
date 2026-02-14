@@ -2,11 +2,17 @@ import { describe, expect, it } from 'bun:test';
 import {
   CLIPROXY_PROVIDER_IDS,
   getOAuthCallbackPort,
+  getOAuthFlowType,
   getProviderDisplayName,
   getProvidersByOAuthFlow,
   isCLIProxyProvider,
   mapExternalProviderName,
 } from '../../../src/cliproxy/provider-capabilities';
+import {
+  OAUTH_CALLBACK_PORTS as DIAGNOSTIC_CALLBACK_PORTS,
+  OAUTH_FLOW_TYPES,
+} from '../../../src/management/oauth-port-diagnostics';
+import { OAUTH_CALLBACK_PORTS as AUTH_CALLBACK_PORTS } from '../../../src/cliproxy/auth/auth-types';
 
 describe('provider-capabilities', () => {
   it('keeps canonical provider IDs backward-compatible', () => {
@@ -55,5 +61,18 @@ describe('provider-capabilities', () => {
     expect(getOAuthCallbackPort('kiro')).toBeNull();
     expect(getOAuthCallbackPort('gemini')).toBe(8085);
     expect(getProviderDisplayName('agy')).toBe('AntiGravity');
+  });
+
+  it('keeps diagnostics flow metadata in sync with provider capabilities', () => {
+    for (const provider of CLIPROXY_PROVIDER_IDS) {
+      expect(OAUTH_FLOW_TYPES[provider]).toBe(getOAuthFlowType(provider));
+      expect(DIAGNOSTIC_CALLBACK_PORTS[provider]).toBe(getOAuthCallbackPort(provider));
+    }
+  });
+
+  it('does not define callback ports for device code providers in auth constants', () => {
+    for (const provider of getProvidersByOAuthFlow('device_code')) {
+      expect(AUTH_CALLBACK_PORTS[provider]).toBeUndefined();
+    }
   });
 });

@@ -38,6 +38,7 @@ import {
   CLIPROXY_CALLBACK_PROVIDER_MAP,
   CLIPROXY_AUTH_URL_PROVIDER_MAP,
 } from '../../cliproxy/auth/auth-types';
+import { getOAuthFlowType } from '../../cliproxy/provider-capabilities';
 import type { CLIProxyProvider } from '../../cliproxy/types';
 import { CLIPROXY_PROFILES } from '../../auth/profile-detector';
 
@@ -45,6 +46,13 @@ const router = Router();
 
 // Valid providers list - derived from canonical CLIPROXY_PROFILES
 const validProviders: CLIProxyProvider[] = [...CLIPROXY_PROFILES];
+
+export function getStartUrlUnsupportedReason(provider: CLIProxyProvider): string | null {
+  if (getOAuthFlowType(provider) === 'device_code') {
+    return `Provider '${provider}' uses Device Code flow. Use /api/cliproxy/auth/${provider}/start instead.`;
+  }
+  return null;
+}
 
 /**
  * GET /api/cliproxy/auth - Get auth status for built-in CLIProxy profiles
@@ -555,6 +563,11 @@ router.post('/:provider/start-url', async (req: Request, res: Response): Promise
   // Validate provider
   if (!validProviders.includes(provider as CLIProxyProvider)) {
     res.status(400).json({ error: `Invalid provider: ${provider}` });
+    return;
+  }
+  const unsupportedReason = getStartUrlUnsupportedReason(provider as CLIProxyProvider);
+  if (unsupportedReason) {
+    res.status(400).json({ error: unsupportedReason });
     return;
   }
 

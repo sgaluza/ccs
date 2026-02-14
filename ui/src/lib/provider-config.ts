@@ -82,3 +82,11 @@ export const DEVICE_CODE_PROVIDERS: CLIProxyProvider[] = ['ghcp', 'kiro', 'qwen'
 export function isDeviceCodeProvider(provider: string): boolean {
   return DEVICE_CODE_PROVIDERS.includes(provider as CLIProxyProvider);
 }
+
+/** Providers that require nickname because token payload may not include email. */
+export const NICKNAME_REQUIRED_PROVIDERS: CLIProxyProvider[] = ['ghcp', 'kiro'];
+
+/** Check if provider requires user-supplied nickname in auth flow */
+export function isNicknameRequiredProvider(provider: string): boolean {
+  return NICKNAME_REQUIRED_PROVIDERS.includes(provider as CLIProxyProvider);
+}
