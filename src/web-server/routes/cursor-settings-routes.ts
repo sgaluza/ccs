@@ -162,9 +162,17 @@ router.put('/raw', (req: Request, res: Response): void => {
 
     const settingsPath = path.join(getCcsDir(), 'cursor.settings.json');
 
-    // Check for conflict if file exists and expectedMtime provided
-    if (fs.existsSync(settingsPath) && expectedMtime) {
+    // For existing files, expectedMtime is required to prevent blind overwrite races.
+    if (fs.existsSync(settingsPath)) {
       const stat = fs.statSync(settingsPath);
+      if (typeof expectedMtime !== 'number' || !Number.isFinite(expectedMtime)) {
+        res.status(409).json({
+          error: 'File metadata not loaded. Refresh and retry.',
+          mtime: stat.mtimeMs,
+        });
+        return;
+      }
+
       if (Math.abs(stat.mtimeMs - expectedMtime) > 1000) {
         res.status(409).json({ error: 'File modified externally', mtime: stat.mtimeMs });
         return;

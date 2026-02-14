@@ -134,6 +134,8 @@ export function CursorPage() {
   const effectiveRawConfigText = rawConfigDirty
     ? rawConfigText
     : JSON.stringify(rawSettings?.settings ?? {}, null, 2);
+  const rawSettingsReady = Boolean(rawSettings);
+  const disableRawSave = isSavingRawSettings || rawSettingsLoading || !rawSettingsReady;
 
   const updateConfigDraft = (updater: (draft: CursorConfigDraft) => CursorConfigDraft) => {
     setConfigDraft((previousDraft) => {
@@ -241,6 +243,11 @@ export function CursorPage() {
   };
 
   const handleSaveRawSettings = async () => {
+    if (!rawSettingsReady) {
+      toast.error('Raw settings are still loading. Please wait and try again.');
+      return;
+    }
+
     let parsed: unknown;
     try {
       parsed = JSON.parse(effectiveRawConfigText || '{}');
@@ -570,7 +577,7 @@ export function CursorPage() {
                         />
                         Refresh
                       </Button>
-                      <Button onClick={handleSaveRawSettings} disabled={isSavingRawSettings}>
+                      <Button onClick={handleSaveRawSettings} disabled={disableRawSave}>
                         {isSavingRawSettings ? (
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                         ) : (

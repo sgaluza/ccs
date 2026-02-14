@@ -20,6 +20,44 @@ import cursorSettingsRoutes from './cursor-settings-routes';
 
 const router = Router();
 
+interface DaemonStartPreconditionInput {
+  enabled: boolean;
+  authenticated: boolean;
+  tokenExpired?: boolean;
+}
+
+interface DaemonStartPreconditionError {
+  status: number;
+  error: string;
+}
+
+export function getDaemonStartPreconditionError(
+  input: DaemonStartPreconditionInput
+): DaemonStartPreconditionError | null {
+  if (!input.enabled) {
+    return {
+      status: 400,
+      error: 'Cursor integration is disabled. Enable it before starting daemon.',
+    };
+  }
+
+  if (!input.authenticated) {
+    return {
+      status: 401,
+      error: 'Cursor authentication required. Import credentials before starting daemon.',
+    };
+  }
+
+  if (input.tokenExpired) {
+    return {
+      status: 401,
+      error: 'Cursor credentials expired. Re-authenticate before starting daemon.',
+    };
+  }
+
+  return null;
+}
+
 // Mount settings sub-routes
 router.use('/settings', cursorSettingsRoutes);
 
@@ -125,6 +163,21 @@ router.get('/models', async (_req: Request, res: Response): Promise<void> => {
 router.post('/daemon/start', async (_req: Request, res: Response): Promise<void> => {
   try {
     const cursorConfig = getCursorConfig();
+    const authStatus = checkAuthStatus();
+    const preconditionError = getDaemonStartPreconditionError({
+      enabled: cursorConfig.enabled,
+      authenticated: authStatus.authenticated,
+      tokenExpired: authStatus.expired ?? false,
+    });
+
+    if (preconditionError) {
+      res.status(preconditionError.status).json({
+        success: false,
+        error: preconditionError.error,
+      });
+      return;
+    }
+
     const result = await startDaemon({
       port: cursorConfig.port,
       ghost_mode: cursorConfig.ghost_mode,
