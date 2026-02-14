@@ -613,6 +613,12 @@ export function CursorPage() {
                   className="w-5 h-5 object-contain shrink-0"
                 />
                 <h1 className="font-semibold">Cursor</h1>
+                <Badge
+                  variant="outline"
+                  className="h-5 border-amber-500/60 bg-amber-500/10 px-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-300"
+                >
+                  Beta
+                </Badge>
                 {integrationBadge}
               </div>
               <Button
