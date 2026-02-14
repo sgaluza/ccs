@@ -18,11 +18,25 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, ExternalLink, User, Download, Copy, Check } from 'lucide-react';
 import { useKiroImport } from '@/hooks/use-cliproxy';
 import { useCliproxyAuthFlow } from '@/hooks/use-cliproxy-auth-flow';
 import { applyDefaultPreset } from '@/lib/preset-utils';
-import { isDeviceCodeProvider, isNicknameRequiredProvider } from '@/lib/provider-config';
+import {
+  DEFAULT_KIRO_AUTH_METHOD,
+  getKiroAuthMethodOption,
+  isDeviceCodeProvider,
+  isNicknameRequiredProvider,
+  KIRO_AUTH_METHOD_OPTIONS,
+  KiroAuthMethod,
+} from '@/lib/provider-config';
 import { toast } from 'sonner';
 
 interface AddAccountDialogProps {
@@ -45,13 +59,16 @@ export function AddAccountDialog({
   const [callbackUrl, setCallbackUrl] = useState('');
   const [copied, setCopied] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [kiroAuthMethod, setKiroAuthMethod] = useState<KiroAuthMethod>(DEFAULT_KIRO_AUTH_METHOD);
   const wasAuthenticatingRef = useRef(false);
   const authFlow = useCliproxyAuthFlow();
   const kiroImportMutation = useKiroImport();
 
   const isKiro = provider === 'kiro';
-  const isDeviceCode = isDeviceCodeProvider(provider);
+  const defaultDeviceCode = isDeviceCodeProvider(provider);
   const requiresNickname = isNicknameRequiredProvider(provider);
+  const kiroMethodOption = getKiroAuthMethodOption(kiroAuthMethod);
+  const isDeviceCode = isKiro ? kiroMethodOption.flowType === 'device_code' : defaultDeviceCode;
   const isPending = authFlow.isAuthenticating || kiroImportMutation.isPending;
   const nicknameTrimmed = nickname.trim();
   const errorMessage = localError || authFlow.error;
@@ -61,6 +78,7 @@ export function AddAccountDialog({
     setCallbackUrl('');
     setCopied(false);
     setLocalError(null);
+    setKiroAuthMethod(DEFAULT_KIRO_AUTH_METHOD);
     wasAuthenticatingRef.current = false;
     onClose();
   };
@@ -119,7 +137,12 @@ export function AddAccountDialog({
     }
     setLocalError(null);
     wasAuthenticatingRef.current = true;
-    authFlow.startAuth(provider, { nickname: nicknameTrimmed || undefined });
+    authFlow.startAuth(provider, {
+      nickname: nicknameTrimmed || undefined,
+      kiroMethod: isKiro ? kiroAuthMethod : undefined,
+      flowType: isKiro ? kiroMethodOption.flowType : undefined,
+      startEndpoint: isKiro ? kiroMethodOption.startEndpoint : undefined,
+    });
   };
 
   const handleKiroImport = () => {
@@ -156,7 +179,7 @@ export function AddAccountDialog({
           <DialogTitle>Add {displayName} Account</DialogTitle>
           <DialogDescription>
             {isKiro
-              ? 'Authenticate via browser or import an existing token from Kiro IDE.'
+              ? 'Choose a Kiro auth method, then authenticate via browser or import from Kiro IDE.'
               : isDeviceCode
                 ? 'Click Authenticate. A verification code will appear for you to enter on the provider website.'
                 : 'Click Authenticate to get an OAuth URL. Open it in any browser to sign in.'}
@@ -164,6 +187,32 @@ export function AddAccountDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Kiro auth method */}
+          {isKiro && !showAuthUI && (
+            <div className="space-y-2">
+              <Label htmlFor="kiro-auth-method">Auth Method</Label>
+              <Select
+                value={kiroAuthMethod}
+                onValueChange={(value) => {
+                  setKiroAuthMethod(value as KiroAuthMethod);
+                  setLocalError(null);
+                }}
+              >
+                <SelectTrigger id="kiro-auth-method">
+                  <SelectValue placeholder="Select Kiro auth method" />
+                </SelectTrigger>
+                <SelectContent>
+                  {KIRO_AUTH_METHOD_OPTIONS.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{kiroMethodOption.description}</p>
+            </div>
+          )}
+
           {/* Nickname input - only show before auth starts */}
           {!showAuthUI && (
             <div className="space-y-2">
@@ -281,6 +330,12 @@ export function AddAccountDialog({
                     </Button>
                   </div>
                 </div>
+              )}
+
+              {!authFlow.authUrl && !authFlow.isDeviceCodeFlow && (
+                <p className="text-xs text-center text-muted-foreground">
+                  Preparing sign-in URL...
+                </p>
               )}
             </div>
           )}

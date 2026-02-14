@@ -90,3 +90,67 @@ export const NICKNAME_REQUIRED_PROVIDERS: CLIProxyProvider[] = ['ghcp', 'kiro'];
 export function isNicknameRequiredProvider(provider: string): boolean {
   return NICKNAME_REQUIRED_PROVIDERS.includes(provider as CLIProxyProvider);
 }
+
+/** Kiro auth methods exposed in CCS UI (aligned with CLIProxyAPIPlus support). */
+export const KIRO_AUTH_METHODS = ['aws', 'aws-authcode', 'google', 'github'] as const;
+export type KiroAuthMethod = (typeof KIRO_AUTH_METHODS)[number];
+
+export type KiroFlowType = 'authorization_code' | 'device_code';
+export type KiroStartEndpoint = 'start' | 'start-url';
+
+export interface KiroAuthMethodOption {
+  id: KiroAuthMethod;
+  label: string;
+  description: string;
+  flowType: KiroFlowType;
+  startEndpoint: KiroStartEndpoint;
+}
+
+/** UX-first default for issue #233: AWS Builder ID device flow. */
+export const DEFAULT_KIRO_AUTH_METHOD: KiroAuthMethod = 'aws';
+
+export const KIRO_AUTH_METHOD_OPTIONS: readonly KiroAuthMethodOption[] = [
+  {
+    id: 'aws',
+    label: 'AWS Builder ID (Recommended)',
+    description: 'Device code flow for AWS organizations and Builder ID accounts.',
+    flowType: 'device_code',
+    startEndpoint: 'start',
+  },
+  {
+    id: 'aws-authcode',
+    label: 'AWS Builder ID (Auth Code)',
+    description: 'Authorization code flow via CLI binary.',
+    flowType: 'authorization_code',
+    startEndpoint: 'start',
+  },
+  {
+    id: 'google',
+    label: 'Google OAuth',
+    description: 'Social OAuth flow with callback URL support.',
+    flowType: 'authorization_code',
+    startEndpoint: 'start-url',
+  },
+  {
+    id: 'github',
+    label: 'GitHub OAuth',
+    description: 'Social OAuth flow via management API callback.',
+    flowType: 'authorization_code',
+    startEndpoint: 'start-url',
+  },
+];
+
+export function isKiroAuthMethod(value: string): value is KiroAuthMethod {
+  return KIRO_AUTH_METHODS.includes(value as KiroAuthMethod);
+}
+
+export function normalizeKiroAuthMethod(value?: string): KiroAuthMethod {
+  if (!value) return DEFAULT_KIRO_AUTH_METHOD;
+  const normalized = value.trim().toLowerCase();
+  return isKiroAuthMethod(normalized) ? normalized : DEFAULT_KIRO_AUTH_METHOD;
+}
+
+export function getKiroAuthMethodOption(method: KiroAuthMethod): KiroAuthMethodOption {
+  const option = KIRO_AUTH_METHOD_OPTIONS.find((candidate) => candidate.id === method);
+  return option || KIRO_AUTH_METHOD_OPTIONS[0];
+}
