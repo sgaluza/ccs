@@ -17,6 +17,7 @@ import { isUnifiedMode } from '../../config/unified-config-loader';
 import { deleteConfigForPort } from '../config-generator';
 import { hasActiveSessions, deleteSessionLockForPort } from '../session-tracker';
 import { warn } from '../../utils/ui';
+import { getCcsDir } from '../../utils/config-manager';
 import { validateCompositeTiers } from '../composite-validator';
 import {
   createSettingsFile,
@@ -24,7 +25,6 @@ import {
   createCompositeSettingsFile,
   deleteSettingsFile,
   getRelativeSettingsPath,
-  getCompositeRelativeSettingsPath,
   updateSettingsModel,
   updateSettingsProviderAndModel,
 } from './variant-settings';
@@ -359,7 +359,7 @@ export function createCompositeVariant(
       type: 'composite',
       default_tier: defaultTier,
       tiers,
-      settings: getCompositeRelativeSettingsPath(name),
+      settings: settingsPath,
       port,
     };
     saveCompositeVariantUnified(name, compositeConfig);
@@ -436,7 +436,8 @@ export function updateCompositeVariant(
     }
 
     // Preserve existing settings path when configured; otherwise use default path.
-    const settingsRef = existing.settings || getCompositeRelativeSettingsPath(name);
+    const settingsRef =
+      existing.settings || path.join(getCcsDir(), `composite-${name}.settings.json`);
 
     // Create new settings file with updated config
     const settingsPath = createCompositeSettingsFile(

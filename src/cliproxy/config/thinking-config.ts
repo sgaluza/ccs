@@ -180,16 +180,17 @@ export function applyThinkingConfig(
   // Get base model to check thinking support
   const baseModel = result.ANTHROPIC_MODEL || '';
   const normalizedBaseModel = normalizeModelForThinkingLookup(baseModel, provider);
-  if (!supportsThinking(provider, normalizedBaseModel)) {
-    // U2: Warn user if they explicitly provided --thinking but model doesn't support it
-    if (thinkingOverride !== undefined && shouldShowWarnings(thinkingConfig)) {
-      console.warn(
-        warn(
-          `Model ${baseModel || 'unknown'} (provider: ${provider}) does not support thinking budget. --thinking flag ignored.`
-        )
-      );
-    }
-    return result;
+  const baseModelSupportsThinking = supportsThinking(provider, normalizedBaseModel);
+  if (
+    !baseModelSupportsThinking &&
+    thinkingOverride !== undefined &&
+    shouldShowWarnings(thinkingConfig)
+  ) {
+    console.warn(
+      warn(
+        `Model ${baseModel || 'unknown'} (provider: ${provider}) does not support thinking budget. --thinking flag ignored for default model.`
+      )
+    );
   }
 
   // Determine thinking value to use
@@ -215,12 +216,14 @@ export function applyThinkingConfig(
     return result; // No thinking to apply
   }
 
-  // Validate thinking value against model capabilities
-  const validation = validateThinking(provider, normalizedBaseModel, thinkingValue);
-  if (validation.warning && shouldShowWarnings(thinkingConfig)) {
-    console.warn(warn(validation.warning));
+  if (baseModelSupportsThinking) {
+    // Validate thinking value against default model capabilities.
+    const validation = validateThinking(provider, normalizedBaseModel, thinkingValue);
+    if (validation.warning && shouldShowWarnings(thinkingConfig)) {
+      console.warn(warn(validation.warning));
+    }
+    thinkingValue = validation.value;
   }
-  thinkingValue = validation.value;
 
   // If auto-detection resolves default tier to "off", skip the main model but still allow
   // explicit per-tier thinking values for other tiers.
@@ -232,7 +235,7 @@ export function applyThinkingConfig(
       return result; // No thinking to apply anywhere
     }
     // Otherwise, continue to process tiers with their own config (skip main model)
-  } else if (result.ANTHROPIC_MODEL) {
+  } else if (baseModelSupportsThinking && result.ANTHROPIC_MODEL) {
     // Apply thinking suffix to main model (only if not off)
     result.ANTHROPIC_MODEL = applyThinkingSuffixForProvider(
       result.ANTHROPIC_MODEL,

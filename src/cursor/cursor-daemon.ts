@@ -10,22 +10,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import type { CursorDaemonConfig, CursorDaemonStatus } from './types';
-import { getCcsDir } from '../utils/config-manager';
-
-/**
- * Get Cursor directory path.
- */
-function getCursorDir(): string {
-  return path.join(getCcsDir(), 'cursor');
-}
-
-/**
- * Get PID file path.
- * Computed at runtime to respect CCS_HOME changes (e.g., in tests).
- */
-function getPidFilePath(): string {
-  return path.join(getCursorDir(), 'daemon.pid');
-}
+import { getPidFromFile, writePidToFile, removePidFile } from './cursor-daemon-pid';
+import { verifyDaemonOwnership } from './daemon-process-ownership';
+export { getPidFromFile, writePidToFile, removePidFile } from './cursor-daemon-pid';
 
 /**
  * Resolve daemon entrypoint candidates for current runtime.
@@ -77,8 +64,26 @@ export async function isDaemonRunning(port: number): Promise<boolean> {
         timeout: 3000,
       },
       (res) => {
-        res.resume(); // Drain response body
-        resolve(res.statusCode === 200);
+        let body = '';
+        res.setEncoding('utf8');
+
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            resolve(false);
+            return;
+          }
+
+          try {
+            const payload = JSON.parse(body) as { service?: string };
+            resolve(payload.service === 'cursor-daemon');
+          } catch {
+            resolve(false);
+          }
+        });
       }
     );
 
@@ -107,53 +112,6 @@ export async function getDaemonStatus(port: number): Promise<CursorDaemonStatus>
     port,
     pid: running ? (pid ?? undefined) : undefined,
   };
-}
-
-/**
- * Read PID from file.
- */
-export function getPidFromFile(): number | null {
-  const pidFile = getPidFilePath();
-  try {
-    if (fs.existsSync(pidFile)) {
-      const content = fs.readFileSync(pidFile, 'utf8').trim();
-      const pid = parseInt(content, 10);
-      return isNaN(pid) ? null : pid;
-    }
-  } catch {
-    // Ignore errors
-  }
-  return null;
-}
-
-/**
- * Write PID to file.
- */
-export function writePidToFile(pid: number): void {
-  const pidFile = getPidFilePath();
-  try {
-    const dir = path.dirname(pidFile);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    }
-    fs.writeFileSync(pidFile, pid.toString(), { mode: 0o600 });
-  } catch {
-    // Ignore errors
-  }
-}
-
-/**
- * Remove PID file.
- */
-export function removePidFile(): void {
-  const pidFile = getPidFilePath();
-  try {
-    if (fs.existsSync(pidFile)) {
-      fs.unlinkSync(pidFile);
-    }
-  } catch {
-    // Ignore errors
-  }
 }
 
 /**
@@ -292,16 +250,23 @@ export async function stopDaemon(): Promise<{ success: boolean; error?: string }
   }
 
   try {
-    // Verify the PID belongs to our daemon before signaling
-    try {
-      const cmdline = fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8');
-      if (!cmdline.includes('--ccs-daemon')) {
-        // PID was reused by an unrelated process
-        removePidFile();
-        return { success: true };
-      }
-    } catch {
-      // /proc not available (macOS/Windows) or process gone — proceed with kill
+    const ownership = verifyDaemonOwnership(pid);
+    if (ownership === 'not-running') {
+      removePidFile();
+      return { success: true };
+    }
+
+    if (ownership === 'not-owned') {
+      // PID was reused by an unrelated process.
+      removePidFile();
+      return { success: true };
+    }
+
+    if (ownership === 'unknown') {
+      return {
+        success: false,
+        error: `Refusing to stop PID ${pid}: unable to verify daemon ownership`,
+      };
     }
 
     // Send SIGTERM to the process

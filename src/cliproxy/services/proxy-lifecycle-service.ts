@@ -41,15 +41,15 @@ export interface StartProxyResult {
 /**
  * Get current proxy status
  */
-export function getProxyStatus(): ProxyStatusResult {
-  return getProxyStatusSession();
+export function getProxyStatus(port?: number): ProxyStatusResult {
+  return getProxyStatusSession(port);
 }
 
 /**
  * Stop the running CLIProxy instance
  */
-export async function stopProxy(): Promise<StopProxyResult> {
-  return stopProxySession();
+export async function stopProxy(port?: number): Promise<StopProxyResult> {
+  return stopProxySession(port);
 }
 
 /**

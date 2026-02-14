@@ -407,6 +407,26 @@ cliproxy:
     expect(result.success).toBe(false);
     expect(result.error).toContain("Invalid tier config for 'opus'");
   });
+
+  it('stores composite settings path under active CCS_DIR', () => {
+    const result = createCompositeVariant({
+      name: 'scoped',
+      defaultTier: 'sonnet',
+      tiers: {
+        opus: { provider: 'gemini', model: 'gemini-2.5-pro' },
+        sonnet: { provider: 'agy', model: 'claude-sonnet-4-5-thinking' },
+        haiku: { provider: 'agy', model: 'claude-haiku-4-5-20251001' },
+      },
+    });
+
+    expect(result.success).toBe(true);
+
+    const variants = listVariantsFromConfig();
+    const expectedPath = path.join(tmpDir, 'composite-scoped.settings.json');
+    expect(variants.scoped.settings).toBe(expectedPath);
+    expect(result.settingsPath).toBe(expectedPath);
+    expect(fs.existsSync(expectedPath)).toBe(true);
+  });
 });
 
 describe('saveCompositeVariantUnified', () => {

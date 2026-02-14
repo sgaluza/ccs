@@ -11,14 +11,25 @@
 import { initUI, header, color, dim, ok, warn, info } from '../../utils/ui';
 import { getProxyStatus, startProxy, stopProxy } from '../../cliproxy/services';
 import { detectRunningProxy } from '../../cliproxy/proxy-detector';
-import { CLIPROXY_DEFAULT_PORT } from '../../cliproxy/config-generator';
+import { CLIPROXY_DEFAULT_PORT, validatePort } from '../../cliproxy/config/port-manager';
+import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
+
+/**
+ * Resolve the local CLIProxy lifecycle port from unified config.
+ * Falls back to default port when unset/invalid.
+ */
+export function resolveLifecyclePort(): number {
+  const config = loadOrCreateUnifiedConfig();
+  return validatePort(config.cliproxy_server?.local?.port ?? CLIPROXY_DEFAULT_PORT);
+}
 
 export async function handleStart(verbose = false): Promise<void> {
   await initUI();
   console.log(header('Start CLIProxy'));
   console.log('');
 
-  const result = await startProxy(CLIPROXY_DEFAULT_PORT, verbose);
+  const port = resolveLifecyclePort();
+  const result = await startProxy(port, verbose);
   if (result.started) {
     if (result.alreadyRunning) {
       console.log(info(`CLIProxy already running on port ${result.port}`));
@@ -40,7 +51,8 @@ export async function handleRestart(verbose = false): Promise<void> {
   console.log(header('Restart CLIProxy'));
   console.log('');
 
-  const stopResult = await stopProxy();
+  const port = resolveLifecyclePort();
+  const stopResult = await stopProxy(port);
   if (stopResult.stopped) {
     console.log(ok(`CLIProxy stopped (PID ${stopResult.pid})`));
   } else if (stopResult.error === 'No active CLIProxy session found') {
@@ -50,7 +62,7 @@ export async function handleRestart(verbose = false): Promise<void> {
     console.log(info('Attempting to start a fresh instance...'));
   }
 
-  const startResult = await startProxy(CLIPROXY_DEFAULT_PORT, verbose);
+  const startResult = await startProxy(port, verbose);
   if (startResult.started) {
     if (startResult.alreadyRunning) {
       console.log(info(`CLIProxy already running on port ${startResult.port}`));
@@ -69,7 +81,8 @@ export async function handleProxyStatus(): Promise<void> {
   console.log(header('CLIProxy Status'));
   console.log('');
 
-  const status = getProxyStatus();
+  const port = resolveLifecyclePort();
+  const status = getProxyStatus(port);
   if (status.running) {
     console.log(`  Status:     ${color('Running', 'success')}`);
     console.log(`  PID:        ${status.pid}`);
@@ -82,11 +95,11 @@ export async function handleProxyStatus(): Promise<void> {
     console.log(dim('To stop: ccs cliproxy stop'));
   } else {
     // Fallback: detect untracked/orphaned proxy process (e.g. detached session without lock file).
-    const detected = await detectRunningProxy();
+    const detected = await detectRunningProxy(port);
     if (detected.running && detected.verified) {
       console.log(`  Status:     ${color('Running', 'success')}`);
       console.log(`  PID:        ${detected.pid ?? 'unknown'}`);
-      console.log(`  Port:       ${CLIPROXY_DEFAULT_PORT}`);
+      console.log(`  Port:       ${port}`);
       console.log(`  Sessions:   ${detected.sessionCount || 0} active`);
       if (!detected.sessionCount) {
         console.log(dim('  Note: Detected running proxy without local session lock'));
@@ -107,7 +120,8 @@ export async function handleStop(): Promise<void> {
   console.log(header('Stop CLIProxy'));
   console.log('');
 
-  const result = await stopProxy();
+  const port = resolveLifecyclePort();
+  const result = await stopProxy(port);
   if (result.stopped) {
     console.log(ok(`CLIProxy stopped (PID ${result.pid})`));
     if (result.sessionCount && result.sessionCount > 0) {
