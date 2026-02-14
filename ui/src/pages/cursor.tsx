@@ -766,8 +766,8 @@ export function CursorPage() {
           </div>
         </div>
 
-        <div className="flex-1 min-w-0 bg-background overflow-hidden">
-          <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b bg-background flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
                 <div>
@@ -823,8 +823,8 @@ export function CursorPage() {
               </div>
             </div>
 
-            <div className="flex-1 flex divide-x overflow-hidden">
-              <div className="w-[540px] shrink-0 flex flex-col overflow-hidden bg-muted/5">
+            <div className="flex-1 min-h-0 flex divide-x overflow-hidden">
+              <div className="w-[540px] shrink-0 flex flex-col min-h-0 overflow-hidden bg-muted/5">
                 <Tabs defaultValue="config" className="h-full flex flex-col">
                   <div className="px-4 pt-4 shrink-0">
                     <TabsList className="w-full">
@@ -840,7 +840,7 @@ export function CursorPage() {
                     </TabsList>
                   </div>
 
-                  <div className="flex-1 overflow-hidden flex flex-col">
+                  <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     <TabsContent
                       value="config"
                       className="flex-1 mt-0 border-0 p-0 data-[state=inactive]:hidden flex flex-col overflow-hidden"
@@ -1017,10 +1017,28 @@ export function CursorPage() {
 
                     <TabsContent
                       value="info"
-                      className="h-full mt-0 border-0 p-0 data-[state=inactive]:hidden"
+                      className="flex-1 mt-0 border-0 p-0 data-[state=inactive]:hidden flex flex-col overflow-hidden"
                     >
-                      <ScrollArea className="h-full">
+                      <ScrollArea className="flex-1">
                         <div className="p-4 space-y-6">
+                          <div className="space-y-3 bg-card rounded-lg border p-4 shadow-sm">
+                            <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
+                              <span className="font-medium text-muted-foreground">Provider</span>
+                              <span className="font-mono">Cursor IDE</span>
+                            </div>
+                            <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
+                              <span className="font-medium text-muted-foreground">File Path</span>
+                              <code className="bg-muted px-1.5 py-0.5 rounded text-xs break-all">
+                                {rawSettings?.path ?? '~/.ccs/cursor.settings.json'}
+                              </code>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Model mapping writes `ANTHROPIC_MODEL`,
+                              `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, and
+                              `ANTHROPIC_DEFAULT_HAIKU_MODEL` in `cursor.settings.json`.
+                            </p>
+                          </div>
+
                           <div>
                             <h3 className="text-sm font-medium mb-3">Available Models</h3>
                             {modelsLoading ? (
@@ -1050,24 +1068,6 @@ export function CursorPage() {
                                 ))}
                               </div>
                             )}
-                          </div>
-
-                          <div className="space-y-3 bg-card rounded-lg border p-4 shadow-sm">
-                            <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                              <span className="font-medium text-muted-foreground">Provider</span>
-                              <span className="font-mono">Cursor IDE</span>
-                            </div>
-                            <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
-                              <span className="font-medium text-muted-foreground">File Path</span>
-                              <code className="bg-muted px-1.5 py-0.5 rounded text-xs break-all">
-                                {rawSettings?.path ?? '~/.ccs/cursor.settings.json'}
-                              </code>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Model mapping writes `ANTHROPIC_MODEL`,
-                              `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, and
-                              `ANTHROPIC_DEFAULT_HAIKU_MODEL` in `cursor.settings.json`.
-                            </p>
                           </div>
                         </div>
                       </ScrollArea>
