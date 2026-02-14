@@ -5,27 +5,14 @@
  * Uses CursorExecutor for OpenAI-compatible API proxy to Cursor backend.
  */
 
-import { spawn, spawnSync, ChildProcess } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import type { CursorDaemonConfig, CursorDaemonStatus } from './types';
-import { getCcsDir } from '../utils/config-manager';
-
-/**
- * Get Cursor directory path.
- */
-function getCursorDir(): string {
-  return path.join(getCcsDir(), 'cursor');
-}
-
-/**
- * Get PID file path.
- * Computed at runtime to respect CCS_HOME changes (e.g., in tests).
- */
-function getPidFilePath(): string {
-  return path.join(getCursorDir(), 'daemon.pid');
-}
+import { getPidFromFile, writePidToFile, removePidFile } from './cursor-daemon-pid';
+import { verifyDaemonOwnership } from './daemon-process-ownership';
+export { getPidFromFile, writePidToFile, removePidFile } from './cursor-daemon-pid';
 
 /**
  * Resolve daemon entrypoint candidates for current runtime.
@@ -113,79 +100,6 @@ export async function isDaemonRunning(port: number): Promise<boolean> {
   });
 }
 
-type DaemonOwnershipStatus = 'owned' | 'not-owned' | 'not-running' | 'unknown';
-
-function getProcessCommandLine(pid: number): string | null {
-  if (process.platform === 'linux') {
-    try {
-      // /proc cmdline uses null separators between arguments.
-      return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').replace(/\0/g, ' ').trim();
-    } catch {
-      return null;
-    }
-  }
-
-  if (process.platform === 'darwin') {
-    try {
-      const result = spawnSync('ps', ['-p', String(pid), '-o', 'command='], {
-        encoding: 'utf8',
-      });
-      if (result.error || result.status !== 0) {
-        return null;
-      }
-      return result.stdout.trim();
-    } catch {
-      return null;
-    }
-  }
-
-  if (process.platform === 'win32') {
-    const command = `(Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" | Select-Object -ExpandProperty CommandLine)`;
-    const shells = ['powershell.exe', 'powershell', 'pwsh.exe', 'pwsh'];
-    for (const shell of shells) {
-      try {
-        const result = spawnSync(shell, ['-NoProfile', '-Command', command], {
-          encoding: 'utf8',
-        });
-        if (result.error) {
-          continue;
-        }
-        if (result.status !== 0) {
-          return null;
-        }
-        return result.stdout.trim();
-      } catch {
-        // Try next shell candidate
-      }
-    }
-    return null;
-  }
-
-  return null;
-}
-
-function verifyDaemonOwnership(pid: number): DaemonOwnershipStatus {
-  try {
-    process.kill(pid, 0);
-  } catch (err) {
-    const error = err as NodeJS.ErrnoException;
-    if (error.code === 'ESRCH') {
-      return 'not-running';
-    }
-    return 'unknown';
-  }
-
-  const commandLine = getProcessCommandLine(pid);
-  if (!commandLine) {
-    return 'unknown';
-  }
-
-  const looksLikeCursorDaemon =
-    commandLine.includes('--ccs-daemon') && commandLine.includes('cursor-daemon-entry');
-
-  return looksLikeCursorDaemon ? 'owned' : 'not-owned';
-}
-
 /**
  * Get daemon status.
  */
@@ -198,53 +112,6 @@ export async function getDaemonStatus(port: number): Promise<CursorDaemonStatus>
     port,
     pid: running ? (pid ?? undefined) : undefined,
   };
-}
-
-/**
- * Read PID from file.
- */
-export function getPidFromFile(): number | null {
-  const pidFile = getPidFilePath();
-  try {
-    if (fs.existsSync(pidFile)) {
-      const content = fs.readFileSync(pidFile, 'utf8').trim();
-      const pid = parseInt(content, 10);
-      return isNaN(pid) ? null : pid;
-    }
-  } catch {
-    // Ignore errors
-  }
-  return null;
-}
-
-/**
- * Write PID to file.
- */
-export function writePidToFile(pid: number): void {
-  const pidFile = getPidFilePath();
-  try {
-    const dir = path.dirname(pidFile);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    }
-    fs.writeFileSync(pidFile, pid.toString(), { mode: 0o600 });
-  } catch {
-    // Ignore errors
-  }
-}
-
-/**
- * Remove PID file.
- */
-export function removePidFile(): void {
-  const pidFile = getPidFilePath();
-  try {
-    if (fs.existsSync(pidFile)) {
-      fs.unlinkSync(pidFile);
-    }
-  } catch {
-    // Ignore errors
-  }
 }
 
 /**
