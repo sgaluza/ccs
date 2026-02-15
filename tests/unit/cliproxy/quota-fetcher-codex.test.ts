@@ -5,7 +5,10 @@
  */
 
 import { describe, it, expect } from 'bun:test';
-import { buildCodexQuotaWindows } from '../../../src/cliproxy/quota-fetcher-codex';
+import {
+  buildCodexQuotaWindows,
+  buildCodexCoreUsageSummary,
+} from '../../../src/cliproxy/quota-fetcher-codex';
 
 describe('Codex Quota Fetcher', () => {
   describe('buildCodexQuotaWindows', () => {
@@ -185,6 +188,71 @@ describe('Codex Quota Fetcher', () => {
 
       expect(windows[0].usedPercent).toBe(0);
       expect(windows[0].remainingPercent).toBe(100);
+    });
+  });
+
+  describe('buildCodexCoreUsageSummary', () => {
+    it('extracts 5h and weekly windows from labeled usage windows', () => {
+      const windows = buildCodexQuotaWindows({
+        rate_limit: {
+          primary_window: {
+            used_percent: 35,
+            reset_after_seconds: 18000,
+          },
+          secondary_window: {
+            used_percent: 60,
+            reset_after_seconds: 604800,
+          },
+        },
+      });
+
+      const summary = buildCodexCoreUsageSummary(windows);
+
+      expect(summary.fiveHour?.label).toBe('Primary');
+      expect(summary.fiveHour?.remainingPercent).toBe(65);
+      expect(summary.fiveHour?.resetAfterSeconds).toBe(18000);
+      expect(summary.weekly?.label).toBe('Secondary');
+      expect(summary.weekly?.remainingPercent).toBe(40);
+      expect(summary.weekly?.resetAfterSeconds).toBe(604800);
+    });
+
+    it('falls back to shortest and longest reset windows when labels are unknown', () => {
+      const windows = [
+        {
+          label: 'Window A',
+          usedPercent: 20,
+          remainingPercent: 80,
+          resetAfterSeconds: 18000,
+          resetAt: '2026-02-15T15:00:00Z',
+        },
+        {
+          label: 'Window B',
+          usedPercent: 45,
+          remainingPercent: 55,
+          resetAfterSeconds: 604800,
+          resetAt: '2026-02-21T10:00:00Z',
+        },
+        {
+          label: 'Code Review (Primary)',
+          usedPercent: 10,
+          remainingPercent: 90,
+          resetAfterSeconds: 3600,
+          resetAt: '2026-02-15T11:00:00Z',
+        },
+      ];
+
+      const summary = buildCodexCoreUsageSummary(windows);
+
+      expect(summary.fiveHour?.label).toBe('Window A');
+      expect(summary.fiveHour?.resetAfterSeconds).toBe(18000);
+      expect(summary.weekly?.label).toBe('Window B');
+      expect(summary.weekly?.resetAfterSeconds).toBe(604800);
+    });
+
+    it('returns null summaries when no windows are available', () => {
+      const summary = buildCodexCoreUsageSummary([]);
+      expect(summary.fiveHour).toBeNull();
+      expect(summary.weekly).toBeNull();
     });
   });
 });
