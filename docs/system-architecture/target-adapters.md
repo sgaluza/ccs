@@ -95,16 +95,11 @@ export function resolveTargetType(
   args: string[],
   profileConfig?: { target?: TargetType }
 ): TargetType {
-  // 1. Check --target flag
-  const targetIdx = args.indexOf('--target');
-  if (targetIdx !== -1 && args[targetIdx + 1]) {
-    const flagValue = args[targetIdx + 1];
-    if (VALID_TARGETS.has(flagValue)) {
-      return flagValue as TargetType;
-    }
-    // Invalid target → error
-    console.error(`[X] Unknown target "${flagValue}". Available: claude, droid`);
-    process.exit(1);
+  // 1. Parse --target flags (supports --target value and --target=value)
+  // Repeated flags: last one wins.
+  const parsed = parseTargetFlags(args);
+  if (parsed.targetOverride) {
+    return parsed.targetOverride;
   }
 
   // 2. Check profile config
@@ -113,7 +108,7 @@ export function resolveTargetType(
   }
 
   // 3. Check argv[0] (binary name)
-  const binName = path.basename(process.argv[1] || '').replace(/\.(cmd|bat)$/i, '');
+  const binName = path.basename(process.argv[1] || process.argv0 || '').replace(/\.(cmd|bat|ps1|exe)$/i, '');
   if (ARGV0_TARGET_MAP[binName]) {
     return ARGV0_TARGET_MAP[binName];
   }
@@ -194,8 +189,14 @@ export class ClaudeAdapter implements TargetAdapter {
     }
 
     // Handle process termination
-    process.on('SIGINT', () => child.kill('SIGINT'));
-    process.on('SIGTERM', () => child.kill('SIGTERM'));
+    const onSigInt = () => child.kill('SIGINT');
+    const onSigTerm = () => child.kill('SIGTERM');
+    process.once('SIGINT', onSigInt);
+    process.once('SIGTERM', onSigTerm);
+    child.on('exit', () => {
+      process.removeListener('SIGINT', onSigInt);
+      process.removeListener('SIGTERM', onSigTerm);
+    });
   }
 
   supportsProfileType(profileType: string): boolean {
@@ -253,12 +254,10 @@ export class DroidAdapter implements TargetAdapter {
   }
 
   async prepareCredentials(creds: TargetCredentials): Promise<void> {
-    const profile = creds.envVars?.['CCS_PROFILE_NAME'] || 'default';
-
     // Write custom model entry to ~/.factory/settings.json
-    await upsertCcsModel(profile, {
+    await upsertCcsModel(creds.profile, {
       model: creds.model || 'claude-opus-4-6',
-      displayName: `CCS ${profile}`,
+      displayName: `CCS ${creds.profile}`,
       baseUrl: creds.baseUrl,
       apiKey: creds.apiKey,
       provider: creds.provider || 'anthropic',
@@ -296,13 +295,19 @@ export class DroidAdapter implements TargetAdapter {
     }
 
     // Handle process termination
-    process.on('SIGINT', () => child.kill('SIGINT'));
-    process.on('SIGTERM', () => child.kill('SIGTERM'));
+    const onSigInt = () => child.kill('SIGINT');
+    const onSigTerm = () => child.kill('SIGTERM');
+    process.once('SIGINT', onSigInt);
+    process.once('SIGTERM', onSigTerm);
+    child.on('exit', () => {
+      process.removeListener('SIGINT', onSigInt);
+      process.removeListener('SIGTERM', onSigTerm);
+    });
   }
 
   supportsProfileType(profileType: string): boolean {
-    // Droid supports all profile types (like Claude)
-    return true;
+    // Droid currently supports direct settings/default paths only
+    return profileType === 'settings' || profileType === 'default';
   }
 }
 ```
@@ -313,22 +318,22 @@ export class DroidAdapter implements TargetAdapter {
 
 ```json
 {
-  "customModels": {
-    "ccs-gemini": {
+  "customModels": [
+    {
       "model": "claude-opus-4-6",
       "displayName": "CCS gemini",
       "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai/",
       "apiKey": "AIza...",
       "provider": "openai"
     },
-    "ccs-glm": {
+    {
       "model": "glm-4",
       "displayName": "CCS glm",
       "baseUrl": "https://open.bigmodel.cn/api/paas/v4/",
       "apiKey": "your-glm-key",
       "provider": "openai"
     }
-  }
+  ]
 }
 ```
 
@@ -349,7 +354,7 @@ ccs --target droid glm
 ### Binary Alias Pattern
 
 ```bash
-# Create symlink to auto-select droid target
+# Create alias/symlink to auto-select droid target
 ln -s /path/to/ccs /path/to/ccsd
 
 # Usage
@@ -357,6 +362,8 @@ ccsd glm
 → Target: droid (detected from argv[0])
 → droid -m custom:ccs-glm "args..."
 ```
+
+On Windows, `ccsd.cmd`, `ccsd.bat`, `ccsd.ps1`, and `ccsd.exe` wrappers are also recognized.
 
 ---
 
@@ -552,8 +559,15 @@ export function escapeShellArg(arg: string): string {
 Both adapters propagate signals from parent to child:
 
 ```typescript
-process.on('SIGINT', () => child.kill('SIGINT'));
-process.on('SIGTERM', () => child.kill('SIGTERM'));
+const onSigInt = () => child.kill('SIGINT');
+const onSigTerm = () => child.kill('SIGTERM');
+process.once('SIGINT', onSigInt);
+process.once('SIGTERM', onSigTerm);
+
+child.on('exit', () => {
+  process.removeListener('SIGINT', onSigInt);
+  process.removeListener('SIGTERM', onSigTerm);
+});
 ```
 
 This ensures CTRL+C and graceful shutdowns work correctly.
@@ -578,7 +592,7 @@ describe('ClaudeAdapter', () => {
       baseUrl: 'https://api.anthropic.com',
       apiKey: 'sk-ant-...',
       model: 'claude-opus-4-6',
-    }, 'clipproxy');
+    }, 'cliproxy');
 
     expect(env['ANTHROPIC_AUTH_TOKEN']).toBe('sk-ant-...');
   });

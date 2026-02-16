@@ -2,6 +2,9 @@
  * Unit tests for target registry and adapters
  */
 import { describe, it, expect, beforeEach } from 'bun:test';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import {
   registerTarget,
   getTarget,
@@ -112,11 +115,14 @@ describe('DroidAdapter', () => {
     expect(adapter.supportsProfileType('account')).toBe(false);
   });
 
-  it('should support non-account profile types', () => {
+  it('should support settings and default profile types', () => {
     expect(adapter.supportsProfileType('settings')).toBe(true);
-    expect(adapter.supportsProfileType('cliproxy')).toBe(true);
     expect(adapter.supportsProfileType('default')).toBe(true);
-    expect(adapter.supportsProfileType('copilot')).toBe(true);
+  });
+
+  it('should NOT support cliproxy and copilot profile types', () => {
+    expect(adapter.supportsProfileType('cliproxy')).toBe(false);
+    expect(adapter.supportsProfileType('copilot')).toBe(false);
   });
 
   it('should build args with -m custom:ccs- prefix', () => {
@@ -136,5 +142,45 @@ describe('DroidAdapter', () => {
     // Droid uses config file, not env vars
     expect(env['ANTHROPIC_BASE_URL']).toBeUndefined();
     expect(env['ANTHROPIC_AUTH_TOKEN']).toBeUndefined();
+  });
+
+  it('prepareCredentials should reject missing required credentials', async () => {
+    await expect(
+      adapter.prepareCredentials({
+        profile: 'gemini',
+        baseUrl: '',
+        apiKey: 'dummy',
+      })
+    ).rejects.toThrow(/ANTHROPIC_BASE_URL/);
+
+    await expect(
+      adapter.prepareCredentials({
+        profile: 'gemini',
+        baseUrl: 'http://localhost:8317',
+        apiKey: '',
+      })
+    ).rejects.toThrow(/ANTHROPIC_AUTH_TOKEN/);
+  });
+
+  it('prepareCredentials should persist valid credentials', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-droid-adapter-test-'));
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpDir;
+
+    try {
+      await adapter.prepareCredentials({
+        profile: 'gemini',
+        baseUrl: 'http://localhost:8317',
+        apiKey: 'dummy-key',
+        model: 'claude-opus-4-6',
+      });
+
+      const settingsPath = path.join(tmpDir, '.factory', 'settings.json');
+      expect(fs.existsSync(settingsPath)).toBe(true);
+    } finally {
+      if (originalCcsHome !== undefined) process.env.CCS_HOME = originalCcsHome;
+      else delete process.env.CCS_HOME;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });

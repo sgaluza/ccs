@@ -59,7 +59,11 @@ export interface TargetAdapter {
   buildEnv(creds: TargetCredentials, profileType: string): NodeJS.ProcessEnv;
 
   /** Spawn the target CLI process (replaces current process flow) */
-  exec(args: string[], env: NodeJS.ProcessEnv, options?: { cwd?: string }): void;
+  exec(
+    args: string[],
+    env: NodeJS.ProcessEnv,
+    options?: { cwd?: string; binaryInfo?: TargetBinaryInfo }
+  ): void;
 
   /** Check if a profile type is supported by this target */
   supportsProfileType(profileType: string): boolean;

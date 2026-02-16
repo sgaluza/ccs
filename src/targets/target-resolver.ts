@@ -24,6 +24,64 @@ const ARGV0_TARGET_MAP: Record<string, TargetType> = {
  */
 const VALID_TARGETS: ReadonlySet<string> = new Set<TargetType>(['claude', 'droid']);
 
+interface ParsedTargetFlags {
+  targetOverride?: TargetType;
+  cleanedArgs: string[];
+}
+
+function normalizeTargetValue(value: string): TargetType {
+  const normalized = value.toLowerCase();
+  if (VALID_TARGETS.has(normalized)) {
+    return normalized as TargetType;
+  }
+
+  const available = Array.from(VALID_TARGETS).join(', ');
+  throw new Error(`Unknown target "${value}". Available: ${available}`);
+}
+
+/**
+ * Parse and strip all --target flags from args.
+ * Supports both "--target value" and "--target=value" forms.
+ * For repeated flags, last one wins (common CLI precedence behavior).
+ */
+function parseTargetFlags(args: string[]): ParsedTargetFlags {
+  const cleanedArgs: string[] = [];
+  let targetOverride: TargetType | undefined;
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+
+    // POSIX option terminator: everything after `--` is positional.
+    if (arg === '--') {
+      cleanedArgs.push(...args.slice(i));
+      break;
+    }
+
+    if (arg === '--target') {
+      const value = args[i + 1];
+      if (!value || value.startsWith('-')) {
+        throw new Error('--target requires a value (claude or droid)');
+      }
+      targetOverride = normalizeTargetValue(value);
+      i += 1; // Skip value
+      continue;
+    }
+
+    if (arg.startsWith('--target=')) {
+      const value = arg.slice('--target='.length).trim();
+      if (!value) {
+        throw new Error('--target requires a value (claude or droid)');
+      }
+      targetOverride = normalizeTargetValue(value);
+      continue;
+    }
+
+    cleanedArgs.push(arg);
+  }
+
+  return { targetOverride, cleanedArgs };
+}
+
 /**
  * Resolve target type from multiple sources with priority ordering.
  *
@@ -35,15 +93,11 @@ export function resolveTargetType(
   args: string[],
   profileConfig?: { target?: TargetType }
 ): TargetType {
+  const parsed = parseTargetFlags(args);
+
   // 1. Check --target flag (highest priority)
-  const targetIdx = args.indexOf('--target');
-  if (targetIdx !== -1 && args[targetIdx + 1]) {
-    const flagValue = args[targetIdx + 1];
-    if (VALID_TARGETS.has(flagValue)) {
-      return flagValue as TargetType;
-    }
-    const available = Array.from(VALID_TARGETS).join(', ');
-    throw new Error(`Unknown target "${flagValue}". Available: ${available}`);
+  if (parsed.targetOverride) {
+    return parsed.targetOverride;
   }
 
   // 2. Check per-profile config
@@ -52,9 +106,9 @@ export function resolveTargetType(
   }
 
   // 3. Check argv[0] (busybox pattern)
-  // Strip .cmd/.bat extension for Windows npm shims
-  const rawBin = path.basename(process.argv[1] || '');
-  const binName = rawBin.replace(/\.(cmd|bat)$/i, '');
+  // Strip common wrapper extensions for Windows shims/wrappers
+  const rawBin = path.basename(process.argv[1] || process.argv0 || '');
+  const binName = rawBin.replace(/\.(cmd|bat|ps1|exe)$/i, '');
   const argv0Target = ARGV0_TARGET_MAP[binName];
   if (argv0Target) {
     return argv0Target;
@@ -69,11 +123,5 @@ export function resolveTargetType(
  * Returns new array without the flag (so it's not passed to target CLI).
  */
 export function stripTargetFlag(args: string[]): string[] {
-  const targetIdx = args.indexOf('--target');
-  if (targetIdx === -1) return args;
-
-  const result = [...args];
-  // Remove --target and its value
-  result.splice(targetIdx, 2);
-  return result;
+  return parseTargetFlags(args).cleanedArgs;
 }

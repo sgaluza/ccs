@@ -62,7 +62,8 @@ export function execClaude(
   envVars: NodeJS.ProcessEnv | null = null
 ): void {
   const isWindows = process.platform === 'win32';
-  const needsShell = isWindows && /\.(cmd|bat|ps1)$/i.test(claudeCli);
+  const isPowerShellScript = isWindows && /\.ps1$/i.test(claudeCli);
+  const needsShell = isWindows && /\.(cmd|bat)$/i.test(claudeCli);
 
   // Get WebSearch hook config env vars
   const webSearchEnv = getWebSearchHookEnv();
@@ -98,7 +99,17 @@ export function execClaude(
   }
 
   let child: ChildProcess;
-  if (needsShell) {
+  if (isPowerShellScript) {
+    child = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', claudeCli, ...args],
+      {
+        stdio: 'inherit',
+        windowsHide: true,
+        env,
+      }
+    );
+  } else if (needsShell) {
     // When shell needed: concatenate into string to avoid DEP0190 warning
     const cmdString = [claudeCli, ...args].map(escapeShellArg).join(' ');
     child = spawn(cmdString, {
@@ -116,13 +127,49 @@ export function execClaude(
     });
   }
 
+  const forwardSigInt = () => {
+    if (!child.killed) child.kill('SIGINT');
+  };
+  const forwardSigTerm = () => {
+    if (!child.killed) child.kill('SIGTERM');
+  };
+  const forwardSighup = () => {
+    if (!child.killed) child.kill('SIGHUP');
+  };
+  process.on('SIGINT', forwardSigInt);
+  process.on('SIGTERM', forwardSigTerm);
+  process.on('SIGHUP', forwardSighup);
+
+  const cleanupSignalHandlers = () => {
+    process.removeListener('SIGINT', forwardSigInt);
+    process.removeListener('SIGTERM', forwardSigTerm);
+    process.removeListener('SIGHUP', forwardSighup);
+  };
+
   child.on('exit', (code, signal) => {
+    cleanupSignalHandlers();
     if (signal) process.kill(process.pid, signal as NodeJS.Signals);
     else process.exit(code || 0);
   });
 
-  child.on('error', async () => {
-    await ErrorManager.showClaudeNotFound();
+  child.on('error', async (err: NodeJS.ErrnoException) => {
+    cleanupSignalHandlers();
+    if (err.code === 'EACCES') {
+      console.error(`[X] Claude CLI is not executable: ${claudeCli}`);
+      console.error('    Check file permissions and executable bit.');
+    } else if (err.code === 'ENOENT') {
+      if (isPowerShellScript) {
+        console.error('[X] PowerShell executable not found (required for .ps1 wrapper launch).');
+        console.error('    Ensure powershell.exe is available in PATH.');
+      } else if (needsShell) {
+        console.error('[X] Windows command shell not found for Claude wrapper launch.');
+        console.error('    Ensure cmd.exe is available and accessible.');
+      } else {
+        await ErrorManager.showClaudeNotFound();
+      }
+    } else {
+      console.error(`[X] Failed to start Claude CLI (${claudeCli}): ${err.message}`);
+    }
     process.exit(1);
   });
 }

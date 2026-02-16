@@ -109,6 +109,40 @@ describe('droid-config-manager', () => {
       expect(settings.customModels[1].displayName).toBe('CCS gemini');
     });
 
+    it('should preserve user entries with unknown provider strings', async () => {
+      const factoryDir = path.join(tmpDir, '.factory');
+      fs.mkdirSync(factoryDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(factoryDir, 'settings.json'),
+        JSON.stringify({
+          customModels: [
+            {
+              model: 'user-model',
+              displayName: 'My Custom Provider',
+              baseUrl: 'https://example.invalid',
+              apiKey: 'user-key',
+              provider: 'custom-provider',
+            },
+          ],
+        })
+      );
+
+      await upsertCcsModel('gemini', {
+        model: 'claude-opus-4-6',
+        displayName: 'CCS gemini',
+        baseUrl: 'http://localhost:8317',
+        apiKey: 'dummy',
+        provider: 'anthropic',
+      });
+
+      const settings = JSON.parse(
+        fs.readFileSync(path.join(factoryDir, 'settings.json'), 'utf8')
+      );
+      expect(settings.customModels).toHaveLength(2);
+      expect(settings.customModels[0].provider).toBe('custom-provider');
+      expect(settings.customModels[1].displayName).toBe('CCS gemini');
+    });
+
     it('should write with restricted permissions', async () => {
       await upsertCcsModel('test', {
         model: 'test-model',
@@ -123,6 +157,23 @@ describe('droid-config-manager', () => {
       // eslint-disable-next-line no-bitwise
       const otherPerms = stat.mode & 0o077;
       expect(otherPerms).toBe(0);
+    });
+
+    it('should reject symlinked temp file path', async () => {
+      const factoryDir = path.join(tmpDir, '.factory');
+      fs.mkdirSync(factoryDir, { recursive: true });
+      fs.writeFileSync(path.join(factoryDir, 'settings.json'), JSON.stringify({ customModels: [] }));
+      fs.symlinkSync('/tmp', path.join(factoryDir, 'settings.json.tmp'));
+
+      await expect(
+        upsertCcsModel('gemini', {
+          model: 'claude-opus-4-6',
+          displayName: 'CCS gemini',
+          baseUrl: 'http://localhost:8317',
+          apiKey: 'dummy-key',
+          provider: 'anthropic',
+        })
+      ).rejects.toThrow(/settings\.json\.tmp is a symlink/);
     });
   });
 
@@ -191,6 +242,58 @@ describe('droid-config-manager', () => {
     it('should return empty map when no settings file', async () => {
       const models = await listCcsModels();
       expect(models.size).toBe(0);
+    });
+
+    it('should normalize legacy object-map customModels', async () => {
+      const factoryDir = path.join(tmpDir, '.factory');
+      fs.mkdirSync(factoryDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(factoryDir, 'settings.json'),
+        JSON.stringify({
+          customModels: {
+            gemini: {
+              model: 'opus',
+              displayName: 'CCS gemini',
+              baseUrl: 'http://localhost:8317',
+              apiKey: 'dummy',
+              provider: 'anthropic',
+            },
+            invalid: {
+              model: 'x',
+              baseUrl: 'x',
+            },
+          },
+        })
+      );
+
+      const models = await listCcsModels();
+      expect(models.size).toBe(1);
+      expect(models.has('gemini')).toBe(true);
+    });
+
+    it('should ignore malformed customModels entries', async () => {
+      const factoryDir = path.join(tmpDir, '.factory');
+      fs.mkdirSync(factoryDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(factoryDir, 'settings.json'),
+        JSON.stringify({
+          customModels: [null, 123, 'bad', { displayName: 'CCS ok', model: 'x', baseUrl: 'x', apiKey: 'y', provider: 'anthropic' }],
+        })
+      );
+
+      const models = await listCcsModels();
+      expect(models.size).toBe(1);
+      expect(models.has('ok')).toBe(true);
+    });
+
+    it('should reject symlinked settings file on read', async () => {
+      const factoryDir = path.join(tmpDir, '.factory');
+      fs.mkdirSync(factoryDir, { recursive: true });
+      const target = path.join(factoryDir, 'real-settings.json');
+      fs.writeFileSync(target, JSON.stringify({ customModels: [] }));
+      fs.symlinkSync(target, path.join(factoryDir, 'settings.json'));
+
+      await expect(listCcsModels()).rejects.toThrow(/settings\.json is a symlink/);
     });
   });
 

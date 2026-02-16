@@ -6,7 +6,7 @@
  */
 
 import * as fs from 'fs';
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import { expandPath } from '../utils/helpers';
 import { TargetBinaryInfo } from './target-adapter';
 
@@ -21,15 +21,25 @@ export function detectDroidCli(): string | null {
   // Priority 1: CCS_DROID_PATH environment variable
   if (process.env.CCS_DROID_PATH) {
     const customPath = expandPath(process.env.CCS_DROID_PATH);
-    if (fs.existsSync(customPath)) {
+    try {
       if (fs.statSync(customPath).isFile()) {
         return customPath;
       }
       console.warn('[!] CCS_DROID_PATH points to a directory, not a file:', customPath);
-      console.warn('    Falling back to system PATH lookup...');
-    } else {
-      console.warn('[!] Warning: CCS_DROID_PATH is set but file not found:', customPath);
-      console.warn('    Falling back to system PATH lookup...');
+      console.warn('    Refusing PATH fallback while CCS_DROID_PATH is explicitly set.');
+      return null;
+    } catch (err) {
+      const error = err as NodeJS.ErrnoException;
+      if (error.code === 'ENOENT') {
+        console.warn('[!] Warning: CCS_DROID_PATH is set but file not found:', customPath);
+      } else {
+        console.warn(
+          `[!] Warning: CCS_DROID_PATH is not accessible (${error.code || 'unknown error'}):`,
+          customPath
+        );
+      }
+      console.warn('    Refusing PATH fallback while CCS_DROID_PATH is explicitly set.');
+      return null;
     }
   }
 
@@ -49,16 +59,20 @@ export function detectDroidCli(): string | null {
       .map((p) => p.trim())
       .filter((p) => p);
 
-    if (isWindows) {
-      const withExtension = matches.find((p) => /\.(exe|cmd|bat|ps1)$/i.test(p));
-      const droidPath = withExtension || matches[0];
-      if (droidPath && fs.existsSync(droidPath)) {
-        return droidPath;
-      }
-    } else {
-      const droidPath = matches[0];
-      if (droidPath && fs.existsSync(droidPath)) {
-        return droidPath;
+    const candidates = isWindows
+      ? [
+          ...matches.filter((p) => /\.(exe|cmd|bat|ps1)$/i.test(p)),
+          ...matches.filter((p) => !/\.(exe|cmd|bat|ps1)$/i.test(p)),
+        ]
+      : matches;
+
+    for (const candidate of candidates) {
+      try {
+        if (fs.statSync(candidate).isFile()) {
+          return candidate;
+        }
+      } catch {
+        // Ignore unreadable or disappearing path candidates and try next one
       }
     }
   } catch {
@@ -87,7 +101,7 @@ export function getDroidBinaryInfo(): TargetBinaryInfo | null {
  */
 export function checkDroidVersion(droidPath: string): void {
   try {
-    const version = execSync(`"${droidPath}" --version`, {
+    const version = execFileSync(droidPath, ['--version'], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 5000,

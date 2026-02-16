@@ -51,11 +51,19 @@ describe('resolveTargetType', () => {
     expect(resolveTargetType([])).toBe('droid');
   });
 
-  it('should not match ccsd with .exe extension', () => {
-    // .exe is not stripped — ccsd.exe won't match 'ccsd' in the map
-    // This is intentional — npm creates .cmd shims, not .exe
+  it('should strip .ps1 extension on Windows argv[0]', () => {
+    process.argv = ['node', 'ccsd.ps1'];
+    expect(resolveTargetType([])).toBe('droid');
+  });
+
+  it('should strip .exe extension on Windows argv[0]', () => {
     process.argv = ['node', 'ccsd.exe'];
-    expect(resolveTargetType([])).toBe('claude');
+    expect(resolveTargetType([])).toBe('droid');
+  });
+
+  it('should handle full path argv[0]', () => {
+    process.argv = ['node', '/usr/local/bin/ccsd'];
+    expect(resolveTargetType([])).toBe('droid');
   });
 
   it('should prioritize --target over argv[0]', () => {
@@ -71,6 +79,31 @@ describe('resolveTargetType', () => {
   it('should throw for invalid --target value', () => {
     process.argv = ['node', 'ccs'];
     expect(() => resolveTargetType(['--target', 'invalid'])).toThrow(/Unknown target "invalid"/);
+  });
+
+  it('should support --target=<value> form', () => {
+    process.argv = ['node', 'ccs'];
+    expect(resolveTargetType(['--target=droid'])).toBe('droid');
+  });
+
+  it('should throw when --target is missing value', () => {
+    process.argv = ['node', 'ccs'];
+    expect(() => resolveTargetType(['--target'])).toThrow(/--target requires a value/);
+  });
+
+  it('should throw when --target value is another flag', () => {
+    process.argv = ['node', 'ccs'];
+    expect(() => resolveTargetType(['--target', '--help'])).toThrow(/--target requires a value/);
+  });
+
+  it('should use last --target flag when repeated', () => {
+    process.argv = ['node', 'ccs'];
+    expect(resolveTargetType(['--target', 'droid', '--target=claude'])).toBe('claude');
+  });
+
+  it('should ignore --target after option terminator', () => {
+    process.argv = ['node', 'ccs'];
+    expect(resolveTargetType(['--', '--target', 'droid'])).toBe('claude');
   });
 });
 
@@ -88,9 +121,42 @@ describe('stripTargetFlag', () => {
     expect(stripTargetFlag(args)).toEqual(['gemini', '-p', 'hello']);
   });
 
+  it('should remove --target=<value> form', () => {
+    expect(stripTargetFlag(['gemini', '--target=droid', '--verbose'])).toEqual([
+      'gemini',
+      '--verbose',
+    ]);
+  });
+
+  it('should remove repeated --target flags', () => {
+    expect(stripTargetFlag(['--target', 'droid', 'gemini', '--target=claude', '--verbose'])).toEqual(
+      ['gemini', '--verbose']
+    );
+  });
+
+  it('should throw when --target has no value', () => {
+    expect(() => stripTargetFlag(['gemini', '--target'])).toThrow(/--target requires a value/);
+  });
+
+  it('should throw when --target value is another flag', () => {
+    expect(() => stripTargetFlag(['gemini', '--target', '--help'])).toThrow(
+      /--target requires a value/
+    );
+  });
+
   it('should not modify the original array', () => {
     const args = ['--target', 'droid', 'gemini'];
     stripTargetFlag(args);
     expect(args).toEqual(['--target', 'droid', 'gemini']);
+  });
+
+  it('should preserve args after option terminator', () => {
+    expect(stripTargetFlag(['glm', '--', '--target', 'droid', '-p'])).toEqual([
+      'glm',
+      '--',
+      '--target',
+      'droid',
+      '-p',
+    ]);
   });
 });

@@ -38,8 +38,52 @@ interface DroidSettings {
   [key: string]: unknown;
 }
 
-interface DroidCustomModelEntry extends DroidCustomModel {
+interface DroidCustomModelEntry {
+  model: string;
+  displayName: string;
+  baseUrl: string;
+  apiKey: string;
+  provider: string;
+  maxOutputTokens?: number;
   /** Internal alias used by CCS for lookup. Stored as the model's display name prefix. */
+}
+
+function isSupportedProvider(value: string): value is DroidCustomModel['provider'] {
+  return value === 'anthropic' || value === 'openai' || value === 'generic-chat-completion-api';
+}
+
+function asModelEntry(value: unknown): DroidCustomModelEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  if (
+    typeof record.displayName !== 'string' ||
+    record.displayName.trim() === '' ||
+    typeof record.model !== 'string' ||
+    typeof record.baseUrl !== 'string' ||
+    typeof record.apiKey !== 'string' ||
+    typeof record.provider !== 'string' ||
+    record.provider.trim() === ''
+  ) {
+    return null;
+  }
+  return value as DroidCustomModelEntry;
+}
+
+function normalizeCustomModels(value: unknown): DroidCustomModelEntry[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => asModelEntry(entry))
+      .filter((entry): entry is DroidCustomModelEntry => !!entry);
+  }
+
+  // Accept legacy object-map shapes and normalize to array.
+  if (value && typeof value === 'object') {
+    return Object.values(value)
+      .map((entry) => asModelEntry(entry))
+      .filter((entry): entry is DroidCustomModelEntry => !!entry);
+  }
+
+  return [];
 }
 
 /**
@@ -65,6 +109,35 @@ function ensureFactoryDir(): void {
   }
 }
 
+function getNoFollowFlag(): number {
+  const candidate = (fs.constants as Record<string, number>)['O_NOFOLLOW'];
+  if (process.platform !== 'win32' && typeof candidate === 'number') {
+    return candidate;
+  }
+  return 0;
+}
+
+function openFileNoFollow(filePath: string, flags: number, mode?: number): number {
+  const safeFlags = flags | getNoFollowFlag();
+  if (mode === undefined) {
+    return fs.openSync(filePath, safeFlags);
+  }
+  return fs.openSync(filePath, safeFlags, mode);
+}
+
+function readFileUtf8NoFollow(filePath: string): string {
+  const fd = openFileNoFollow(filePath, fs.constants.O_RDONLY);
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) {
+      throw new Error('Refusing to read: settings.json is not a regular file');
+    }
+    return fs.readFileSync(fd, 'utf8');
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /**
  * Read ~/.factory/settings.json, creating empty structure if missing.
  */
@@ -74,16 +147,60 @@ function readDroidSettings(): DroidSettings {
     return { customModels: [] };
   }
 
-  const raw = fs.readFileSync(settingsPath, 'utf8');
+  const fileStat = fs.lstatSync(settingsPath);
+  if (fileStat.isSymbolicLink()) {
+    throw new Error('Refusing to read: settings.json is a symlink');
+  }
+  if (!fileStat.isFile()) {
+    throw new Error('Refusing to read: settings.json is not a regular file');
+  }
+
+  const raw = readFileUtf8NoFollow(settingsPath);
   try {
-    return JSON.parse(raw) as DroidSettings;
+    const parsed = JSON.parse(raw) as DroidSettings;
+    return {
+      ...parsed,
+      customModels: normalizeCustomModels((parsed as { customModels?: unknown }).customModels),
+    };
   } catch {
     // Corrupted file — preserve as backup, start fresh
     const backup = settingsPath + '.bak';
-    fs.copyFileSync(settingsPath, backup);
-    fs.chmodSync(backup, 0o600); // Secure backup permissions
-    console.warn(`[!] Corrupted ${settingsPath}, backed up to ${backup}`);
+    try {
+      fs.copyFileSync(settingsPath, backup);
+      fs.chmodSync(backup, 0o600); // Secure backup permissions
+      console.warn(`[!] Corrupted ${settingsPath}, backed up to ${backup}`);
+    } catch (error) {
+      console.warn(`[!] Corrupted ${settingsPath}; backup failed: ${(error as Error).message}`);
+    }
     return { customModels: [] };
+  }
+}
+
+async function acquireFactoryLock(retries: number): Promise<() => Promise<void>> {
+  ensureFactoryDir();
+  const factoryDir = getFactoryDir();
+  try {
+    return await lockfile.lock(factoryDir, {
+      stale: 10000,
+      retries: { retries, minTimeout: 200, maxTimeout: 1000 },
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to lock Droid settings directory (${factoryDir}): ${(error as Error).message}`
+    );
+  }
+}
+
+function fsyncDir(dirPath: string): void {
+  try {
+    const dirFd = fs.openSync(dirPath, fs.constants.O_RDONLY);
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  } catch {
+    // Best-effort directory fsync (platform dependent).
   }
 }
 
@@ -104,12 +221,38 @@ function writeDroidSettings(settings: DroidSettings): void {
   }
 
   const tmpPath = settingsPath + '.tmp';
+  if (fs.existsSync(tmpPath)) {
+    const tmpStat = fs.lstatSync(tmpPath);
+    if (tmpStat.isSymbolicLink()) {
+      throw new Error('Refusing to write: settings.json.tmp is a symlink');
+    }
+  }
 
-  fs.writeFileSync(tmpPath, JSON.stringify(settings, null, 2) + '\n', {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
+  const payload = JSON.stringify(
+    {
+      ...settings,
+      customModels: normalizeCustomModels((settings as { customModels?: unknown }).customModels),
+    },
+    null,
+    2
+  );
+  const fd = openFileNoFollow(
+    tmpPath,
+    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC,
+    0o600
+  );
+  try {
+    const tmpFdStat = fs.fstatSync(fd);
+    if (!tmpFdStat.isFile()) {
+      throw new Error('Refusing to write: settings.json.tmp is not a regular file');
+    }
+    fs.writeFileSync(fd, payload + '\n', { encoding: 'utf8' });
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
   fs.renameSync(tmpPath, settingsPath);
+  fsyncDir(path.dirname(settingsPath));
 
   // Fix permissions on existing file if world-readable
   try {
@@ -139,24 +282,13 @@ function ccsAlias(profile: string): string {
 export async function upsertCcsModel(profile: string, model: DroidCustomModel): Promise<void> {
   validateProfileName(profile);
   ensureFactoryDir();
-  const settingsPath = getSettingsPath();
-
-  // Create file if it doesn't exist (lockfile needs an existing file)
-  if (!fs.existsSync(settingsPath)) {
-    writeDroidSettings({ customModels: [] });
-  }
 
   let release: (() => Promise<void>) | undefined;
   try {
-    release = await lockfile.lock(settingsPath, {
-      stale: 10000,
-      retries: { retries: 5, minTimeout: 200, maxTimeout: 1000 },
-    });
+    release = await acquireFactoryLock(5);
 
     const settings = readDroidSettings();
-    if (!settings.customModels) {
-      settings.customModels = [];
-    }
+    settings.customModels = normalizeCustomModels(settings.customModels);
 
     const alias = ccsAlias(profile);
     const entry: DroidCustomModelEntry = {
@@ -186,18 +318,16 @@ export async function upsertCcsModel(profile: string, model: DroidCustomModel): 
  */
 export async function removeCcsModel(profile: string): Promise<void> {
   validateProfileName(profile);
+  ensureFactoryDir();
   const settingsPath = getSettingsPath();
-  if (!fs.existsSync(settingsPath)) return;
 
   let release: (() => Promise<void>) | undefined;
   try {
-    release = await lockfile.lock(settingsPath, {
-      stale: 10000,
-      retries: { retries: 3, minTimeout: 200, maxTimeout: 1000 },
-    });
+    release = await acquireFactoryLock(3);
+    if (!fs.existsSync(settingsPath)) return;
 
     const settings = readDroidSettings();
-    if (!settings.customModels) return;
+    settings.customModels = normalizeCustomModels(settings.customModels);
 
     settings.customModels = settings.customModels.filter(
       (m) => m.displayName !== `CCS ${profile}` && m.displayName !== ccsAlias(profile)
@@ -215,12 +345,16 @@ export async function removeCcsModel(profile: string): Promise<void> {
 export async function listCcsModels(): Promise<Map<string, DroidCustomModel>> {
   const result = new Map<string, DroidCustomModel>();
   const settings = readDroidSettings();
-  if (!settings.customModels) return result;
-
-  for (const entry of settings.customModels) {
+  for (const entry of normalizeCustomModels(settings.customModels)) {
     if (entry.displayName?.startsWith('CCS ')) {
+      if (!isSupportedProvider(entry.provider)) {
+        continue;
+      }
       const profile = entry.displayName.slice(4); // Remove "CCS " prefix
-      result.set(profile, entry);
+      result.set(profile, {
+        ...entry,
+        provider: entry.provider,
+      });
     }
   }
 
@@ -235,20 +369,18 @@ export async function pruneOrphanedModels(activeProfiles: string[]): Promise<num
   // Validate all profile names before pruning
   activeProfiles.forEach((profile) => validateProfileName(profile));
 
+  ensureFactoryDir();
   const settingsPath = getSettingsPath();
-  if (!fs.existsSync(settingsPath)) return 0;
 
   let release: (() => Promise<void>) | undefined;
   let removed = 0;
 
   try {
-    release = await lockfile.lock(settingsPath, {
-      stale: 10000,
-      retries: { retries: 3, minTimeout: 200, maxTimeout: 1000 },
-    });
+    release = await acquireFactoryLock(3);
+    if (!fs.existsSync(settingsPath)) return 0;
 
     const settings = readDroidSettings();
-    if (!settings.customModels) return 0;
+    settings.customModels = normalizeCustomModels(settings.customModels);
 
     const before = settings.customModels.length;
     settings.customModels = settings.customModels.filter((m) => {
