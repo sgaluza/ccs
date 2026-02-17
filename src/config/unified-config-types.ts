@@ -666,6 +666,7 @@ export const DEFAULT_IMAGE_ANALYSIS_CONFIG: ImageAnalysisConfig = {
     // 'vision-model' is a generic placeholder - users can override via config.yaml
     qwen: 'vision-model',
     iflow: 'qwen3-vl-plus',
+    kimi: 'vision-model',
   },
 };
 
