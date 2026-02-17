@@ -141,17 +141,15 @@ describe('startDaemon', () => {
     expect(result.error).toContain('Invalid port');
   });
 
-  it(
-    'starts and stops daemon successfully',
-    async () => {
-      const port = 10000 + Math.floor(Math.random() * 50000);
-      const result = await startDaemon({ port, ghost_mode: true });
-      expect(result.success).toBe(true);
-      expect(result.pid).toBeDefined();
+  it('starts and stops daemon successfully', async () => {
+    const port = 10000 + Math.floor(Math.random() * 50000);
+    const result = await startDaemon({ port, ghost_mode: true });
+    expect(result.success).toBe(true);
+    expect(result.pid).toBeDefined();
 
-      // Verify health
-      const running = await isDaemonRunning(port);
-      expect(running).toBe(true);
+    // Verify health
+    const running = await isDaemonRunning(port);
+    expect(running).toBe(true);
 
       // Verify models endpoint exists and is OpenAI-compatible list shape
       const modelsResponse = await fetch(`http://127.0.0.1:${port}/v1/models`);
@@ -171,9 +169,9 @@ describe('startDaemon', () => {
       });
       expect(chatResponse.status).toBe(401);
 
-      // Stop
-      const stopResult = await stopDaemon();
-      expect(stopResult.success).toBe(true);
+    // Stop
+    const stopResult = await stopDaemon();
+    expect(stopResult.success).toBe(true);
 
       // Verify stopped
       const stillRunning = await isDaemonRunning(port);

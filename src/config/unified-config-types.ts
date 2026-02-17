@@ -10,6 +10,8 @@
  */
 
 import type { TargetType } from '../targets/target-adapter';
+import type { CLIProxyProvider } from '../cliproxy/types';
+import { CLIPROXY_PROVIDER_IDS } from '../cliproxy/provider-capabilities';
 
 /**
  * Unified config version.
@@ -25,18 +27,9 @@ export const UNIFIED_CONFIG_VERSION = 8;
 
 /**
  * Supported CLIProxy providers.
- * Includes all OAuth-based providers supported by CLIProxyAPI.
+ * Derived from CLIPROXY_PROVIDER_IDS — single source of truth in provider-capabilities.ts.
  */
-export const CLIPROXY_SUPPORTED_PROVIDERS = [
-  'gemini',
-  'codex',
-  'agy',
-  'qwen',
-  'iflow',
-  'kiro',
-  'ghcp',
-  'claude',
-] as const;
+export const CLIPROXY_SUPPORTED_PROVIDERS = CLIPROXY_PROVIDER_IDS;
 
 /**
  * Account configuration (formerly in profiles.json).
@@ -80,7 +73,7 @@ export type OAuthAccounts = Record<string, string>;
  */
 export interface CLIProxyVariantConfig {
   /** Base provider to use */
-  provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp' | 'claude';
+  provider: CLIProxyProvider;
   /** Account nickname (references oauth_accounts) */
   account?: string;
   /** Path to settings file (e.g., "~/.ccs/gemini-custom.settings.json") */
@@ -98,14 +91,14 @@ export interface CLIProxyVariantConfig {
  */
 export interface CompositeTierConfig {
   /** Provider for this tier */
-  provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp' | 'claude';
+  provider: CLIProxyProvider;
   /** Model ID to use for this tier */
   model: string;
   /** Account nickname (optional, references oauth_accounts) */
   account?: string;
   /** Fallback provider+model if primary fails */
   fallback?: {
-    provider: 'gemini' | 'codex' | 'agy' | 'qwen' | 'iflow' | 'kiro' | 'ghcp' | 'claude';
+    provider: CLIProxyProvider;
     model: string;
     account?: string;
   };
@@ -673,6 +666,7 @@ export const DEFAULT_IMAGE_ANALYSIS_CONFIG: ImageAnalysisConfig = {
     // 'vision-model' is a generic placeholder - users can override via config.yaml
     qwen: 'vision-model',
     iflow: 'qwen3-vl-plus',
+    kimi: 'vision-model',
   },
 };
 
