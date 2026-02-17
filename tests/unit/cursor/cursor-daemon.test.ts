@@ -266,7 +266,6 @@ describe('startDaemon', () => {
       await stopDaemon();
     }
   });
->>>>>>> origin/dev
 });
 
 describe('isDaemonRunning', () => {
