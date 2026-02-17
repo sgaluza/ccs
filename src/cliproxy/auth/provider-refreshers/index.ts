@@ -11,6 +11,10 @@
  */
 
 import { CLIProxyProvider } from '../../types';
+import {
+  getTokenRefreshOwnership,
+  isRefreshDelegatedToCLIProxy,
+} from '../../provider-capabilities';
 import { refreshGeminiToken } from '../gemini-token-refresh';
 
 /** Token refresh result */
@@ -23,25 +27,10 @@ export interface ProviderRefreshResult {
 }
 
 /**
- * Providers where CLIProxyAPIPlus owns token refresh.
- * CLIProxyAPIPlus runs background refresh automatically (e.g. kiro: every 1 min).
- * CCS should not attempt to refresh these — just trust CLIProxy.
- */
-const CLIPROXY_DELEGATED_REFRESH: CLIProxyProvider[] = [
-  'codex',
-  'agy',
-  'kiro',
-  'ghcp',
-  'qwen',
-  'iflow',
-  'kimi',
-];
-
-/**
  * Check if a provider's token refresh is delegated to CLIProxy
  */
 export function isRefreshDelegated(provider: CLIProxyProvider): boolean {
-  return CLIPROXY_DELEGATED_REFRESH.includes(provider);
+  return isRefreshDelegatedToCLIProxy(provider);
 }
 
 /**
@@ -54,33 +43,28 @@ export async function refreshToken(
   provider: CLIProxyProvider,
   _accountId: string
 ): Promise<ProviderRefreshResult> {
-  switch (provider) {
-    case 'gemini':
-      return await refreshGeminiTokenWrapper();
-
-    case 'codex':
-    case 'agy':
-    case 'qwen':
-    case 'iflow':
-    case 'kiro':
-    case 'ghcp':
-    case 'kimi':
-      // CLIProxyAPIPlus handles refresh for these providers automatically.
-      // No action needed from CCS — report success with delegated flag.
-      return { success: true, delegated: true };
-
-    case 'claude':
-      return {
-        success: false,
-        error: `Token refresh not yet implemented for ${provider}`,
-      };
-
-    default:
-      return {
-        success: false,
-        error: `Unknown provider: ${provider}`,
-      };
+  if (provider === 'gemini') {
+    return await refreshGeminiTokenWrapper();
   }
+
+  if (isRefreshDelegated(provider)) {
+    // CLIProxyAPIPlus handles refresh for these providers automatically.
+    // No action needed from CCS — report success with delegated flag.
+    return { success: true, delegated: true };
+  }
+
+  const ownership = getTokenRefreshOwnership(provider);
+  if (ownership === 'unsupported') {
+    return {
+      success: false,
+      error: `Token refresh not yet implemented for ${provider}`,
+    };
+  }
+
+  return {
+    success: false,
+    error: `Unknown provider: ${provider}`,
+  };
 }
 
 /**
