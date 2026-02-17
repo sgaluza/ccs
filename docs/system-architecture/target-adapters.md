@@ -355,6 +355,7 @@ ccs --target droid glm
 
 ```bash
 # Create alias/symlink to auto-select droid target
+# Built-in alias: ccsd
 ln -s /path/to/ccs /path/to/ccsd
 
 # Usage
@@ -364,6 +365,8 @@ ccsd glm
 ```
 
 On Windows, `ccsd.cmd`, `ccsd.bat`, `ccsd.ps1`, and `ccsd.exe` wrappers are also recognized.
+
+Additional alias names can be configured at runtime via `CCS_DROID_ALIASES` (comma-separated). Example: `CCS_DROID_ALIASES=ccs-droid,mydroid`.
 
 ---
 
