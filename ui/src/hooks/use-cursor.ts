@@ -8,8 +8,6 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { withApiBase } from '@/lib/api-client';
 
-export { DEFAULT_CURSOR_PORT } from '@/lib/default-ports';
-
 export interface CursorStatus {
   enabled: boolean;
   authenticated: boolean;

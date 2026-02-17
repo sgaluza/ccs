@@ -26,6 +26,10 @@ export interface ProviderRefreshResult {
   delegated?: boolean;
 }
 
+function assertNever(value: never): never {
+  throw new Error(`Unhandled token refresh ownership: ${String(value)}`);
+}
+
 /**
  * Check if a provider's token refresh is delegated to CLIProxy
  */
@@ -47,24 +51,22 @@ export async function refreshToken(
     return await refreshGeminiTokenWrapper();
   }
 
-  if (isRefreshDelegated(provider)) {
-    // CLIProxyAPIPlus handles refresh for these providers automatically.
-    // No action needed from CCS — report success with delegated flag.
-    return { success: true, delegated: true };
-  }
-
   const ownership = getTokenRefreshOwnership(provider);
-  if (ownership === 'unsupported') {
-    return {
-      success: false,
-      error: `Token refresh not yet implemented for ${provider}`,
-    };
+  switch (ownership) {
+    case 'cliproxy':
+      // CLIProxyAPIPlus handles refresh for these providers automatically.
+      // No action needed from CCS — report success with delegated flag.
+      return { success: true, delegated: true };
+    case 'unsupported':
+    case 'ccs':
+      // Non-gemini CCS-owned refresh paths are not implemented yet.
+      return {
+        success: false,
+        error: `Token refresh not yet implemented for ${provider}`,
+      };
+    default:
+      return assertNever(ownership);
   }
-
-  return {
-    success: false,
-    error: `Unknown provider: ${provider}`,
-  };
 }
 
 /**

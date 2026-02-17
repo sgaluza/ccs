@@ -23,7 +23,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DEFAULT_CURSOR_PORT, useCursor } from '@/hooks/use-cursor';
+import { useCursor } from '@/hooks/use-cursor';
+import { DEFAULT_CURSOR_PORT } from '@/lib/default-ports';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
