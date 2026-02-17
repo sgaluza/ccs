@@ -135,6 +135,8 @@ GLMT proxy enables seamless integration with GLM-compatible APIs (Z.AI, Kimi, Op
 | Kimi | `kimi` | https://api.moonshot.cn/v1/ | API key |
 | OpenRouter | `openrouter` | https://openrouter.ai/api/v1/ | API key |
 
+Note for `config/base-kimi.settings.json`: the default base URL is `http://127.0.0.1:8317/api/provider/kimi` (local CLIProxy route). For direct Moonshot API access, override `ANTHROPIC_BASE_URL` to `https://api.moonshot.cn/v1/`.
+
 ### GLMT Profile Detection
 
 CCS detects GLMT profiles and routes through `execClaudeWithProxy()`:
