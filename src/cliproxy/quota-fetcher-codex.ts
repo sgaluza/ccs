@@ -82,6 +82,20 @@ function getCodexWindowKind(label: string): CodexWindowKind {
   return 'unknown';
 }
 
+function getUnknownCodexWindowLabels(windows: CodexQuotaWindow[]): string[] {
+  const unknownLabels = windows
+    .filter((window) => getCodexWindowKind(window.label) === 'unknown')
+    .map((window) => window.label)
+    .filter((label): label is string => typeof label === 'string' && label.trim().length > 0);
+  return Array.from(new Set(unknownLabels));
+}
+
+function shouldLogCodexWindowWarnings(verbose: boolean): boolean {
+  if (verbose) return true;
+  const debugFlag = process.env['CCS_DEBUG'];
+  return debugFlag === '1' || debugFlag === 'true';
+}
+
 /**
  * Build explicit 5h + weekly usage summary from raw Codex windows.
  * Falls back to shortest/longest reset windows if API labels change.
@@ -388,6 +402,13 @@ export async function fetchCodexQuota(
 
       const data = (await response.json()) as CodexUsageResponse;
       const windows = buildCodexQuotaWindows(data);
+      const unknownWindowLabels = getUnknownCodexWindowLabels(windows);
+      if (unknownWindowLabels.length > 0 && shouldLogCodexWindowWarnings(verbose)) {
+        console.error(
+          `[!] Codex quota detected unknown window labels: ${unknownWindowLabels.join(', ')}`
+        );
+        console.error('    Window classification may need an update for upstream API changes.');
+      }
       const coreUsage = buildCodexCoreUsageSummary(windows);
 
       // Extract plan type
@@ -475,4 +496,4 @@ export async function fetchAllCodexQuotas(
 }
 
 // Export for testing
-export { readCodexAuthData, buildCodexQuotaWindows };
+export { readCodexAuthData, buildCodexQuotaWindows, getUnknownCodexWindowLabels };

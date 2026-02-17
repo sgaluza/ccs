@@ -8,6 +8,7 @@ import { describe, it, expect } from 'bun:test';
 import {
   buildCodexQuotaWindows,
   buildCodexCoreUsageSummary,
+  getUnknownCodexWindowLabels,
 } from '../../../src/cliproxy/quota-fetcher-codex';
 
 describe('Codex Quota Fetcher', () => {
@@ -253,6 +254,57 @@ describe('Codex Quota Fetcher', () => {
       const summary = buildCodexCoreUsageSummary([]);
       expect(summary.fiveHour).toBeNull();
       expect(summary.weekly).toBeNull();
+    });
+  });
+
+  describe('getUnknownCodexWindowLabels', () => {
+    it('returns unknown labels and de-duplicates them', () => {
+      const labels = getUnknownCodexWindowLabels([
+        {
+          label: 'Window A',
+          usedPercent: 1,
+          remainingPercent: 99,
+          resetAfterSeconds: 10,
+          resetAt: null,
+        },
+        {
+          label: 'Window A',
+          usedPercent: 2,
+          remainingPercent: 98,
+          resetAfterSeconds: 20,
+          resetAt: null,
+        },
+        {
+          label: 'Primary',
+          usedPercent: 3,
+          remainingPercent: 97,
+          resetAfterSeconds: 30,
+          resetAt: null,
+        },
+      ]);
+
+      expect(labels).toEqual(['Window A']);
+    });
+
+    it('returns empty array when all labels are recognized', () => {
+      const labels = getUnknownCodexWindowLabels([
+        {
+          label: 'Primary',
+          usedPercent: 10,
+          remainingPercent: 90,
+          resetAfterSeconds: 100,
+          resetAt: null,
+        },
+        {
+          label: 'Code Review (Secondary)',
+          usedPercent: 20,
+          remainingPercent: 80,
+          resetAfterSeconds: 200,
+          resetAt: null,
+        },
+      ]);
+
+      expect(labels).toEqual([]);
     });
   });
 });
