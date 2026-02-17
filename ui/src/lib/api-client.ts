@@ -490,12 +490,12 @@ export const api = {
 
     // Config YAML for Config tab
     getConfigYaml: async (): Promise<string> => {
-      const res = await fetch(`${BASE_URL}/cliproxy/config.yaml`);
+      const res = await fetch(withApiBase('/cliproxy/config.yaml'));
       if (!res.ok) throw new Error('Failed to load config');
       return res.text();
     },
     saveConfigYaml: async (content: string): Promise<void> => {
-      const res = await fetch(`${BASE_URL}/cliproxy/config.yaml`, {
+      const res = await fetch(withApiBase('/cliproxy/config.yaml'), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/yaml' },
         body: content,
@@ -510,7 +510,7 @@ export const api = {
     getAuthFiles: () => request<{ files: AuthFile[] }>('/cliproxy/auth-files'),
     getAuthFile: async (name: string): Promise<string> => {
       const res = await fetch(
-        `${BASE_URL}/cliproxy/auth-files/download?name=${encodeURIComponent(name)}`
+        withApiBase(`/cliproxy/auth-files/download?name=${encodeURIComponent(name)}`)
       );
       if (!res.ok) throw new Error('Failed to load auth file');
       return res.text();
@@ -592,7 +592,7 @@ export const api = {
       list: () => request<{ files: CliproxyErrorLog[] }>('/cliproxy/error-logs'),
       /** Get content of a specific error log */
       getContent: async (name: string): Promise<string> => {
-        const res = await fetch(`${BASE_URL}/cliproxy/error-logs/${encodeURIComponent(name)}`);
+        const res = await fetch(withApiBase(`/cliproxy/error-logs/${encodeURIComponent(name)}`));
         if (!res.ok) throw new Error('Failed to load error log');
         return res.text();
       },
