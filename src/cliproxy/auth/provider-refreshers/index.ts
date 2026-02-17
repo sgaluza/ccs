@@ -11,6 +11,7 @@
  */
 
 import { CLIProxyProvider } from '../../types';
+import { getProviderAccounts } from '../../account-manager';
 import {
   getTokenRefreshOwnership,
   isRefreshDelegatedToCLIProxy,
@@ -40,15 +41,33 @@ export function isRefreshDelegated(provider: CLIProxyProvider): boolean {
 /**
  * Refresh token for a specific provider and account
  * @param provider Provider to refresh
- * @param _accountId Account ID (currently unused, multi-account not yet implemented)
+ * @param accountId Account ID used to refresh the correct provider token
  * @returns Refresh result with success status and optional error
  */
 export async function refreshToken(
   provider: CLIProxyProvider,
-  _accountId: string
+  accountId: string
 ): Promise<ProviderRefreshResult> {
+  const normalizedAccountId = accountId.trim();
+  if (!normalizedAccountId) {
+    return {
+      success: false,
+      error: 'Account ID is required for token refresh',
+    };
+  }
+
+  const hasAccount = getProviderAccounts(provider).some(
+    (account) => account.id === normalizedAccountId
+  );
+  if (!hasAccount) {
+    return {
+      success: false,
+      error: `Account not found for ${provider}: ${normalizedAccountId}`,
+    };
+  }
+
   if (provider === 'gemini') {
-    return await refreshGeminiTokenWrapper();
+    return await refreshGeminiTokenWrapper(normalizedAccountId);
   }
 
   const ownership = getTokenRefreshOwnership(provider);
@@ -73,8 +92,8 @@ export async function refreshToken(
  * Wrapper for Gemini token refresh
  * Converts gemini-token-refresh.ts format to provider-refreshers format
  */
-async function refreshGeminiTokenWrapper(): Promise<ProviderRefreshResult> {
-  const result = await refreshGeminiToken();
+async function refreshGeminiTokenWrapper(accountId: string): Promise<ProviderRefreshResult> {
+  const result = await refreshGeminiToken(accountId);
 
   if (!result.success) {
     return {

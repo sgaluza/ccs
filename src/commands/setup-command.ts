@@ -227,7 +227,7 @@ async function configureRemoteProxy(rl: readline.Interface): Promise<{
   ])) as 'http' | 'https';
 
   // Port (optional) - with validation
-  const defaultPort = protocol === 'https' ? '443' : '80';
+  const defaultPort = protocol === 'https' ? '443' : String(CLIPROXY_DEFAULT_PORT);
   const portStr = await prompt(rl, `Port (leave empty for default ${defaultPort})`);
   let port: number | undefined;
   if (portStr) {

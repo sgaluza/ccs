@@ -154,16 +154,39 @@ export function buildProviderMap<T>(
 
 const PROVIDER_ID_SET = new Set(CLIPROXY_PROVIDER_IDS);
 
-const PROVIDER_ALIAS_MAP: ReadonlyMap<string, CLIProxyProvider> = (() => {
-  const entries: Array<[string, CLIProxyProvider]> = [];
-  for (const provider of CLIPROXY_PROVIDER_IDS) {
-    entries.push([provider, provider]);
-    for (const alias of PROVIDER_CAPABILITIES[provider].aliases) {
-      entries.push([alias.toLowerCase(), provider]);
+export function buildProviderAliasMap(
+  capabilities: Record<CLIProxyProvider, ProviderCapabilities> = PROVIDER_CAPABILITIES
+): ReadonlyMap<string, CLIProxyProvider> {
+  const aliasMap = new Map<string, CLIProxyProvider>();
+  const providers = Object.keys(capabilities) as CLIProxyProvider[];
+
+  const registerAlias = (alias: string, provider: CLIProxyProvider): void => {
+    const normalized = alias.trim().toLowerCase();
+    if (!normalized) {
+      return;
+    }
+
+    const existingProvider = aliasMap.get(normalized);
+    if (existingProvider && existingProvider !== provider) {
+      throw new Error(
+        `Provider alias collision for "${normalized}": ${existingProvider} and ${provider}`
+      );
+    }
+
+    aliasMap.set(normalized, provider);
+  };
+
+  for (const provider of providers) {
+    registerAlias(provider, provider);
+    for (const alias of capabilities[provider].aliases) {
+      registerAlias(alias, provider);
     }
   }
-  return new Map(entries);
-})();
+
+  return aliasMap;
+}
+
+const PROVIDER_ALIAS_MAP: ReadonlyMap<string, CLIProxyProvider> = buildProviderAliasMap();
 
 export function isCLIProxyProvider(provider: string): provider is CLIProxyProvider {
   return PROVIDER_ID_SET.has(provider as CLIProxyProvider);
