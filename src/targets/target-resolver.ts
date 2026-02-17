@@ -18,6 +18,25 @@ import { TargetType } from './target-adapter';
 const ARGV0_TARGET_MAP: Record<string, TargetType> = {
   ccsd: 'droid',
 };
+const ALIAS_NAME_REGEX = /^[a-z0-9._-]+$/;
+
+function buildArgv0TargetMap(): Record<string, TargetType> {
+  const map: Record<string, TargetType> = { ...ARGV0_TARGET_MAP };
+  const envAliases = process.env['CCS_DROID_ALIASES'];
+  if (!envAliases) {
+    return map;
+  }
+
+  for (const rawAlias of envAliases.split(',')) {
+    const alias = rawAlias.trim().toLowerCase();
+    if (!alias || !ALIAS_NAME_REGEX.test(alias)) {
+      continue;
+    }
+    map[alias] = 'droid';
+  }
+
+  return map;
+}
 
 /**
  * Valid target types for --target flag validation.
@@ -108,8 +127,9 @@ export function resolveTargetType(
   // 3. Check argv[0] (busybox pattern)
   // Strip common wrapper extensions for Windows shims/wrappers
   const rawBin = path.basename(process.argv[1] || process.argv0 || '');
-  const binName = rawBin.replace(/\.(cmd|bat|ps1|exe)$/i, '');
-  const argv0Target = ARGV0_TARGET_MAP[binName];
+  const binName = rawBin.replace(/\.(cmd|bat|ps1|exe)$/i, '').toLowerCase();
+  const argv0TargetMap = buildArgv0TargetMap();
+  const argv0Target = argv0TargetMap[binName];
   if (argv0Target) {
     return argv0Target;
   }

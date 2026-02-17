@@ -6,9 +6,15 @@ import { resolveTargetType, stripTargetFlag } from '../../../src/targets/target-
 
 describe('resolveTargetType', () => {
   const originalArgv = process.argv;
+  const originalDroidAliases = process.env.CCS_DROID_ALIASES;
 
   afterEach(() => {
     process.argv = originalArgv;
+    if (originalDroidAliases === undefined) {
+      delete process.env.CCS_DROID_ALIASES;
+    } else {
+      process.env.CCS_DROID_ALIASES = originalDroidAliases;
+    }
   });
 
   it('should return claude as default', () => {
@@ -38,6 +44,24 @@ describe('resolveTargetType', () => {
 
   it('should detect ccsd argv[0] (busybox pattern)', () => {
     process.argv = ['node', 'ccsd'];
+    expect(resolveTargetType([])).toBe('droid');
+  });
+
+  it('should detect custom argv[0] aliases from CCS_DROID_ALIASES', () => {
+    process.env.CCS_DROID_ALIASES = 'droidx,my-droid';
+    process.argv = ['node', 'my-droid'];
+    expect(resolveTargetType([])).toBe('droid');
+  });
+
+  it('should ignore invalid custom alias entries', () => {
+    process.env.CCS_DROID_ALIASES = 'valid_alias,../bad,';
+    process.argv = ['node', '../bad'];
+    expect(resolveTargetType([])).toBe('claude');
+  });
+
+  it('should normalize argv[0] and custom aliases case-insensitively', () => {
+    process.env.CCS_DROID_ALIASES = 'DroidCaps';
+    process.argv = ['node', 'DROIDCAPS'];
     expect(resolveTargetType([])).toBe('droid');
   });
 
