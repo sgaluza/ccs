@@ -67,6 +67,7 @@ import { checkOrJoinProxy, registerProxySession, setupCleanupHandlers } from './
 import { parseThinkingOverride } from './thinking-arg-parser';
 import {
   warnCrossProviderDuplicates,
+  warnOAuthBanRisk,
   cleanupStaleAutoPauses,
   enforceProviderIsolation,
   restoreAutoPausedAccounts,
@@ -187,6 +188,7 @@ export async function execClaudeWithCLIProxy(
 
   const providerConfig = getProviderConfig(provider);
   log(`Provider: ${providerConfig.displayName}`);
+  warnOAuthBanRisk(provider);
 
   // Check remote proxy if configured
   let useRemoteProxy = false;
