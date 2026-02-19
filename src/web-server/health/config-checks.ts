@@ -87,24 +87,23 @@ export function checkConfigFile(): HealthCheck {
 }
 
 /**
- * Check settings files (glm, kimi)
+ * Check settings files (glm, km with legacy kimi fallback)
  */
 export function checkSettingsFiles(ccsDir: string): HealthCheck[] {
   const checks: HealthCheck[] = [];
-  const files = [
-    { name: 'glm.settings.json', profile: 'glm' },
-    { name: 'kimi.settings.json', profile: 'kimi' },
-  ];
+  const profiles = ['glm', 'km'];
 
   const { DelegationValidator } = require('../../utils/delegation-validator');
 
-  for (const file of files) {
-    const filePath = path.join(ccsDir, file.name);
+  for (const profile of profiles) {
+    const fileName = `${profile}.settings.json`;
+    const filePath = path.join(ccsDir, fileName);
+    const validation = DelegationValidator.validate(profile);
 
-    if (!fs.existsSync(filePath)) {
+    if (!validation.valid && validation.error?.includes('Profile not found')) {
       checks.push({
-        id: `settings-${file.profile}`,
-        name: file.name,
+        id: `settings-${profile}`,
+        name: fileName,
         status: 'info',
         message: 'Not configured',
         details: filePath,
@@ -112,46 +111,50 @@ export function checkSettingsFiles(ccsDir: string): HealthCheck[] {
       continue;
     }
 
-    try {
-      const content = fs.readFileSync(filePath, 'utf8');
-      JSON.parse(content);
+    const resolvedPath = validation.settingsPath || filePath;
+    const resolvedName = path.basename(resolvedPath);
 
-      const validation = DelegationValidator.validate(file.profile);
-
-      if (validation.valid) {
-        checks.push({
-          id: `settings-${file.profile}`,
-          name: file.name,
-          status: 'ok',
-          message: 'Key configured',
-          details: filePath,
-        });
-      } else if (validation.error && validation.error.includes('placeholder')) {
-        checks.push({
-          id: `settings-${file.profile}`,
-          name: file.name,
-          status: 'warning',
-          message: 'Placeholder key',
-          details: filePath,
-        });
-      } else {
-        checks.push({
-          id: `settings-${file.profile}`,
-          name: file.name,
-          status: 'ok',
-          message: 'Valid JSON',
-          details: filePath,
-        });
-      }
-    } catch {
+    if (validation.valid) {
       checks.push({
-        id: `settings-${file.profile}`,
-        name: file.name,
+        id: `settings-${profile}`,
+        name: resolvedName,
+        status: 'ok',
+        message: 'Key configured',
+        details: resolvedPath,
+      });
+      continue;
+    }
+
+    if (validation.error?.includes('placeholder')) {
+      checks.push({
+        id: `settings-${profile}`,
+        name: resolvedName,
+        status: 'warning',
+        message: 'Placeholder key',
+        details: resolvedPath,
+      });
+      continue;
+    }
+
+    if (validation.error?.includes('Failed to parse settings.json')) {
+      checks.push({
+        id: `settings-${profile}`,
+        name: resolvedName,
         status: 'error',
         message: 'Invalid JSON',
-        details: filePath,
+        details: resolvedPath,
       });
+      continue;
     }
+
+    // Keep prior behavior for non-placeholder validation issues (e.g., missing key).
+    checks.push({
+      id: `settings-${profile}`,
+      name: resolvedName,
+      status: 'ok',
+      message: 'Valid JSON',
+      details: resolvedPath,
+    });
   }
 
   return checks;

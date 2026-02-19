@@ -371,7 +371,7 @@ async function runSetupWizard(force: boolean = false): Promise<void> {
       console.log('  Use the following commands to create profiles:');
       console.log('');
       console.log('    ccs api create glm --preset glm');
-      console.log('    ccs api create kimi --preset kimi');
+      console.log('    ccs api create km --preset km');
       console.log('    ccs api create custom --prompt');
       console.log('');
       console.log('  After creating, edit the settings file to add your API key.');

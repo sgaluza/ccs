@@ -320,7 +320,7 @@ export class DelegationHandler {
     if (!profile) {
       console.error(fail('No profile specified'));
       console.error('    Usage: ccs <profile> -p "task"');
-      console.error('    Examples: ccs glm -p "task", ccs kimi -p "task"');
+      console.error('    Examples: ccs glm -p "task", ccs km -p "task"');
       process.exit(1);
     }
 

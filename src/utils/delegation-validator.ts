@@ -5,6 +5,7 @@ import * as path from 'path';
 import { Settings } from '../types';
 import { ValidationResult } from '../types/utils';
 import { getCcsDir } from './config-manager';
+import { getProfileLookupCandidates } from './profile-compat';
 
 /**
  * Extended validation result for delegation profiles
@@ -24,19 +25,24 @@ interface DelegationValidationResult extends ValidationResult {
 export class DelegationValidator {
   /**
    * Validate a delegation profile
-   * @param profileName - Name of profile to validate (e.g., 'glm', 'kimi')
+   * @param profileName - Name of profile to validate (e.g., 'glm', 'km')
    * @returns Validation result { valid: boolean, error?: string, settingsPath?: string }
    */
   static validate(profileName: string): DelegationValidationResult {
-    const settingsPath = path.join(getCcsDir(), `${profileName}.settings.json`);
+    const ccsDir = getCcsDir();
+    const candidateSettingsPath = getProfileLookupCandidates(profileName)
+      .map((candidate) => path.join(ccsDir, `${candidate}.settings.json`))
+      .find((candidatePath) => fs.existsSync(candidatePath));
+    const primarySettingsPath = path.join(ccsDir, `${profileName}.settings.json`);
+    const settingsPath = candidateSettingsPath || primarySettingsPath;
 
     // Check if profile directory exists
-    if (!fs.existsSync(settingsPath)) {
+    if (!candidateSettingsPath) {
       return {
         valid: false,
         error: `Profile not found: ${profileName}`,
         suggestion:
-          `Profile settings missing at: ${settingsPath}\n\n` +
+          `Profile settings missing at: ${primarySettingsPath}\n\n` +
           `To set up ${profileName} profile:\n` +
           `  1. Copy base settings: cp config/base-${profileName}.settings.json ~/.ccs/${profileName}.settings.json\n` +
           `  2. Edit settings: Edit ~/.ccs/${profileName}.settings.json\n` +

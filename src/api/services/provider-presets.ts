@@ -5,6 +5,8 @@
  * Mirrors the UI presets in ui/src/lib/provider-presets.ts
  */
 
+import { resolveAliasToCanonical } from '../../utils/profile-compat';
+
 export type PresetCategory = 'recommended' | 'alternative';
 
 export interface ProviderPreset {
@@ -169,7 +171,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 
 /** Get preset by ID */
 export function getPresetById(id: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((p) => p.id === id.toLowerCase());
+  const normalized = id.trim().toLowerCase();
+  const canonical = resolveAliasToCanonical(normalized).toLowerCase();
+  return PROVIDER_PRESETS.find((p) => p.id === canonical);
 }
 
 /** Get all preset IDs */

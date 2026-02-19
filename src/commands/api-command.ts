@@ -447,7 +447,7 @@ async function showHelp(): Promise<void> {
   console.log('');
   console.log(subheader('Options'));
   console.log(
-    `  ${color('--preset <id>', 'command')}        Use provider preset (openrouter, ollama, ollama-cloud, glm, glmt, kimi, foundry, mm, deepseek, qwen)`
+    `  ${color('--preset <id>', 'command')}        Use provider preset (openrouter, ollama, ollama-cloud, glm, glmt, km, foundry, mm, deepseek, qwen)`
   );
   console.log(`  ${color('--base-url <url>', 'command')}     API base URL (create)`);
   console.log(`  ${color('--api-key <key>', 'command')}      API key (create)`);
@@ -467,7 +467,8 @@ async function showHelp(): Promise<void> {
   );
   console.log(`  ${color('glm', 'command')}           GLM - Claude via Z.AI`);
   console.log(`  ${color('glmt', 'command')}          GLMT - GLM with Thinking mode`);
-  console.log(`  ${color('kimi', 'command')}          Kimi - Moonshot AI reasoning model`);
+  console.log(`  ${color('km', 'command')}            Kimi - Moonshot AI reasoning model`);
+  console.log(`  ${dim('  Legacy alias: --preset kimi (auto-mapped to km)')}`);
   console.log(`  ${color('foundry', 'command')}       Azure Foundry - Claude via Microsoft Azure`);
   console.log(`  ${color('mm', 'command')}            Minimax - M2 series with 1M context`);
   console.log(`  ${color('deepseek', 'command')}      DeepSeek - V3.2 and R1 reasoning (128K)`);

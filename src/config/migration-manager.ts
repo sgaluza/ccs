@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { getCcsDir } from '../utils/config-manager';
 import { expandPath } from '../utils/helpers';
+import { resolveAliasToCanonical } from '../utils/profile-compat';
 import type { ProfileConfig, AccountConfig, CLIProxyVariantConfig } from './unified-config-types';
 import { createEmptyUnifiedConfig } from './unified-config-types';
 import { CLIPROXY_PROVIDER_IDS } from '../cliproxy/provider-capabilities';
@@ -73,7 +74,8 @@ export function loadMigrationCheckData(): MigrationCheckData {
   if (legacyConfig?.profiles && typeof legacyConfig.profiles === 'object' && unifiedConfig) {
     const legacyProfiles = legacyConfig.profiles as Record<string, unknown>;
     for (const profileName of Object.keys(legacyProfiles)) {
-      if (!unifiedConfig.profiles[profileName]) {
+      const targetProfileName = resolveAliasToCanonical(profileName);
+      if (!unifiedConfig.profiles[targetProfileName]) {
         needsMigration = true;
         break;
       }
@@ -182,12 +184,40 @@ export async function migrate(dryRun = false): Promise<MigrationResult> {
     // config.yaml only stores reference to the settings file
     if (oldConfig?.profiles) {
       for (const [name, settingsPath] of Object.entries(oldConfig.profiles)) {
+        const sourceName = name.trim();
+        const targetName = resolveAliasToCanonical(sourceName);
         const pathStr = settingsPath as string;
         const expandedPath = expandPath(pathStr);
 
+        const canonicalEntryValue = (oldConfig.profiles as Record<string, unknown>)[targetName];
+        const canonicalPathFromLegacyConfig =
+          sourceName !== targetName && typeof canonicalEntryValue === 'string'
+            ? canonicalEntryValue
+            : undefined;
+
+        // Deterministic priority: explicit canonical profile wins over legacy alias rename.
+        if (canonicalPathFromLegacyConfig !== undefined) {
+          if (canonicalPathFromLegacyConfig !== pathStr) {
+            warnings.push(
+              `Skipped ${sourceName}: canonical profile "${targetName}" exists in config.json with different settings (${canonicalPathFromLegacyConfig})`
+            );
+          }
+          continue;
+        }
+
         // Verify settings file exists
         if (!fs.existsSync(expandedPath)) {
-          warnings.push(`Skipped ${name}: settings file not found at ${pathStr}`);
+          warnings.push(`Skipped ${sourceName}: settings file not found at ${pathStr}`);
+          continue;
+        }
+
+        if (unifiedConfig.profiles[targetName]) {
+          const existing = unifiedConfig.profiles[targetName].settings;
+          if (existing !== pathStr) {
+            warnings.push(
+              `Skipped ${sourceName}: target profile "${targetName}" already exists with different settings (${existing})`
+            );
+          }
           continue;
         }
 
@@ -196,8 +226,15 @@ export async function migrate(dryRun = false): Promise<MigrationResult> {
           type: 'api',
           settings: pathStr,
         };
-        unifiedConfig.profiles[name] = profile;
-        migratedFiles.push(`config.json.profiles.${name} → config.yaml (settings: ${pathStr})`);
+        unifiedConfig.profiles[targetName] = profile;
+        migratedFiles.push(
+          `config.json.profiles.${sourceName} → config.yaml.profiles.${targetName} (settings: ${pathStr})`
+        );
+        if (targetName !== sourceName) {
+          warnings.push(
+            `Renamed legacy API profile "${sourceName}" to "${targetName}" (ccs kimi API profile is now ccs km)`
+          );
+        }
       }
     }
 
@@ -456,15 +493,33 @@ async function migrateProfilesToUnified(
 
     // Migrate API profiles from config.json
     for (const [name, settingsPath] of Object.entries(oldConfig.profiles)) {
+      const sourceName = name.trim();
+      const targetName = resolveAliasToCanonical(sourceName);
       const pathStr = settingsPath as string;
 
+      const canonicalEntryValue = (oldConfig.profiles as Record<string, unknown>)[targetName];
+      const canonicalPathFromLegacyConfig =
+        sourceName !== targetName && typeof canonicalEntryValue === 'string'
+          ? canonicalEntryValue
+          : undefined;
+
+      // Deterministic priority: explicit canonical profile wins over legacy alias rename.
+      if (canonicalPathFromLegacyConfig !== undefined) {
+        if (canonicalPathFromLegacyConfig !== pathStr) {
+          warnings.push(
+            `Skipped ${sourceName}: canonical profile "${targetName}" exists in config.json with different settings (${canonicalPathFromLegacyConfig})`
+          );
+        }
+        continue;
+      }
+
       // H7: Detect collision - profile exists in both configs
-      if (unifiedConfig.profiles[name]) {
+      if (unifiedConfig.profiles[targetName]) {
         // Check if settings differ (potential data loss)
-        const existingSettings = unifiedConfig.profiles[name].settings;
+        const existingSettings = unifiedConfig.profiles[targetName].settings;
         if (existingSettings && existingSettings !== pathStr) {
           warnings.push(
-            `Profile "${name}" exists in both configs with different settings - keeping existing (${existingSettings}), skipping legacy (${pathStr})`
+            `Profile "${targetName}" exists in both configs with different settings - keeping existing (${existingSettings}), skipping legacy ${sourceName} (${pathStr})`
           );
         }
         continue;
@@ -474,16 +529,21 @@ async function migrateProfilesToUnified(
 
       // Verify settings file exists
       if (!fs.existsSync(expandedPath)) {
-        warnings.push(`Skipped ${name}: settings file not found at ${pathStr}`);
+        warnings.push(`Skipped ${sourceName}: settings file not found at ${pathStr}`);
         continue;
       }
 
       // Store reference to settings file
-      unifiedConfig.profiles[name] = {
+      unifiedConfig.profiles[targetName] = {
         type: 'api',
         settings: pathStr,
       };
-      migratedFiles.push(name);
+      migratedFiles.push(targetName);
+      if (targetName !== sourceName) {
+        warnings.push(
+          `Renamed legacy API profile "${sourceName}" to "${targetName}" (ccs kimi API profile is now ccs km)`
+        );
+      }
       modified = true;
     }
 
