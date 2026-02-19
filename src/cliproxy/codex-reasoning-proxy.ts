@@ -25,6 +25,8 @@ export interface CodexReasoningProxyConfig {
    * Example: '/api/provider/codex' will transform '/api/provider/codex/v1/messages' to '/v1/messages'
    */
   stripPathPrefix?: string;
+  /** When true, skip reasoning effort injection entirely (thinking mode: off) */
+  disableEffort?: boolean;
 }
 
 const EXTENDED_CONTEXT_SUFFIX_REGEX = /\[1m\]$/i;
@@ -51,6 +53,17 @@ function parseModelEffortSuffix(
   const effort = match[2]?.toLowerCase() as CodexReasoningEffort;
   if (!upstreamModel) return null;
   return { upstreamModel, effort };
+}
+
+function isKnownCodexModelId(
+  model: string,
+  modelEffort: Map<string, CodexReasoningEffort>
+): boolean {
+  if (modelEffort.has(model)) return true;
+  if (EFFORT_BY_RANK.some((effort) => modelEffort.has(`${model}-${effort}`))) {
+    return true;
+  }
+  return getModelMaxLevel('codex', model) !== undefined;
 }
 
 const EFFORT_RANK: Record<CodexReasoningEffort, number> = {
@@ -147,7 +160,12 @@ export class CodexReasoningProxy {
   private readonly config: Required<
     Pick<
       CodexReasoningProxyConfig,
-      'upstreamBaseUrl' | 'verbose' | 'timeoutMs' | 'defaultEffort' | 'traceFilePath'
+      | 'upstreamBaseUrl'
+      | 'verbose'
+      | 'timeoutMs'
+      | 'defaultEffort'
+      | 'traceFilePath'
+      | 'disableEffort'
     >
   > &
     Pick<CodexReasoningProxyConfig, 'modelMap' | 'stripPathPrefix'>;
@@ -170,8 +188,25 @@ export class CodexReasoningProxy {
       defaultEffort: config.defaultEffort ?? 'medium',
       traceFilePath: config.traceFilePath ?? '',
       stripPathPrefix: config.stripPathPrefix,
+      disableEffort: config.disableEffort ?? false,
     };
     this.modelEffort = buildCodexModelEffortMap(this.config.modelMap, this.config.defaultEffort);
+  }
+
+  /**
+   * Treat trailing "-high/-medium/-xhigh" as an effort alias only for known codex models.
+   * Prevents stripping legitimate upstream model IDs that happen to end with those tokens.
+   */
+  private parseEffortAlias(
+    model: string | null
+  ): { upstreamModel: string; effort: CodexReasoningEffort } | null {
+    if (!model) return null;
+    const parsed = parseModelEffortSuffix(model);
+    if (!parsed) return null;
+    if (!isKnownCodexModelId(parsed.upstreamModel, this.modelEffort)) {
+      return null;
+    }
+    return parsed;
   }
 
   private log(message: string): void {
@@ -330,14 +365,24 @@ export class CodexReasoningProxy {
         ? stripExtendedContextSuffix(originalModel)
         : null;
 
+      // When effort is disabled (thinking mode: off), strip model suffix but don't inject reasoning
+      if (this.config.disableEffort) {
+        const suffixParsed = this.parseEffortAlias(normalizedRequestModel);
+        const upstreamModel = suffixParsed?.upstreamModel ?? normalizedRequestModel;
+        const forwarded =
+          upstreamModel && isRecord(parsed) ? { ...parsed, model: upstreamModel } : parsed;
+
+        this.log(`[disabled] model=${originalModel ?? 'null'} -> passthrough (no reasoning)`);
+        await this.forwardJson(req, res, fullUpstreamUrl, forwarded);
+        return;
+      }
+
       // Support "model aliases" like `gpt-5.2-codex-xhigh` by translating to:
       // - upstream model: `gpt-5.2-codex`
       // - reasoning.effort: `xhigh`
       //
       // This allows tier→effort mapping without inventing upstream model IDs.
-      const suffixParsed = normalizedRequestModel
-        ? parseModelEffortSuffix(normalizedRequestModel)
-        : null;
+      const suffixParsed = this.parseEffortAlias(normalizedRequestModel);
       const upstreamModel = suffixParsed?.upstreamModel ?? normalizedRequestModel;
       const effort =
         suffixParsed?.effort ??
