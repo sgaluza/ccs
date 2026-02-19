@@ -9,6 +9,7 @@ import {
   setGlobalConfigDir,
   detectCloudSyncPath,
 } from './utils/config-manager';
+import { expandPath } from './utils/helpers';
 import { validateGlmKey, validateMiniMaxKey } from './utils/api-key-validator';
 import { ErrorManager } from './utils/error-manager';
 import { execClaudeWithCLIProxy, CLIProxyProvider } from './cliproxy';
@@ -689,7 +690,7 @@ async function main(): Promise<void> {
       if (profileInfo.type === 'settings' && profileInfo.name === 'glmt') {
         console.error(fail(`${targetAdapter.displayName} does not support GLMT proxy profiles`));
         console.error(
-          info('Use --target claude for glmt, or switch to a direct API profile (glm/kimi)')
+          info('Use --target claude for glmt, or switch to a direct API profile (glm/km)')
         );
         process.exit(1);
       }
@@ -856,7 +857,7 @@ async function main(): Promise<void> {
             fail(`${targetAdapter?.displayName || 'Target'} does not support GLMT proxy profiles`)
           );
           console.error(
-            info('Use --target claude for glmt, or switch to a direct API profile (glm/kimi)')
+            info('Use --target claude for glmt, or switch to a direct API profile (glm/km)')
           );
           process.exit(1);
         }
@@ -865,7 +866,9 @@ async function main(): Promise<void> {
       } else {
         // EXISTING FLOW: Settings-based profile (glm)
         // Use --settings flag (backward compatible)
-        const expandedSettingsPath = getSettingsPath(profileInfo.name);
+        const expandedSettingsPath = profileInfo.settingsPath
+          ? expandPath(profileInfo.settingsPath)
+          : getSettingsPath(profileInfo.name);
         const webSearchEnv = getWebSearchHookEnv();
         const imageAnalysisEnv = getImageAnalysisHookEnv(profileInfo.name);
         // Get global env vars (DISABLE_TELEMETRY, etc.) for third-party profiles

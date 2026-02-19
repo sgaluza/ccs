@@ -16,6 +16,7 @@ import { type ExecutionOptions, type ExecutionResult, type StreamMessage } from 
 import { StreamBuffer, formatToolVerbose } from './executor/stream-parser';
 import { buildExecutionResult } from './executor/result-aggregator';
 import { getCcsDir, getModelDisplayName } from '../utils/config-manager';
+import { getProfileLookupCandidates } from '../utils/profile-compat';
 
 // Re-export types for consumers
 export type { ExecutionOptions, ExecutionResult, StreamMessage } from './executor/types';
@@ -26,7 +27,7 @@ export type { ExecutionOptions, ExecutionResult, StreamMessage } from './executo
 export class HeadlessExecutor {
   /**
    * Execute task via headless Claude CLI
-   * @param profile - Profile name (glm, kimi, custom)
+   * @param profile - Profile name (glm, km, custom)
    * @param enhancedPrompt - Enhanced prompt with context
    * @param options - Execution options
    * @returns execution result
@@ -63,13 +64,18 @@ export class HeadlessExecutor {
       );
     }
 
-    // Get settings path for profile
-    const settingsPath = path.join(getCcsDir(), `${profile}.settings.json`);
+    // Get settings path for profile (supports compatibility aliases like km -> kimi)
+    const ccsDir = getCcsDir();
+    const settingsCandidates = getProfileLookupCandidates(profile).map((candidate) =>
+      path.join(ccsDir, `${candidate}.settings.json`)
+    );
+    const settingsPath = settingsCandidates.find((candidatePath) => fs.existsSync(candidatePath));
+    const primarySettingsPath = path.join(ccsDir, `${profile}.settings.json`);
 
     // Validate settings file exists
-    if (!fs.existsSync(settingsPath)) {
+    if (!settingsPath) {
       throw new Error(
-        `Settings file not found: ${settingsPath}\nProfile "${profile}" may not be configured.`
+        `Settings file not found: ${primarySettingsPath}\nProfile "${profile}" may not be configured.`
       );
     }
 

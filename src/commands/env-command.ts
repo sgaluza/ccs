@@ -14,6 +14,7 @@ import { isUnifiedMode, loadUnifiedConfig } from '../config/unified-config-loade
 import { expandPath } from '../utils/helpers';
 import { getCcsDir } from '../utils/config-manager';
 import { ProfileRegistry } from '../auth/profile-registry';
+import { getProfileLookupCandidates } from '../utils/profile-compat';
 
 type ShellType = 'bash' | 'fish' | 'powershell';
 type OutputFormat = 'openai' | 'anthropic' | 'raw';
@@ -101,15 +102,22 @@ function isCLIProxyProfile(name: string): boolean {
   return (CLIPROXY_PROFILES as readonly string[]).includes(name);
 }
 
-/** Resolve env vars for settings-based profiles (glm, kimi, custom API profiles) */
+/** Resolve env vars for settings-based profiles (glm, km, custom API profiles) */
 function resolveSettingsProfile(profileName: string): Record<string, string> | null {
   if (!isUnifiedMode()) return null;
 
   const config = loadUnifiedConfig();
   if (!config) return null;
 
-  // Check unified config profiles section
-  const profileConfig = config.profiles?.[profileName];
+  // Check unified config profiles section (supports compatibility aliases, e.g. km -> kimi)
+  let profileConfig: { type?: string; settings?: string } | undefined;
+  for (const candidate of getProfileLookupCandidates(profileName)) {
+    const candidateConfig = config.profiles?.[candidate];
+    if (candidateConfig) {
+      profileConfig = candidateConfig;
+      break;
+    }
+  }
   if (!profileConfig) return null;
 
   if (profileConfig.type !== 'api') {
@@ -225,7 +233,7 @@ export async function handleEnvCommand(args: string[]): Promise<void> {
       if (v !== undefined) envVars[k] = v;
     }
   } else {
-    // Settings-based profile (glm, kimi, custom API)
+    // Settings-based profile (glm, km, custom API)
     const resolved = resolveSettingsProfile(profile);
     if (!resolved) {
       // Check if it's an account-based profile

@@ -2,7 +2,7 @@
  * Profile Detector
  *
  * Determines profile type (settings-based vs account-based) for routing.
- * Priority: settings-based profiles (glm/kimi) checked FIRST for backward compatibility.
+ * Priority: settings-based profiles (glm/km) checked FIRST for backward compatibility.
  *
  * Supports dual-mode configuration:
  * - Unified YAML format (config.yaml) when CCS_UNIFIED_CONFIG=1 or config.yaml exists
@@ -22,6 +22,7 @@ import {
 } from '../config/unified-config-types';
 import { loadUnifiedConfig, isUnifiedMode } from '../config/unified-config-loader';
 import { getCcsDir } from '../utils/config-manager';
+import { getProfileLookupCandidates, isLegacyProfileAlias } from '../utils/profile-compat';
 import type { CLIProxyProvider } from '../cliproxy/types';
 import { CLIPROXY_PROVIDER_IDS, isCLIProxyProvider } from '../cliproxy/provider-capabilities';
 import type { TargetType } from '../targets/target-adapter';
@@ -166,16 +167,26 @@ class ProfileDetector {
       };
     }
 
-    // Check API profiles
-    if (config.profiles?.[profileName]) {
-      const profile = config.profiles[profileName];
-      // Load env from settings file
-      const settingsEnv = loadSettingsFromFile(profile.settings);
+    // Check API profiles (supports compatibility aliases, e.g. km -> kimi)
+    for (const candidate of getProfileLookupCandidates(profileName)) {
+      if (!config.profiles?.[candidate]) {
+        continue;
+      }
+
+      const profile = config.profiles[candidate];
+      const settingsPath = profile.settings;
+      const settingsEnv = loadSettingsFromFile(settingsPath);
+      const viaLegacyAlias = isLegacyProfileAlias(profileName, candidate);
+
       return {
         type: 'settings',
         name: profileName,
         target: profile.target,
+        settingsPath,
         env: settingsEnv,
+        message: viaLegacyAlias
+          ? `Using legacy API profile "${candidate}" for "${profileName}".`
+          : undefined,
       };
     }
 
@@ -308,13 +319,23 @@ class ProfileDetector {
       };
     }
 
-    // Priority 3: Check settings-based profiles (glm) - LEGACY FALLBACK
-    if (config.profiles && config.profiles[profileName]) {
-      return {
-        type: 'settings',
-        name: profileName,
-        settingsPath: config.profiles[profileName],
-      };
+    // Priority 3: Check settings-based profiles (glm, km) - LEGACY FALLBACK
+    if (config.profiles) {
+      for (const candidate of getProfileLookupCandidates(profileName)) {
+        if (!config.profiles[candidate]) {
+          continue;
+        }
+
+        const viaLegacyAlias = isLegacyProfileAlias(profileName, candidate);
+        return {
+          type: 'settings',
+          name: profileName,
+          settingsPath: config.profiles[candidate],
+          message: viaLegacyAlias
+            ? `Using legacy API profile "${candidate}" for "${profileName}".`
+            : undefined,
+        };
+      }
     }
 
     // Priority 4: Check account-based profiles (work, personal) - LEGACY FALLBACK

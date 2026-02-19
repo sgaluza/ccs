@@ -26,6 +26,9 @@ export interface ProviderPreset {
 }
 
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api';
+const LEGACY_PRESET_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  kimi: 'km',
+});
 
 /**
  * Provider presets available via CLI and UI
@@ -169,7 +172,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 
 /** Get preset by ID */
 export function getPresetById(id: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((p) => p.id === id.toLowerCase());
+  const normalized = id.toLowerCase();
+  const canonical = LEGACY_PRESET_ALIASES[normalized] || normalized;
+  return PROVIDER_PRESETS.find((p) => p.id === canonical);
 }
 
 /** Get all preset IDs */

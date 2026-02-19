@@ -99,7 +99,8 @@ The dashboard provides visual management for all account types:
 | **Ollama** | Local | `ccs ollama` | Local open-source models, privacy |
 | **Ollama Cloud** | API Key | `ccs ollama-cloud` | Cloud-hosted open-source models |
 | **GLM** | API Key | `ccs glm` | Cost-optimized execution |
-| **Kimi** | API Key | `ccs kimi` | Long-context, thinking mode |
+| **KM (Kimi API)** | API Key | `ccs km` | Long-context, thinking mode |
+| **Kimi (OAuth)** | OAuth | `ccs kimi` | Device-code OAuth via CLIProxy |
 | **Azure Foundry** | API Key | `ccs foundry` | Claude via Microsoft Azure |
 | **Minimax** | API Key | `ccs mm` | M2 series, 1M context |
 | **DeepSeek** | API Key | `ccs deepseek` | V3.2 and R1 reasoning |
@@ -139,6 +140,7 @@ ccs ghcp      # GitHub Copilot (OAuth device flow)
 ccs agy       # Antigravity (OAuth)
 ccs ollama    # Local Ollama (no API key needed)
 ccs glm       # GLM (API key)
+ccs km        # Kimi API profile (API key)
 ```
 
 ### Droid Alias (`argv[0]` pattern)

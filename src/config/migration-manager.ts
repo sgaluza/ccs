@@ -23,6 +23,9 @@ import { saveUnifiedConfig, hasUnifiedConfig, loadUnifiedConfig } from './unifie
 import { infoBox, warn } from '../utils/ui';
 
 const BACKUP_DIR_PREFIX = 'backup-v1-';
+const LEGACY_API_PROFILE_RENAMES: Readonly<Record<string, string>> = Object.freeze({
+  kimi: 'km',
+});
 
 /**
  * Migration result with details about what was migrated.
@@ -182,6 +185,7 @@ export async function migrate(dryRun = false): Promise<MigrationResult> {
     // config.yaml only stores reference to the settings file
     if (oldConfig?.profiles) {
       for (const [name, settingsPath] of Object.entries(oldConfig.profiles)) {
+        const targetName = LEGACY_API_PROFILE_RENAMES[name] || name;
         const pathStr = settingsPath as string;
         const expandedPath = expandPath(pathStr);
 
@@ -191,13 +195,30 @@ export async function migrate(dryRun = false): Promise<MigrationResult> {
           continue;
         }
 
+        if (unifiedConfig.profiles[targetName]) {
+          const existing = unifiedConfig.profiles[targetName].settings;
+          if (existing !== pathStr) {
+            warnings.push(
+              `Skipped ${name}: target profile "${targetName}" already exists with different settings (${existing})`
+            );
+          }
+          continue;
+        }
+
         // Store reference to settings file (keep using ~ for portability)
         const profile: ProfileConfig = {
           type: 'api',
           settings: pathStr,
         };
-        unifiedConfig.profiles[name] = profile;
-        migratedFiles.push(`config.json.profiles.${name} → config.yaml (settings: ${pathStr})`);
+        unifiedConfig.profiles[targetName] = profile;
+        migratedFiles.push(
+          `config.json.profiles.${name} → config.yaml.profiles.${targetName} (settings: ${pathStr})`
+        );
+        if (targetName !== name) {
+          warnings.push(
+            `Renamed legacy API profile "${name}" to "${targetName}" (ccs kimi API profile is now ccs km)`
+          );
+        }
       }
     }
 
@@ -456,15 +477,16 @@ async function migrateProfilesToUnified(
 
     // Migrate API profiles from config.json
     for (const [name, settingsPath] of Object.entries(oldConfig.profiles)) {
+      const targetName = LEGACY_API_PROFILE_RENAMES[name] || name;
       const pathStr = settingsPath as string;
 
       // H7: Detect collision - profile exists in both configs
-      if (unifiedConfig.profiles[name]) {
+      if (unifiedConfig.profiles[targetName]) {
         // Check if settings differ (potential data loss)
-        const existingSettings = unifiedConfig.profiles[name].settings;
+        const existingSettings = unifiedConfig.profiles[targetName].settings;
         if (existingSettings && existingSettings !== pathStr) {
           warnings.push(
-            `Profile "${name}" exists in both configs with different settings - keeping existing (${existingSettings}), skipping legacy (${pathStr})`
+            `Profile "${targetName}" exists in both configs with different settings - keeping existing (${existingSettings}), skipping legacy ${name} (${pathStr})`
           );
         }
         continue;
@@ -479,11 +501,16 @@ async function migrateProfilesToUnified(
       }
 
       // Store reference to settings file
-      unifiedConfig.profiles[name] = {
+      unifiedConfig.profiles[targetName] = {
         type: 'api',
         settings: pathStr,
       };
-      migratedFiles.push(name);
+      migratedFiles.push(targetName);
+      if (targetName !== name) {
+        warnings.push(
+          `Renamed legacy API profile "${name}" to "${targetName}" (ccs kimi API profile is now ccs km)`
+        );
+      }
       modified = true;
     }
 
