@@ -153,6 +153,11 @@ describe('Model Catalog', () => {
       assert.strictEqual(supportsModelConfig('codex'), true);
     });
 
+    it('returns true for kimi', () => {
+      const { supportsModelConfig } = modelCatalog;
+      assert.strictEqual(supportsModelConfig('kimi'), true);
+    });
+
     it('returns false for qwen', () => {
       const { supportsModelConfig } = modelCatalog;
       assert.strictEqual(supportsModelConfig('qwen'), false);
@@ -180,6 +185,14 @@ describe('Model Catalog', () => {
       const catalog = getProviderCatalog('codex');
       assert(catalog, 'Should return catalog');
       assert.strictEqual(catalog.provider, 'codex');
+      assert(Array.isArray(catalog.models));
+    });
+
+    it('returns catalog for kimi', () => {
+      const { getProviderCatalog } = modelCatalog;
+      const catalog = getProviderCatalog('kimi');
+      assert(catalog, 'Should return catalog');
+      assert.strictEqual(catalog.provider, 'kimi');
       assert(Array.isArray(catalog.models));
     });
   });
