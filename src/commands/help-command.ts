@@ -284,6 +284,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['ccs config image-analysis --enable', 'Enable image analysis'],
     ['ccs config thinking', 'Show thinking/reasoning settings'],
     ['ccs config thinking --mode auto', 'Set thinking mode'],
+    ['ccs config thinking --clear-provider-override codex', 'Clear provider overrides'],
     ['ccs config --port 3000', 'Use specific port'],
     ['ccs persist <profile>', 'Write profile env to ~/.claude/settings.json'],
     ['ccs persist --list-backups', 'List available settings.json backups'],

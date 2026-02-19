@@ -71,7 +71,10 @@ function showHelp(): void {
   console.log('  thinking           Manage thinking/reasoning settings');
   console.log('    --mode <mode>    Set mode (auto, off, manual)');
   console.log('    --override <l>   Set persistent override level');
+  console.log('    --clear-override Remove persistent override');
   console.log('    --tier <t> <l>   Set tier default level');
+  console.log('    --provider-override <p> <t> <l> Set provider tier override');
+  console.log('    --clear-provider-override <p> [t] Remove provider override');
   console.log('');
   console.log('Options:');
   console.log('  --port, -p PORT    Specify server port (default: auto-detect)');

@@ -141,4 +141,87 @@ describe('CodexReasoningProxy extended-context compatibility', () => {
     expect(capturedBody?.model).toBe('gpt-5.3-codex');
     expect((capturedBody?.reasoning as JsonRecord | undefined)?.effort).toBe('high');
   });
+
+  it('skips reasoning injection when disableEffort is enabled', async () => {
+    let capturedBody: JsonRecord | null = null;
+
+    const upstream = http.createServer((req, res) => {
+      let rawBody = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk) => {
+        rawBody += chunk;
+      });
+      req.on('end', () => {
+        capturedBody = rawBody ? (JSON.parse(rawBody) as JsonRecord) : {};
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      });
+    });
+    cleanupServers.push(upstream);
+
+    const upstreamPort = await listenOnRandomPort(upstream);
+    const proxy = new CodexReasoningProxy({
+      upstreamBaseUrl: `http://127.0.0.1:${upstreamPort}`,
+      modelMap: {
+        sonnetModel: 'gpt-5.3-codex-high',
+      },
+      disableEffort: true,
+    });
+
+    const proxyPort = await proxy.start();
+    const response = await postJson(
+      `http://127.0.0.1:${proxyPort}/api/provider/codex/v1/messages`,
+      {
+        model: 'gpt-5.3-codex-high',
+        messages: [],
+      }
+    );
+
+    proxy.stop();
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedBody?.model).toBe('gpt-5.3-codex');
+    expect((capturedBody?.reasoning as JsonRecord | undefined)?.effort).toBeUndefined();
+  });
+
+  it('does not strip unknown model ids that merely end with "-high"', async () => {
+    let capturedBody: JsonRecord | null = null;
+
+    const upstream = http.createServer((req, res) => {
+      let rawBody = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk) => {
+        rawBody += chunk;
+      });
+      req.on('end', () => {
+        capturedBody = rawBody ? (JSON.parse(rawBody) as JsonRecord) : {};
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      });
+    });
+    cleanupServers.push(upstream);
+
+    const upstreamPort = await listenOnRandomPort(upstream);
+    const proxy = new CodexReasoningProxy({
+      upstreamBaseUrl: `http://127.0.0.1:${upstreamPort}`,
+      modelMap: {
+        defaultModel: 'gpt-5.1-codex-mini',
+      },
+      defaultEffort: 'medium',
+    });
+
+    const proxyPort = await proxy.start();
+    const response = await postJson(
+      `http://127.0.0.1:${proxyPort}/api/provider/codex/v1/messages`,
+      {
+        model: 'enterprise-internal-high',
+        messages: [],
+      }
+    );
+
+    proxy.stop();
+
+    expect(response.statusCode).toBe(200);
+    expect(capturedBody?.model).toBe('enterprise-internal-high');
+  });
 });

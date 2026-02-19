@@ -3,12 +3,13 @@
  * Settings section for thinking budget configuration
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -32,10 +33,13 @@ const THINKING_LEVELS = [
 const OVERRIDE_LEVELS = [
   { value: '__none__', label: 'None (use CLI flags only)' },
   ...THINKING_LEVELS,
+  { value: '__custom__', label: 'Custom budget (number)' },
   { value: 'off', label: 'Off (disable thinking)' },
 ];
 
-const KNOWN_PROVIDERS = ['agy', 'gemini', 'codex'] as const;
+const DEFAULT_PROVIDER_KEYS = ['agy', 'gemini', 'codex'];
+const THINKING_BUDGET_MIN = 0;
+const THINKING_BUDGET_MAX = 100000;
 
 export default function ThinkingSection() {
   const {
@@ -51,11 +55,70 @@ export default function ThinkingSection() {
     setOverride,
     setProviderOverride,
   } = useThinkingConfig();
-  const [providerOverridesOpen, setProviderOverridesOpen] = useState(false);
+  const [providerOverridesOpenOverride, setProviderOverridesOpenOverride] = useState<
+    boolean | null
+  >(null);
+  const [customProviderInput, setCustomProviderInput] = useState('');
+  const [addedProviders, setAddedProviders] = useState<string[]>([]);
+  const [customOverrideBudgetInput, setCustomOverrideBudgetInput] = useState<string | null>(null);
+
+  const providerKeys = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...DEFAULT_PROVIDER_KEYS,
+          ...Object.keys(config.provider_overrides ?? {}),
+          ...addedProviders,
+        ])
+      ),
+    [addedProviders, config.provider_overrides]
+  );
+
+  const overrideSelectValue =
+    config.override === undefined
+      ? '__none__'
+      : typeof config.override === 'number' || /^\d+$/.test(String(config.override))
+        ? '__custom__'
+        : String(config.override);
+  const persistedCustomOverrideBudget =
+    typeof config.override === 'number' || /^\d+$/.test(String(config.override ?? ''))
+      ? String(config.override)
+      : '';
+  const customOverrideBudget = customOverrideBudgetInput ?? persistedCustomOverrideBudget;
+  const hasProviderOverrides = Object.keys(config.provider_overrides ?? {}).length > 0;
+  const providerOverridesOpen = providerOverridesOpenOverride ?? hasProviderOverrides;
 
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
+
+  const handleAddProvider = () => {
+    const normalized = customProviderInput.trim().toLowerCase();
+    if (!normalized) return;
+    if (!providerKeys.includes(normalized)) {
+      setAddedProviders((prev) => [...prev, normalized]);
+    }
+    setCustomProviderInput('');
+    setProviderOverridesOpenOverride(true);
+  };
+
+  const handleApplyCustomBudget = () => {
+    const trimmed = customOverrideBudget.trim();
+    if (!trimmed) {
+      setOverride(undefined);
+      return;
+    }
+    const parsed = Number.parseInt(trimmed, 10);
+    if (
+      Number.isNaN(parsed) ||
+      parsed < THINKING_BUDGET_MIN ||
+      parsed > THINKING_BUDGET_MAX ||
+      !/^\d+$/.test(trimmed)
+    ) {
+      return;
+    }
+    setOverride(parsed);
+  };
 
   if (loading) {
     return (
@@ -148,8 +211,12 @@ export default function ThinkingSection() {
                     config.mode === mode
                       ? 'bg-primary/10 border border-primary/30'
                       : 'bg-muted/50 hover:bg-muted/80'
-                  }`}
-                  onClick={() => setMode(mode)}
+                  } ${saving ? 'opacity-70 pointer-events-none' : ''}`}
+                  onClick={() => {
+                    if (!saving) {
+                      setMode(mode);
+                    }
+                  }}
                 >
                   <div>
                     <p className="font-medium capitalize">{mode}</p>
@@ -214,8 +281,21 @@ export default function ThinkingSection() {
                 Applied to all sessions. CLI flags still take priority.
               </p>
               <Select
-                value={config.override !== undefined ? String(config.override) : '__none__'}
-                onValueChange={(value) => setOverride(value === '__none__' ? undefined : value)}
+                value={overrideSelectValue}
+                onValueChange={(value) => {
+                  if (value === '__none__') {
+                    setOverride(undefined);
+                    return;
+                  }
+                  if (value === '__custom__') {
+                    if (!customOverrideBudget) {
+                      setCustomOverrideBudgetInput('8192');
+                    }
+                    return;
+                  }
+                  setCustomOverrideBudgetInput(null);
+                  setOverride(value);
+                }}
                 disabled={saving}
               >
                 <SelectTrigger>
@@ -229,6 +309,34 @@ export default function ThinkingSection() {
                   ))}
                 </SelectContent>
               </Select>
+              {overrideSelectValue === '__custom__' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={THINKING_BUDGET_MIN}
+                      max={THINKING_BUDGET_MAX}
+                      value={customOverrideBudget}
+                      onChange={(event) => setCustomOverrideBudgetInput(event.target.value)}
+                      onBlur={handleApplyCustomBudget}
+                      disabled={saving}
+                      placeholder="Enter custom budget"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handleApplyCustomBudget}
+                      disabled={saving}
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Range: {THINKING_BUDGET_MIN} to {THINKING_BUDGET_MAX}
+                  </p>
+                </div>
+              )}
             </div>
           )}
 
@@ -237,19 +345,39 @@ export default function ThinkingSection() {
             <button
               type="button"
               className="flex items-center gap-2 text-base font-medium w-full text-left"
-              onClick={() => setProviderOverridesOpen(!providerOverridesOpen)}
+              onClick={() =>
+                setProviderOverridesOpenOverride((prev) => !(prev ?? hasProviderOverrides))
+              }
+              disabled={saving}
             >
               <ChevronDown
                 className={`w-4 h-4 transition-transform ${providerOverridesOpen ? 'rotate-0' : '-rotate-90'}`}
               />
-              Provider Overrides
+              Provider Overrides ({Object.keys(config.provider_overrides ?? {}).length})
             </button>
             {providerOverridesOpen && (
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Override tier defaults for specific providers.
+                  Override tier defaults for specific providers. Add custom provider keys as needed.
                 </p>
-                {KNOWN_PROVIDERS.map((provider) => (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={customProviderInput}
+                    onChange={(event) => setCustomProviderInput(event.target.value)}
+                    disabled={saving}
+                    placeholder="Add provider key (e.g. qwen)"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAddProvider}
+                    disabled={saving}
+                  >
+                    Add
+                  </Button>
+                </div>
+                {providerKeys.map((provider) => (
                   <div key={provider} className="space-y-2 p-3 rounded-lg bg-muted/30">
                     <Label className="capitalize font-medium text-sm">{provider}</Label>
                     <div className="grid grid-cols-3 gap-2">

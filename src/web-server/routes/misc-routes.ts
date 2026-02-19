@@ -261,8 +261,17 @@ router.get('/thinking', (_req: Request, res: Response): void => {
  */
 router.put('/thinking', (req: Request, res: Response): void => {
   try {
-    const { lastModified, ...updates } = req.body as Partial<ThinkingConfig> & {
+    const {
+      lastModified,
+      clear_override: clearOverrideFlag,
+      clear_provider_overrides: clearProviderOverridesFlag,
+      ...updates
+    } = req.body as Omit<Partial<ThinkingConfig>, 'override' | 'provider_overrides'> & {
       lastModified?: number;
+      override?: string | number | null;
+      provider_overrides?: Record<string, Partial<ThinkingConfig['tier_defaults']>> | null;
+      clear_override?: boolean;
+      clear_provider_overrides?: boolean;
     };
 
     // W4: Optimistic locking - check if file was modified since last read
@@ -282,18 +291,30 @@ router.put('/thinking', (req: Request, res: Response): void => {
     }
 
     const config = loadOrCreateUnifiedConfig();
+    const shouldClearOverride = clearOverrideFlag === true || updates.override === null;
+    const shouldClearProviderOverrides =
+      clearProviderOverridesFlag === true || updates.provider_overrides === null;
+    let normalizedOverride: string | number | undefined = config.thinking?.override as
+      | string
+      | number
+      | undefined;
+    let normalizedProviderOverrides:
+      | Record<string, Partial<ThinkingConfig['tier_defaults']>>
+      | undefined;
 
     // Validate mode if provided
     if (updates.mode !== undefined) {
       const validModes = ['auto', 'off', 'manual'];
-      if (!validModes.includes(updates.mode)) {
+      const normalizedMode = updates.mode.toLowerCase().trim();
+      if (!validModes.includes(normalizedMode)) {
         res.status(400).json({ error: `Invalid mode: must be one of ${validModes.join(', ')}` });
         return;
       }
+      updates.mode = normalizedMode as ThinkingConfig['mode'];
     }
 
     // Validate override if provided (budget or level)
-    if (updates.override !== undefined) {
+    if (updates.override !== undefined && updates.override !== null) {
       // C3: Reject objects/arrays - only number or string allowed
       if (typeof updates.override !== 'number' && typeof updates.override !== 'string') {
         res.status(400).json({
@@ -313,6 +334,7 @@ router.put('/thinking', (req: Request, res: Response): void => {
           });
           return;
         }
+        normalizedOverride = updates.override;
       } else if (typeof updates.override === 'string') {
         const normalizedValue = updates.override.toLowerCase().trim();
         const validValues = [...VALID_THINKING_LEVELS, ...THINKING_OFF_VALUES] as readonly string[];
@@ -322,6 +344,7 @@ router.put('/thinking', (req: Request, res: Response): void => {
           });
           return;
         }
+        normalizedOverride = normalizedValue === '0' ? 'off' : normalizedValue;
       }
     }
 
@@ -351,7 +374,7 @@ router.put('/thinking', (req: Request, res: Response): void => {
     }
 
     // C4: Validate provider_overrides if provided (nested structure: Record<string, Partial<ThinkingTierDefaults>>)
-    if (updates.provider_overrides !== undefined) {
+    if (updates.provider_overrides !== undefined && updates.provider_overrides !== null) {
       if (
         typeof updates.provider_overrides !== 'object' ||
         updates.provider_overrides === null ||
@@ -362,6 +385,7 @@ router.put('/thinking', (req: Request, res: Response): void => {
       }
       const validLevels = [...VALID_THINKING_LEVELS] as string[];
       const validTiers = [...VALID_THINKING_TIERS] as string[];
+      const sanitizedOverrides: Record<string, Partial<ThinkingConfig['tier_defaults']>> = {};
       for (const [provider, tierOverrides] of Object.entries(updates.provider_overrides)) {
         if (typeof provider !== 'string' || provider.trim() === '') {
           res
@@ -383,26 +407,41 @@ router.put('/thinking', (req: Request, res: Response): void => {
             });
             return;
           }
-          if (typeof level !== 'string' || !validLevels.includes(level)) {
+          if (typeof level !== 'string' || !validLevels.includes(level.toLowerCase().trim())) {
             res.status(400).json({
               error: `Invalid level for provider_overrides.${provider}.${tier}: must be one of ${validLevels.join(', ')}`,
             });
             return;
           }
+          const normalizedProvider = provider.trim().toLowerCase();
+          const normalizedTier = tier.trim().toLowerCase() as keyof ThinkingConfig['tier_defaults'];
+          const normalizedLevel = level.toLowerCase().trim();
+          sanitizedOverrides[normalizedProvider] = sanitizedOverrides[normalizedProvider] ?? {};
+          sanitizedOverrides[normalizedProvider][normalizedTier] = normalizedLevel;
         }
       }
+      normalizedProviderOverrides =
+        Object.keys(sanitizedOverrides).length > 0 ? sanitizedOverrides : undefined;
     }
 
     // Update thinking section
     config.thinking = {
       mode: updates.mode ?? config.thinking?.mode ?? 'auto',
-      override: updates.override ?? config.thinking?.override,
+      override: shouldClearOverride
+        ? undefined
+        : updates.override !== undefined
+          ? normalizedOverride
+          : config.thinking?.override,
       tier_defaults: {
         opus: updates.tier_defaults?.opus ?? config.thinking?.tier_defaults?.opus ?? 'high',
         sonnet: updates.tier_defaults?.sonnet ?? config.thinking?.tier_defaults?.sonnet ?? 'medium',
         haiku: updates.tier_defaults?.haiku ?? config.thinking?.tier_defaults?.haiku ?? 'low',
       },
-      provider_overrides: updates.provider_overrides ?? config.thinking?.provider_overrides,
+      provider_overrides: shouldClearProviderOverrides
+        ? undefined
+        : updates.provider_overrides !== undefined
+          ? normalizedProviderOverrides
+          : config.thinking?.provider_overrides,
       show_warnings: updates.show_warnings ?? config.thinking?.show_warnings ?? true,
     };
 

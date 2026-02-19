@@ -19,6 +19,13 @@ const DEFAULT_THINKING_CONFIG: ThinkingConfig = {
 
 const FETCH_TIMEOUT = 10000; // 10 second timeout
 
+type ThinkingUpdatePayload = Omit<Partial<ThinkingConfig>, 'override' | 'provider_overrides'> & {
+  override?: string | number | null;
+  provider_overrides?: Record<string, Partial<ThinkingConfig['tier_defaults']>> | null;
+  clear_override?: boolean;
+  clear_provider_overrides?: boolean;
+};
+
 export function useThinkingConfig() {
   const [config, setConfig] = useState<ThinkingConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +34,7 @@ export function useThinkingConfig() {
   const [success, setSuccess] = useState(false);
   // W4: Track lastModified for optimistic locking
   const lastModifiedRef = useRef<number | undefined>(undefined);
+  const hasLoadedConfigRef = useRef(false);
 
   const fetchConfig = useCallback(async () => {
     const controller = new AbortController();
@@ -49,6 +57,7 @@ export function useThinkingConfig() {
       setConfig(data.config || DEFAULT_THINKING_CONFIG);
       // W4: Store lastModified for optimistic locking
       lastModifiedRef.current = data.lastModified;
+      hasLoadedConfigRef.current = true;
     } catch (err) {
       clearTimeout(timeoutId);
       if ((err as Error).name === 'AbortError') {
@@ -56,7 +65,6 @@ export function useThinkingConfig() {
       } else {
         setError((err as Error).message);
       }
-      setConfig(DEFAULT_THINKING_CONFIG);
     } finally {
       setLoading(false);
     }
@@ -66,9 +74,32 @@ export function useThinkingConfig() {
   }, []);
 
   const saveConfig = useCallback(
-    async (updates: Partial<ThinkingConfig>) => {
-      const currentConfig = config || DEFAULT_THINKING_CONFIG;
-      const optimisticConfig = { ...currentConfig, ...updates };
+    async (updates: ThinkingUpdatePayload) => {
+      if (!hasLoadedConfigRef.current || config === null) {
+        setError('Cannot save settings before they load. Click Refresh and try again.');
+        return;
+      }
+
+      const currentConfig = config;
+      const optimisticConfig: ThinkingConfig = {
+        ...currentConfig,
+        ...(updates.mode !== undefined ? { mode: updates.mode } : {}),
+        ...(updates.tier_defaults !== undefined ? { tier_defaults: updates.tier_defaults } : {}),
+        ...(updates.show_warnings !== undefined ? { show_warnings: updates.show_warnings } : {}),
+      };
+
+      if (updates.clear_override || updates.override === null) {
+        delete optimisticConfig.override;
+      } else if (updates.override !== undefined) {
+        optimisticConfig.override = updates.override;
+      }
+
+      if (updates.clear_provider_overrides || updates.provider_overrides === null) {
+        delete optimisticConfig.provider_overrides;
+      } else if (updates.provider_overrides !== undefined) {
+        optimisticConfig.provider_overrides = updates.provider_overrides;
+      }
+
       setConfig(optimisticConfig);
 
       const controller = new AbortController();
@@ -158,7 +189,11 @@ export function useThinkingConfig() {
 
   const setOverride = useCallback(
     (value: string | number | undefined) => {
-      saveConfig({ override: value });
+      if (value === undefined) {
+        saveConfig({ override: null, clear_override: true });
+        return;
+      }
+      saveConfig({ override: value, clear_override: false });
     },
     [saveConfig]
   );
@@ -177,8 +212,8 @@ export function useThinkingConfig() {
           ? { ...otherProviders, [provider]: updatedProvider }
           : otherProviders;
         saveConfig({
-          provider_overrides:
-            Object.keys(updatedOverrides).length > 0 ? updatedOverrides : undefined,
+          provider_overrides: Object.keys(updatedOverrides).length > 0 ? updatedOverrides : null,
+          clear_provider_overrides: Object.keys(updatedOverrides).length === 0,
         });
       } else {
         saveConfig({
@@ -186,6 +221,7 @@ export function useThinkingConfig() {
             ...currentOverrides,
             [provider]: { ...currentProviderOverrides, [tier]: level },
           },
+          clear_provider_overrides: false,
         });
       }
     },

@@ -87,6 +87,21 @@ export const THINKING_OFF_VALUES = ['off', 'none', 'disabled', '0'] as const;
 export const THINKING_AUTO_VALUE = 'auto';
 
 /**
+ * Check whether a value should disable thinking.
+ * Accepts common string aliases and numeric 0.
+ */
+export function isThinkingOffValue(value: unknown): boolean {
+  if (typeof value === 'number') {
+    return value === 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase().trim();
+    return THINKING_OFF_VALUES.includes(normalized as (typeof THINKING_OFF_VALUES)[number]);
+  }
+  return false;
+}
+
+/**
  * Find closest valid level using simple string matching
  * Returns undefined if no close match found
  */
@@ -158,11 +173,8 @@ export function validateThinking(
   }
 
   // Handle off/none/disabled values
-  if (typeof value === 'string') {
-    const normalizedValue = value.toLowerCase().trim();
-    if (THINKING_OFF_VALUES.includes(normalizedValue as (typeof THINKING_OFF_VALUES)[number])) {
-      return { valid: true, value: 'off' };
-    }
+  if (isThinkingOffValue(value)) {
+    return { valid: true, value: 'off' };
   }
 
   // If model has no thinking support info, pass through

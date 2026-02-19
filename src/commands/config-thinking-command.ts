@@ -13,47 +13,13 @@ import {
 } from '../config/unified-config-loader';
 import { DEFAULT_THINKING_TIER_DEFAULTS } from '../config/unified-config-types';
 import { VALID_THINKING_LEVELS } from '../cliproxy/thinking-validator';
+import { parseThinkingCommandArgs, parseThinkingOverrideInput } from './config-thinking-parser';
 
 const VALID_THINKING_MODES = ['auto', 'off', 'manual'] as const;
 
-interface ThinkingCommandOptions {
-  mode?: string;
-  override?: string;
-  clearOverride?: boolean;
-  tier?: { tier: string; level: string };
-  providerOverride?: { provider: string; tier: string; level: string };
-  help?: boolean;
-}
-
 const VALID_TIERS = ['opus', 'sonnet', 'haiku'] as const;
-
-function parseArgs(args: string[]): ThinkingCommandOptions {
-  const options: ThinkingCommandOptions = {};
-
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-
-    if (arg === '--mode' && args[i + 1]) {
-      options.mode = args[++i];
-    } else if (arg === '--override' && args[i + 1]) {
-      options.override = args[++i];
-    } else if (arg === '--clear-override') {
-      options.clearOverride = true;
-    } else if (arg === '--tier' && args[i + 1] && args[i + 2]) {
-      options.tier = { tier: args[++i], level: args[++i] };
-    } else if (arg === '--provider-override' && args[i + 1] && args[i + 2] && args[i + 3]) {
-      options.providerOverride = {
-        provider: args[++i],
-        tier: args[++i],
-        level: args[++i],
-      };
-    } else if (arg === '--help' || arg === '-h') {
-      options.help = true;
-    }
-  }
-
-  return options;
-}
+type ThinkingTier = (typeof VALID_TIERS)[number];
+export { parseThinkingCommandArgs, parseThinkingOverrideInput } from './config-thinking-parser';
 
 function showHelp(): void {
   console.log('');
@@ -82,6 +48,9 @@ function showHelp(): void {
   console.log(
     `  ${color('--provider-override <p> <t> <l>', 'command')} Set provider-specific tier override`
   );
+  console.log(
+    `  ${color('--clear-provider-override <p> [t]', 'command')} Remove provider override (provider or tier)`
+  );
   console.log(`  ${color('--help, -h', 'command')}                        Show this help`);
   console.log('');
 
@@ -106,6 +75,9 @@ function showHelp(): void {
   );
   console.log(
     `  $ ${color('ccs config thinking --provider-override codex opus xhigh', 'command')}`
+  );
+  console.log(
+    `  $ ${color('ccs config thinking --clear-provider-override codex opus', 'command')}`
   );
   console.log('');
 
@@ -177,7 +149,12 @@ function showStatus(): void {
 export async function handleConfigThinkingCommand(args: string[]): Promise<void> {
   await initUI();
 
-  const options = parseArgs(args);
+  const { options, error } = parseThinkingCommandArgs(args);
+  if (error) {
+    console.error(fail(error));
+    process.exitCode = 1;
+    return;
+  }
 
   if (options.help) {
     showHelp();
@@ -194,29 +171,27 @@ export async function handleConfigThinkingCommand(args: string[]): Promise<void>
 
   // Validate and apply --mode
   if (options.mode !== undefined) {
-    if (!(VALID_THINKING_MODES as readonly string[]).includes(options.mode)) {
+    const normalizedMode = options.mode.trim().toLowerCase();
+    if (!(VALID_THINKING_MODES as readonly string[]).includes(normalizedMode)) {
       console.error(fail(`Invalid mode: ${options.mode}`));
       console.error(info(`Valid modes: ${VALID_THINKING_MODES.join(', ')}`));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
-    thinkingConfig.mode = options.mode as 'auto' | 'off' | 'manual';
+    thinkingConfig.mode = normalizedMode as 'auto' | 'off' | 'manual';
     hasChanges = true;
   }
 
   // Validate and apply --override
   if (options.override !== undefined) {
-    const normalized = options.override.toLowerCase().trim();
-    if (
-      !(VALID_THINKING_LEVELS as readonly string[]).includes(normalized) &&
-      !/^\d+$/.test(normalized)
-    ) {
-      console.error(fail(`Invalid override: ${options.override}`));
+    const parsedOverride = parseThinkingOverrideInput(options.override);
+    if (parsedOverride.error) {
+      console.error(fail(parsedOverride.error));
       console.error(info(`Valid levels: ${VALID_THINKING_LEVELS.join(', ')}, or a number`));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
-    thinkingConfig.override = /^\d+$/.test(normalized)
-      ? Number.parseInt(normalized, 10)
-      : normalized;
+    thinkingConfig.override = parsedOverride.value;
     hasChanges = true;
   }
 
@@ -228,44 +203,95 @@ export async function handleConfigThinkingCommand(args: string[]): Promise<void>
 
   // Validate and apply --tier
   if (options.tier) {
-    const { tier, level } = options.tier;
+    const tier = options.tier.tier.toLowerCase().trim();
+    const level = options.tier.level.toLowerCase().trim();
     if (!(VALID_TIERS as readonly string[]).includes(tier)) {
-      console.error(fail(`Invalid tier: ${tier}`));
+      console.error(fail(`Invalid tier: ${options.tier.tier}`));
       console.error(info(`Valid tiers: ${VALID_TIERS.join(', ')}`));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
-    if (!(VALID_THINKING_LEVELS as readonly string[]).includes(level.toLowerCase())) {
-      console.error(fail(`Invalid level for ${tier}: ${level}`));
+    if (!(VALID_THINKING_LEVELS as readonly string[]).includes(level)) {
+      console.error(fail(`Invalid level for ${tier}: ${options.tier.level}`));
       console.error(info(`Valid levels: ${VALID_THINKING_LEVELS.join(', ')}`));
-      process.exit(1);
+      process.exitCode = 1;
+      return;
     }
     thinkingConfig.tier_defaults = {
       ...DEFAULT_THINKING_TIER_DEFAULTS,
       ...thinkingConfig.tier_defaults,
-      [tier]: level.toLowerCase(),
+      [tier]: level,
     };
     hasChanges = true;
   }
 
   // Validate and apply --provider-override
   if (options.providerOverride) {
-    const { provider, tier, level } = options.providerOverride;
+    const provider = options.providerOverride.provider.trim().toLowerCase();
+    const tier = options.providerOverride.tier.trim().toLowerCase();
+    const level = options.providerOverride.level.trim().toLowerCase();
+    if (!provider) {
+      console.error(fail('Provider name cannot be empty'));
+      process.exitCode = 1;
+      return;
+    }
     if (!(VALID_TIERS as readonly string[]).includes(tier)) {
-      console.error(fail(`Invalid tier: ${tier}`));
-      process.exit(1);
+      console.error(fail(`Invalid tier: ${options.providerOverride.tier}`));
+      process.exitCode = 1;
+      return;
     }
-    if (!(VALID_THINKING_LEVELS as readonly string[]).includes(level.toLowerCase())) {
-      console.error(fail(`Invalid level: ${level}`));
-      process.exit(1);
+    if (!(VALID_THINKING_LEVELS as readonly string[]).includes(level)) {
+      console.error(fail(`Invalid level: ${options.providerOverride.level}`));
+      process.exitCode = 1;
+      return;
     }
+    const normalizedTier = tier as ThinkingTier;
     thinkingConfig.provider_overrides = {
       ...thinkingConfig.provider_overrides,
       [provider]: {
         ...thinkingConfig.provider_overrides?.[provider],
-        [tier]: level.toLowerCase(),
+        [normalizedTier]: level,
       },
     };
     hasChanges = true;
+  }
+
+  // Validate and apply --clear-provider-override
+  if (options.clearProviderOverride) {
+    const provider = options.clearProviderOverride.provider.trim().toLowerCase();
+    const tier = options.clearProviderOverride.tier?.trim().toLowerCase();
+    if (!provider) {
+      console.error(fail('Provider name cannot be empty'));
+      process.exitCode = 1;
+      return;
+    }
+    if (tier && !(VALID_TIERS as readonly string[]).includes(tier)) {
+      console.error(fail(`Invalid tier: ${options.clearProviderOverride.tier}`));
+      console.error(info(`Valid tiers: ${VALID_TIERS.join(', ')}`));
+      process.exitCode = 1;
+      return;
+    }
+    const currentOverrides = thinkingConfig.provider_overrides ?? {};
+    const nextOverrides = { ...currentOverrides };
+    if (!nextOverrides[provider]) {
+      // no-op, but still considered change request to keep command deterministic
+      hasChanges = true;
+    } else if (!tier) {
+      delete nextOverrides[provider];
+      hasChanges = true;
+    } else {
+      const normalizedTier = tier as ThinkingTier;
+      const providerEntry = { ...nextOverrides[provider] };
+      delete providerEntry[normalizedTier];
+      if (Object.keys(providerEntry).length === 0) {
+        delete nextOverrides[provider];
+      } else {
+        nextOverrides[provider] = providerEntry;
+      }
+      hasChanges = true;
+    }
+    thinkingConfig.provider_overrides =
+      Object.keys(nextOverrides).length > 0 ? nextOverrides : undefined;
   }
 
   if (hasChanges) {

@@ -55,6 +55,17 @@ function parseModelEffortSuffix(
   return { upstreamModel, effort };
 }
 
+function isKnownCodexModelId(
+  model: string,
+  modelEffort: Map<string, CodexReasoningEffort>
+): boolean {
+  if (modelEffort.has(model)) return true;
+  if (EFFORT_BY_RANK.some((effort) => modelEffort.has(`${model}-${effort}`))) {
+    return true;
+  }
+  return getModelMaxLevel('codex', model) !== undefined;
+}
+
 const EFFORT_RANK: Record<CodexReasoningEffort, number> = {
   medium: 1,
   high: 2,
@@ -180,6 +191,22 @@ export class CodexReasoningProxy {
       disableEffort: config.disableEffort ?? false,
     };
     this.modelEffort = buildCodexModelEffortMap(this.config.modelMap, this.config.defaultEffort);
+  }
+
+  /**
+   * Treat trailing "-high/-medium/-xhigh" as an effort alias only for known codex models.
+   * Prevents stripping legitimate upstream model IDs that happen to end with those tokens.
+   */
+  private parseEffortAlias(
+    model: string | null
+  ): { upstreamModel: string; effort: CodexReasoningEffort } | null {
+    if (!model) return null;
+    const parsed = parseModelEffortSuffix(model);
+    if (!parsed) return null;
+    if (!isKnownCodexModelId(parsed.upstreamModel, this.modelEffort)) {
+      return null;
+    }
+    return parsed;
   }
 
   private log(message: string): void {
@@ -340,9 +367,7 @@ export class CodexReasoningProxy {
 
       // When effort is disabled (thinking mode: off), strip model suffix but don't inject reasoning
       if (this.config.disableEffort) {
-        const suffixParsed = normalizedRequestModel
-          ? parseModelEffortSuffix(normalizedRequestModel)
-          : null;
+        const suffixParsed = this.parseEffortAlias(normalizedRequestModel);
         const upstreamModel = suffixParsed?.upstreamModel ?? normalizedRequestModel;
         const forwarded =
           upstreamModel && isRecord(parsed) ? { ...parsed, model: upstreamModel } : parsed;
@@ -357,9 +382,7 @@ export class CodexReasoningProxy {
       // - reasoning.effort: `xhigh`
       //
       // This allows tier→effort mapping without inventing upstream model IDs.
-      const suffixParsed = normalizedRequestModel
-        ? parseModelEffortSuffix(normalizedRequestModel)
-        : null;
+      const suffixParsed = this.parseEffortAlias(normalizedRequestModel);
       const upstreamModel = suffixParsed?.upstreamModel ?? normalizedRequestModel;
       const effort =
         suffixParsed?.effort ??
