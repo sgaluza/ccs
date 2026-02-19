@@ -44,7 +44,12 @@ import { getProviderTokenDir, isAuthenticated, registerAccountFromToken } from '
 import { executeOAuthProcess } from './oauth-process';
 import { importKiroToken } from './kiro-import';
 import { getProxyTarget, buildProxyUrl, buildManagementHeaders } from '../proxy-target-resolver';
-import { checkNewAccountConflict, warnNewAccountConflict } from '../account-safety';
+import {
+  checkNewAccountConflict,
+  warnNewAccountConflict,
+  warnOAuthBanRisk,
+  warnPossible403Ban,
+} from '../account-safety';
 
 /**
  * Prompt user to add another account
@@ -278,7 +283,9 @@ async function handlePasteCallbackMode(
     });
 
     if (!startResponse.ok) {
+      const startError = `OAuth start failed with status ${startResponse.status}`;
       console.log(fail('Failed to start OAuth flow'));
+      warnPossible403Ban(provider, startError);
       return null;
     }
 
@@ -380,7 +387,10 @@ async function handlePasteCallbackMode(
     };
 
     if (!callbackResponse.ok || callbackData.status === 'error') {
-      console.log(fail(callbackData.error || 'OAuth callback failed'));
+      const callbackError =
+        callbackData.error || `OAuth callback failed with status ${callbackResponse.status}`;
+      console.log(fail(callbackError));
+      warnPossible403Ban(provider, callbackError);
       return null;
     }
 
@@ -417,6 +427,7 @@ export async function triggerOAuth(
   options: OAuthOptions = {}
 ): Promise<AccountInfo | null> {
   const oauthConfig = getOAuthConfig(provider);
+  warnOAuthBanRisk(provider);
   const { verbose = false, add = false, fromUI = false, noIncognito = true } = options;
   let { nickname } = options;
   const resolvedKiroMethod =
