@@ -176,6 +176,10 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
   },
 ];
 
+const LEGACY_PRESET_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  kimi: 'km',
+});
+
 /** Get presets by category */
 export function getPresetsByCategory(category: PresetCategory): ProviderPreset[] {
   return PROVIDER_PRESETS.filter((p) => p.category === category);
@@ -183,7 +187,9 @@ export function getPresetsByCategory(category: PresetCategory): ProviderPreset[]
 
 /** Get preset by ID */
 export function getPresetById(id: string): ProviderPreset | undefined {
-  return PROVIDER_PRESETS.find((p) => p.id.toLowerCase() === id.toLowerCase());
+  const normalized = id.trim().toLowerCase();
+  const canonical = LEGACY_PRESET_ALIASES[normalized] || normalized;
+  return PROVIDER_PRESETS.find((p) => p.id.toLowerCase() === canonical);
 }
 
 /** Check if a URL matches a known preset */

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { getProfileLookupCandidates, isLegacyProfileAlias } from '../../../src/utils/profile-compat';
+import {
+  getProfileLookupCandidates,
+  isLegacyProfileAlias,
+  resolveAliasToCanonical,
+} from '../../../src/utils/profile-compat';
 
 describe('profile-compat', () => {
   describe('getProfileLookupCandidates', () => {
@@ -13,6 +17,15 @@ describe('profile-compat', () => {
 
     it('normalizes uppercase input and still resolves aliases', () => {
       expect(getProfileLookupCandidates('KM')).toEqual(['KM', 'km', 'kimi']);
+    });
+
+    it('handles surrounding whitespace', () => {
+      expect(getProfileLookupCandidates('  km  ')).toEqual(['km', 'kimi']);
+    });
+
+    it('returns empty candidates for empty input', () => {
+      expect(getProfileLookupCandidates('')).toEqual([]);
+      expect(getProfileLookupCandidates('   ')).toEqual([]);
     });
   });
 
@@ -28,6 +41,18 @@ describe('profile-compat', () => {
 
     it('returns false for unrelated names', () => {
       expect(isLegacyProfileAlias('glm', 'kimi')).toBe(false);
+    });
+  });
+
+  describe('resolveAliasToCanonical', () => {
+    it('maps legacy kimi alias to canonical km', () => {
+      expect(resolveAliasToCanonical('kimi')).toBe('km');
+      expect(resolveAliasToCanonical('KIMI')).toBe('km');
+    });
+
+    it('keeps canonical and non-aliased names', () => {
+      expect(resolveAliasToCanonical('km')).toBe('km');
+      expect(resolveAliasToCanonical('glm')).toBe('glm');
     });
   });
 });

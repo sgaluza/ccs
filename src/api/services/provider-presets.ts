@@ -5,6 +5,8 @@
  * Mirrors the UI presets in ui/src/lib/provider-presets.ts
  */
 
+import { resolveAliasToCanonical } from '../../utils/profile-compat';
+
 export type PresetCategory = 'recommended' | 'alternative';
 
 export interface ProviderPreset {
@@ -26,9 +28,6 @@ export interface ProviderPreset {
 }
 
 export const OPENROUTER_BASE_URL = 'https://openrouter.ai/api';
-const LEGACY_PRESET_ALIASES: Readonly<Record<string, string>> = Object.freeze({
-  kimi: 'km',
-});
 
 /**
  * Provider presets available via CLI and UI
@@ -172,8 +171,8 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 
 /** Get preset by ID */
 export function getPresetById(id: string): ProviderPreset | undefined {
-  const normalized = id.toLowerCase();
-  const canonical = LEGACY_PRESET_ALIASES[normalized] || normalized;
+  const normalized = id.trim().toLowerCase();
+  const canonical = resolveAliasToCanonical(normalized).toLowerCase();
   return PROVIDER_PRESETS.find((p) => p.id === canonical);
 }
 

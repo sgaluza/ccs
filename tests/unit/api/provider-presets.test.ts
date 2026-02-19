@@ -12,6 +12,16 @@ describe('provider-presets', () => {
     expect(preset?.id).toBe('km');
   });
 
+  it('resolves preset id with extra whitespace', () => {
+    const preset = getPresetById('  km  ');
+    expect(preset?.id).toBe('km');
+  });
+
+  it('resolves uppercase legacy alias', () => {
+    const preset = getPresetById('KIMI');
+    expect(preset?.id).toBe('km');
+  });
+
   it('treats legacy kimi alias as a valid preset id', () => {
     expect(isValidPresetId('kimi')).toBe(true);
   });

@@ -11,6 +11,23 @@ const PROFILE_COMPAT_ALIASES: Readonly<Record<string, readonly string[]>> = Obje
 });
 
 /**
+ * Resolve a legacy alias to its canonical profile name.
+ * Returns trimmed input when no alias mapping exists.
+ */
+export function resolveAliasToCanonical(profileName: string): string {
+  const raw = profileName.trim();
+  const normalized = raw.toLowerCase();
+
+  for (const [canonical, aliases] of Object.entries(PROFILE_COMPAT_ALIASES)) {
+    if (aliases.includes(normalized)) {
+      return canonical;
+    }
+  }
+
+  return raw;
+}
+
+/**
  * Build lookup candidates for a profile.
  * Order: exact input -> lowercase form (if different) -> legacy aliases.
  */
