@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { EventEmitter } from 'events';
+import * as childProcess from 'child_process';
 
 type SpawnCall = {
   command: string;
@@ -18,6 +19,8 @@ function createMockChild(): EventEmitter & {
   stderr: EventEmitter;
   exitCode: number | null;
   killed: boolean;
+  pid: number;
+  unref: () => EventEmitter;
   kill: () => boolean;
 } {
   const child = new EventEmitter() as EventEmitter & {
@@ -25,6 +28,8 @@ function createMockChild(): EventEmitter & {
     stderr: EventEmitter;
     exitCode: number | null;
     killed: boolean;
+    pid: number;
+    unref: () => EventEmitter;
     kill: () => boolean;
   };
 
@@ -32,6 +37,8 @@ function createMockChild(): EventEmitter & {
   child.stderr = new EventEmitter();
   child.exitCode = null;
   child.killed = false;
+  child.pid = process.pid;
+  child.unref = () => child;
   child.kill = () => {
     child.killed = true;
     child.exitCode = 1;
@@ -41,7 +48,13 @@ function createMockChild(): EventEmitter & {
   return child;
 }
 
+function shouldMockCommand(command: string): boolean {
+  const normalized = command.toLowerCase();
+  return normalized.includes('claude');
+}
+
 mock.module('child_process', () => ({
+  ...childProcess,
   spawn: (...spawnArgs: unknown[]) => {
     const command = String(spawnArgs[0] ?? '');
     const maybeArgs = spawnArgs[1];
@@ -50,14 +63,39 @@ mock.module('child_process', () => ({
       | Record<string, unknown>
       | undefined;
 
+    if (!shouldMockCommand(command)) {
+      return childProcess.spawn(
+        command,
+        args,
+        options as Parameters<typeof childProcess.spawn>[2]
+      );
+    }
+
     spawnCalls.push({ command, args, options });
 
     const child = createMockChild();
     setTimeout(() => child.emit('close', 0), 0);
     return child;
   },
-  spawnSync: () => ({ status: 0 }),
-  execSync: () => '',
+  spawnSync: (...spawnArgs: unknown[]) => {
+    const command = String(spawnArgs[0] ?? '');
+    const maybeArgs = spawnArgs[1];
+    const args = Array.isArray(maybeArgs) ? (maybeArgs as string[]) : [];
+    const options = (Array.isArray(maybeArgs) ? spawnArgs[2] : spawnArgs[1]) as
+      | Record<string, unknown>
+      | undefined;
+
+    return childProcess.spawnSync(
+      command,
+      args,
+      options as Parameters<typeof childProcess.spawnSync>[2]
+    );
+  },
+  execSync: (...execArgs: unknown[]) =>
+    childProcess.execSync(
+      execArgs[0] as Parameters<typeof childProcess.execSync>[0],
+      execArgs[1] as Parameters<typeof childProcess.execSync>[1]
+    ),
 }));
 
 let execClaude: typeof import('../../../src/utils/shell-executor').execClaude;
