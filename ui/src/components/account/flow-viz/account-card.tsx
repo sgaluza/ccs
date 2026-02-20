@@ -4,6 +4,7 @@
 
 import {
   cn,
+  formatQuotaPercent,
   getCodexQuotaBreakdown,
   getProviderMinQuota,
   getProviderResetTime,
@@ -110,6 +111,7 @@ export function AccountCard({
     { label: '5h', value: codexBreakdown?.fiveHourWindow?.remainingPercent ?? null },
     { label: 'Wk', value: codexBreakdown?.weeklyWindow?.remainingPercent ?? null },
   ].filter((row): row is { label: string; value: number } => row.value !== null);
+  const minQuotaLabel = minQuota !== null ? formatQuotaPercent(minQuota) : null;
 
   // Tier badge (AGY only) - show P for Pro, U for Ultra
   const showTierBadge =
@@ -240,7 +242,7 @@ export function AccountCard({
                               : 'text-red-500'
                         )}
                       >
-                        {minQuota}%
+                        {minQuotaLabel}%
                       </span>
                     </div>
                     {account.provider === 'codex' && codexQuotaRows.length > 0 && (
