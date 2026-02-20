@@ -207,10 +207,15 @@ export class HeadlessExecutor {
         console.error(ui.info(`Delegating to ${modelName}...`));
       }
 
+      // Strip Claude Code nested session guard env var to allow CCS delegation
+      // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)
+      const { CLAUDECODE: _nested, ...cleanEnv } = process.env;
+
       const proc = spawn(claudeCli, args, {
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
         timeout,
+        env: cleanEnv,
       });
 
       let stdout = '';

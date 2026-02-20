@@ -84,6 +84,10 @@ export function execClaude(
     ? { ...baseEnv, ...envVars, ...webSearchEnv }
     : { ...baseEnv, ...webSearchEnv };
 
+  // Strip Claude Code nested session guard env var to allow CCS delegation
+  // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)
+  delete env.CLAUDECODE;
+
   // propagate key env vars to tmux session so agent team teammates
   // (spawned via tmux split-window) inherit the correct config dir
   if (process.env.TMUX && envVars) {
