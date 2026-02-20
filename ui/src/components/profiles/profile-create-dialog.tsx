@@ -236,7 +236,7 @@ export function ProfileCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden max-h-[90vh]">
+      <DialogContent className="sm:max-w-[700px] p-0 gap-0 overflow-hidden max-h-[90vh] flex flex-col">
         <DialogHeader className="p-6 pb-4 border-b">
           <DialogTitle className="flex items-center gap-2">
             <Plus className="w-5 h-5 text-primary" />
@@ -247,7 +247,10 @@ export function ProfileCreateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col overflow-hidden">
+        <form
+          onSubmit={handleSubmit(onSubmit)}
+          className="flex flex-col flex-1 min-h-0 overflow-hidden"
+        >
           {/* Provider Preset Cards - Compact horizontal layout */}
           <div className="px-6 py-3 border-b bg-muted/30 space-y-2">
             {/* Main Options: OpenRouter + Custom */}
@@ -304,7 +307,7 @@ export function ProfileCreateDialog({
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
-            className="flex flex-col flex-1 overflow-hidden"
+            className="flex flex-col flex-1 min-h-0 overflow-hidden"
           >
             <div className="px-6 pt-4">
               <TabsList className="grid w-full grid-cols-2">
@@ -323,7 +326,7 @@ export function ProfileCreateDialog({
               </TabsList>
             </div>
 
-            <ScrollArea className="flex-1">
+            <ScrollArea className="flex-1 min-h-0">
               <TabsContent value="basic" className="p-6 space-y-4 mt-0">
                 {/* Profile Name */}
                 <div className="space-y-1.5">
