@@ -13,6 +13,9 @@ const originalPlatform = process.platform;
 let baselineSigintListeners: Array<(...args: unknown[]) => void> = [];
 let baselineSigtermListeners: Array<(...args: unknown[]) => void> = [];
 let baselineSighupListeners: Array<(...args: unknown[]) => void> = [];
+const realSpawn = childProcess.spawn.bind(childProcess);
+const realSpawnSync = childProcess.spawnSync.bind(childProcess);
+const realExecSync = childProcess.execSync.bind(childProcess);
 
 function createMockChild(): EventEmitter & {
   stdout: EventEmitter;
@@ -65,11 +68,7 @@ function registerChildProcessMock(): void {
         | undefined;
 
       if (!shouldMockCommand(command)) {
-        return childProcess.spawn(
-          command,
-          args,
-          options as Parameters<typeof childProcess.spawn>[2]
-        );
+        return realSpawn(command, args, options as Parameters<typeof childProcess.spawn>[2]);
       }
 
       spawnCalls.push({ command, args, options });
@@ -86,14 +85,10 @@ function registerChildProcessMock(): void {
         | Record<string, unknown>
         | undefined;
 
-      return childProcess.spawnSync(
-        command,
-        args,
-        options as Parameters<typeof childProcess.spawnSync>[2]
-      );
+      return realSpawnSync(command, args, options as Parameters<typeof childProcess.spawnSync>[2]);
     },
     execSync: (...execArgs: unknown[]) =>
-      childProcess.execSync(
+      realExecSync(
         execArgs[0] as Parameters<typeof childProcess.execSync>[0],
         execArgs[1] as Parameters<typeof childProcess.execSync>[1]
       ),
