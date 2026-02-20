@@ -7,7 +7,7 @@ import { CLIProxyProvider } from '../types';
 import { ThinkingConfig, DEFAULT_THINKING_TIER_DEFAULTS } from '../../config/unified-config-types';
 import { getThinkingConfig } from '../../config/unified-config-loader';
 import { supportsThinking } from '../model-catalog';
-import { validateThinking } from '../thinking-validator';
+import { isThinkingOffValue, validateThinking } from '../thinking-validator';
 import { warn } from '../../utils/ui';
 
 /** Model tier types for thinking budget defaults */
@@ -169,10 +169,10 @@ export function applyThinkingConfig(
 
   // Explicit "off" (CLI override or manual config override) must disable ALL tier thinking.
   const explicitOffOverride =
-    thinkingOverride === 'off' ||
+    isThinkingOffValue(thinkingOverride) ||
     (thinkingOverride === undefined &&
       thinkingConfig.mode === 'manual' &&
-      thinkingConfig.override === 'off');
+      isThinkingOffValue(thinkingConfig.override));
   if (explicitOffOverride) {
     return result;
   }
@@ -227,10 +227,10 @@ export function applyThinkingConfig(
 
   // If auto-detection resolves default tier to "off", skip the main model but still allow
   // explicit per-tier thinking values for other tiers.
-  if (thinkingValue === 'off') {
+  if (isThinkingOffValue(thinkingValue)) {
     const hasPerTierThinking =
       compositeTierThinking &&
-      Object.values(compositeTierThinking).some((v) => v !== undefined && v !== 'off');
+      Object.values(compositeTierThinking).some((v) => v !== undefined && !isThinkingOffValue(v));
     if (!hasPerTierThinking) {
       return result; // No thinking to apply anywhere
     }
@@ -288,7 +288,7 @@ export function applyThinkingConfig(
       }
 
       // If per-tier thinking is 'off', skip this tier
-      if (tierThinkingValue === 'off') {
+      if (isThinkingOffValue(tierThinkingValue)) {
         continue;
       }
 

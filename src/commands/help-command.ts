@@ -3,6 +3,7 @@ import * as path from 'path';
 import { initUI, box, color, dim, sectionHeader, subheader } from '../utils/ui';
 import { isUnifiedMode } from '../config/unified-config-loader';
 import { getCcsDir, getCcsDirSource } from '../utils/config-manager';
+import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 
 // Get version from package.json (same as version-command.ts)
 const VERSION = JSON.parse(
@@ -219,6 +220,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
       ['ccs copilot auth', 'Authenticate with GitHub'],
       ['ccs copilot status', 'Show integration status'],
       ['ccs copilot models', 'List available models'],
+      ['ccs copilot usage', 'Show Copilot quota usage'],
       ['ccs copilot start', 'Start copilot-api daemon'],
       ['ccs copilot stop', 'Stop copilot-api daemon'],
       ['ccs copilot enable', 'Enable integration'],
@@ -281,6 +283,9 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['ccs config auth show', 'Show dashboard auth status'],
     ['ccs config image-analysis', 'Show image analysis settings'],
     ['ccs config image-analysis --enable', 'Enable image analysis'],
+    ['ccs config thinking', 'Show thinking/reasoning settings'],
+    ['ccs config thinking --mode auto', 'Set thinking mode'],
+    ['ccs config thinking --clear-provider-override codex', 'Clear provider overrides'],
     ['ccs config --port 3000', 'Use specific port'],
     ['ccs persist <profile>', 'Write profile env to ~/.claude/settings.json'],
     ['ccs persist --list-backups', 'List available settings.json backups'],
@@ -345,7 +350,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   // CLI Proxy configuration flags (new)
   printSubSection('CLI Proxy Configuration', [
     ['--proxy-host <host>', 'Remote proxy hostname/IP'],
-    ['--proxy-port <port>', 'Proxy port (default: 8317)'],
+    ['--proxy-port <port>', `Proxy port (default: ${CLIPROXY_DEFAULT_PORT})`],
     ['--proxy-protocol <proto>', 'Protocol: http or https (default: http)'],
     ['--proxy-auth-token <token>', 'Auth token for remote proxy'],
     ['--proxy-timeout <ms>', 'Connection timeout in ms (default: 2000)'],
@@ -403,6 +408,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
     ['CCS_DIR', 'Override CCS config directory (default: ~/.ccs)'],
     ['CCS_HOME', 'Override home directory (legacy, appends .ccs)'],
     ['CCS_DEBUG', 'Enable debug logging'],
+    ['CCS_THINKING', 'Override thinking level (flag > env > config)'],
   ]);
 
   // CLI Proxy env vars
@@ -421,7 +427,7 @@ Run ${color('ccs config', 'command')} for web dashboard`.trim();
   console.log(`  Binary:      ${color(`${dirDisplay}/cliproxy/bin/cli-proxy-api-plus`, 'path')}`);
   console.log(`  Config:      ${color(`${dirDisplay}/cliproxy/config.yaml`, 'path')}`);
   console.log(`  Auth:        ${color(`${dirDisplay}/cliproxy/auth/`, 'path')}`);
-  console.log(`  ${dim('Port: 8317 (default)')}`);
+  console.log(`  ${dim(`Port: ${CLIPROXY_DEFAULT_PORT} (default)`)}`);
   console.log('');
 
   // Shared Data

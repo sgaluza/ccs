@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import { initUI, header, subheader, color, warn } from '../utils/ui';
 import { getActiveConfigPath, getCcsDir } from '../utils/config-manager';
 import { getVersion } from '../utils/version';
+import { getProfileLookupCandidates } from '../utils/profile-compat';
 
 /**
  * Handle version command
@@ -38,18 +39,23 @@ export async function handleVersionCommand(): Promise<void> {
   const readyProfiles: string[] = [];
 
   // Check for profiles with valid API keys
-  for (const profile of ['glm', 'kimi']) {
-    const settingsPath = path.join(ccsDir, `${profile}.settings.json`);
-    if (fs.existsSync(settingsPath)) {
-      try {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        const apiKey = settings.env?.ANTHROPIC_AUTH_TOKEN;
-        if (apiKey && !apiKey.match(/YOUR_.*_API_KEY_HERE/) && !apiKey.match(/sk-test.*/)) {
-          readyProfiles.push(profile);
-        }
-      } catch (_error) {
-        // Invalid JSON, skip
+  for (const profile of ['glm', 'km']) {
+    const settingsPath = getProfileLookupCandidates(profile)
+      .map((candidate) => path.join(ccsDir, `${candidate}.settings.json`))
+      .find((candidatePath) => fs.existsSync(candidatePath));
+
+    if (!settingsPath) {
+      continue;
+    }
+
+    try {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+      const apiKey = settings.env?.ANTHROPIC_AUTH_TOKEN;
+      if (apiKey && !apiKey.match(/YOUR_.*_API_KEY_HERE/) && !apiKey.match(/sk-test.*/)) {
+        readyProfiles.push(profile);
       }
+    } catch (_error) {
+      // Invalid JSON, skip
     }
   }
 

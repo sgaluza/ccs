@@ -16,8 +16,13 @@ import { CLIProxyProvider } from './types';
 import { loadAccountsRegistry, pauseAccount, resumeAccount } from './accounts/registry';
 import { getCcsDir } from '../utils/config-manager';
 
+const ISSUE_509_URL = 'https://github.com/kaitranntt/ccs/issues/509';
+
 /** Providers that use Google OAuth (ban risk when overlapping) */
 const GOOGLE_OAUTH_PROVIDERS: CLIProxyProvider[] = ['gemini', 'agy', 'codex'];
+/** Providers that should display direct CLI warnings for #509 */
+const BAN_WARNING_PROVIDERS: CLIProxyProvider[] = ['gemini', 'agy'];
+const shownBanWarnings = new Set<CLIProxyProvider>();
 
 // --- Auto-pause persistence (crash recovery) ---
 
@@ -161,6 +166,10 @@ export function warnCrossProviderDuplicates(provider: CLIProxyProvider): boolean
   console.error('');
   console.error(warn('Account safety: cross-provider duplicate detected'));
   console.error('    Same Google account across providers risks account bans (ref: #509).');
+  console.error(
+    '    If provider requests start returning 403/Forbidden, treat it as a possible ban.'
+  );
+  console.error(`    Details: ${ISSUE_509_URL}`);
   console.error('');
 
   for (const [email, providers] of duplicates) {
@@ -188,8 +197,65 @@ export function warnNewAccountConflict(
     `    ${maskEmail(email)} is also registered under: ${conflictingProviders.join(', ')}`
   );
   console.error('    Concurrent usage may cause Google to ban your account.');
+  console.error('    403/Forbidden responses can be an early sign of account disablement.');
   console.error('    Consider pausing the duplicate or using a different account.');
+  console.error(`    Details: ${ISSUE_509_URL}`);
   console.error('');
+}
+
+function isBanWarningProvider(provider: CLIProxyProvider): boolean {
+  return BAN_WARNING_PROVIDERS.includes(provider);
+}
+
+/**
+ * Show one-time warning for known OAuth ban risk providers.
+ */
+export function warnOAuthBanRisk(provider: CLIProxyProvider): void {
+  if (!isBanWarningProvider(provider) || shownBanWarnings.has(provider)) return;
+
+  shownBanWarnings.add(provider);
+  console.error('');
+  console.error(warn('Account safety warning (#509)'));
+  console.error(
+    '    Using the same Google account in both "ccs gemini" and "ccs agy" can trigger suspension.'
+  );
+  console.error(
+    '    If you see 403/Forbidden during provider calls, treat it as likely account disable/ban.'
+  );
+  console.error(
+    '    Use separate Google accounts per provider and stop retrying blocked accounts.'
+  );
+  console.error(`    Details: ${ISSUE_509_URL}`);
+  console.error('');
+}
+
+/**
+ * Detect whether an error message contains a likely 403/Forbidden ban signal.
+ */
+export function isPossible403BanSignal(errorMessage: string): boolean {
+  const lower = errorMessage.toLowerCase();
+  return lower.includes('403') || lower.includes('forbidden');
+}
+
+/**
+ * Show targeted warning when OAuth provider errors include 403/Forbidden.
+ * Returns true when warning was emitted.
+ */
+export function warnPossible403Ban(provider: CLIProxyProvider, errorMessage: string): boolean {
+  if (!isBanWarningProvider(provider) || !isPossible403BanSignal(errorMessage)) {
+    return false;
+  }
+
+  console.error('');
+  console.error(warn(`Account safety: ${provider} returned 403/Forbidden`));
+  console.error(
+    '    For gemini/agy flows this often means the Google account was blocked/disabled.'
+  );
+  console.error('    Stop retries for this account and switch to a different account/provider.');
+  console.error(`    Details: ${ISSUE_509_URL}`);
+  console.error(`    Error: "${truncate(errorMessage, 160)}"`);
+  console.error('');
+  return true;
 }
 
 // --- Enforcement: auto-pause/restore ---

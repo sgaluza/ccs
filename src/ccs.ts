@@ -9,6 +9,7 @@ import {
   setGlobalConfigDir,
   detectCloudSyncPath,
 } from './utils/config-manager';
+import { expandPath } from './utils/helpers';
 import { validateGlmKey, validateMiniMaxKey } from './utils/api-key-validator';
 import { ErrorManager } from './utils/error-manager';
 import { execClaudeWithCLIProxy, CLIProxyProvider } from './cliproxy';
@@ -36,7 +37,7 @@ import { handleShellCompletionCommand } from './commands/shell-completion-comman
 import { handleUpdateCommand } from './commands/update-command';
 
 // Import extracted utility functions
-import { execClaude, escapeShellArg } from './utils/shell-executor';
+import { execClaude, escapeShellArg, stripClaudeCodeEnv } from './utils/shell-executor';
 import { wireChildProcessSignals } from './utils/signal-forwarder';
 
 // Import target adapter system
@@ -196,13 +197,13 @@ async function execClaudeWithProxy(
   const needsShell = isWindows && /\.(cmd|bat)$/i.test(claudeCli);
   const webSearchEnv = getWebSearchHookEnv();
   const imageAnalysisEnv = getImageAnalysisHookEnv(profileName);
-  const env = {
+  const env = stripClaudeCodeEnv({
     ...process.env,
     ...envVars,
     ...webSearchEnv,
     ...imageAnalysisEnv,
     CCS_PROFILE_TYPE: 'settings', // Signal to WebSearch hook this is a third-party provider
-  };
+  });
 
   let claude: ChildProcess;
   if (isPowerShellScript) {
@@ -596,6 +597,7 @@ async function main(): Promise<void> {
     'auth',
     'status',
     'models',
+    'usage',
     'start',
     'stop',
     'enable',
@@ -689,7 +691,7 @@ async function main(): Promise<void> {
       if (profileInfo.type === 'settings' && profileInfo.name === 'glmt') {
         console.error(fail(`${targetAdapter.displayName} does not support GLMT proxy profiles`));
         console.error(
-          info('Use --target claude for glmt, or switch to a direct API profile (glm/kimi)')
+          info('Use --target claude for glmt, or switch to a direct API profile (glm/km)')
         );
         process.exit(1);
       }
@@ -856,7 +858,7 @@ async function main(): Promise<void> {
             fail(`${targetAdapter?.displayName || 'Target'} does not support GLMT proxy profiles`)
           );
           console.error(
-            info('Use --target claude for glmt, or switch to a direct API profile (glm/kimi)')
+            info('Use --target claude for glmt, or switch to a direct API profile (glm/km)')
           );
           process.exit(1);
         }
@@ -865,7 +867,9 @@ async function main(): Promise<void> {
       } else {
         // EXISTING FLOW: Settings-based profile (glm)
         // Use --settings flag (backward compatible)
-        const expandedSettingsPath = getSettingsPath(profileInfo.name);
+        const expandedSettingsPath = profileInfo.settingsPath
+          ? expandPath(profileInfo.settingsPath)
+          : getSettingsPath(profileInfo.name);
         const webSearchEnv = getWebSearchHookEnv();
         const imageAnalysisEnv = getImageAnalysisHookEnv(profileInfo.name);
         // Get global env vars (DISABLE_TELEMETRY, etc.) for third-party profiles

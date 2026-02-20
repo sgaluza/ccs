@@ -99,7 +99,8 @@ The dashboard provides visual management for all account types:
 | **Ollama** | Local | `ccs ollama` | Local open-source models, privacy |
 | **Ollama Cloud** | API Key | `ccs ollama-cloud` | Cloud-hosted open-source models |
 | **GLM** | API Key | `ccs glm` | Cost-optimized execution |
-| **Kimi** | API Key | `ccs kimi` | Long-context, thinking mode |
+| **KM (Kimi API)** | API Key | `ccs km` | Long-context, thinking mode |
+| **Kimi (OAuth)** | OAuth | `ccs kimi` | Device-code OAuth via CLIProxy |
 | **Azure Foundry** | API Key | `ccs foundry` | Claude via Microsoft Azure |
 | **Minimax** | API Key | `ccs mm` | M2 series, 1M context |
 | **DeepSeek** | API Key | `ccs deepseek` | V3.2 and R1 reasoning |
@@ -139,6 +140,7 @@ ccs ghcp      # GitHub Copilot (OAuth device flow)
 ccs agy       # Antigravity (OAuth)
 ccs ollama    # Local Ollama (no API key needed)
 ccs glm       # GLM (API key)
+ccs km        # Kimi API profile (API key)
 ```
 
 ### Droid Alias (`argv[0]` pattern)
@@ -190,6 +192,8 @@ Detailed guide: [`docs/cursor-integration.md`](./docs/cursor-integration.md)
 ### Parallel Workflows
 
 Run multiple terminals with different providers:
+
+> Delegation compatibility: when CCS spawns child Claude sessions, it strips the `CLAUDECODE` guard variable to avoid nested-session blocking in Claude Code v2.1.39+.
 
 ```bash
 # Terminal 1: Planning (Claude Pro)
@@ -280,6 +284,8 @@ If Claude CLI is installed in a non-standard location:
 export CCS_CLAUDE_PATH="/path/to/claude"              # Unix
 $env:CCS_CLAUDE_PATH = "D:\Tools\Claude\claude.exe"   # Windows
 ```
+
+CCS sanitizes child Claude spawn environments by stripping `CLAUDECODE` (case-insensitive) to prevent nested-session guard failures during delegation. `CCS_CLAUDE_PATH` is still respected after this sanitization step.
 
 </details>
 

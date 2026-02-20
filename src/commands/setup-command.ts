@@ -24,6 +24,7 @@ import {
 } from '../config/unified-config-loader';
 import { DEFAULT_CLIPROXY_SERVER_CONFIG } from '../config/unified-config-types';
 import { getCcsDir } from '../utils/config-manager';
+import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 
 /** Custom error for user cancellation (Ctrl+C) */
 class UserCancelledError extends Error {
@@ -226,7 +227,7 @@ async function configureRemoteProxy(rl: readline.Interface): Promise<{
   ])) as 'http' | 'https';
 
   // Port (optional) - with validation
-  const defaultPort = protocol === 'https' ? '443' : '80';
+  const defaultPort = protocol === 'https' ? '443' : String(CLIPROXY_DEFAULT_PORT);
   const portStr = await prompt(rl, `Port (leave empty for default ${defaultPort})`);
   let port: number | undefined;
   if (portStr) {
@@ -318,7 +319,7 @@ async function runSetupWizard(force: boolean = false): Promise<void> {
           auto_start: false,
         },
         local: {
-          port: 8317,
+          port: CLIPROXY_DEFAULT_PORT,
           auto_start: false, // Disable local auto-start when using remote
         },
       };
@@ -341,7 +342,7 @@ async function runSetupWizard(force: boolean = false): Promise<void> {
           auth_token: '',
         },
         local: {
-          port: 8317,
+          port: CLIPROXY_DEFAULT_PORT,
           auto_start: true,
         },
       };
@@ -370,7 +371,7 @@ async function runSetupWizard(force: boolean = false): Promise<void> {
       console.log('  Use the following commands to create profiles:');
       console.log('');
       console.log('    ccs api create glm --preset glm');
-      console.log('    ccs api create kimi --preset kimi');
+      console.log('    ccs api create km --preset km');
       console.log('    ccs api create custom --prompt');
       console.log('');
       console.log('  After creating, edit the settings file to add your API key.');

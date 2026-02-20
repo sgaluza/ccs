@@ -16,7 +16,7 @@ import {
   useCreatePreset,
   useDeletePreset,
 } from '@/hooks/use-cliproxy';
-import { CLIPROXY_PORT } from '@/lib/preset-utils';
+import { CLIPROXY_DEFAULT_PORT } from '@/lib/preset-utils';
 import { usePrivacy } from '@/contexts/privacy-context';
 import { useProviderEditor } from './use-provider-editor';
 import { CustomPresetDialog } from './custom-preset-dialog';
@@ -70,6 +70,7 @@ export function ProviderEditor({
       iflow: ['iflow'],
       kiro: ['kiro', 'aws'],
       ghcp: ['github', 'copilot'],
+      kimi: ['kimi', 'moonshot'],
     };
     const owners = ownerMap[modelFilterProvider.toLowerCase()] || [
       modelFilterProvider.toLowerCase(),
@@ -78,6 +79,8 @@ export function ProviderEditor({
       owners.some((o) => m.owned_by.toLowerCase().includes(o))
     );
   }, [modelsData, modelFilterProvider]);
+
+  const providerRoute = (baseProvider || provider).toLowerCase();
 
   const {
     data,
@@ -117,9 +120,9 @@ export function ProviderEditor({
   const effectiveApiKey = authTokens?.apiKey?.value ?? 'ccs-internal-managed';
 
   const handleApplyPreset = (updates: Record<string, string>) => {
-    const effectivePort = port ?? CLIPROXY_PORT;
+    const effectivePort = port ?? CLIPROXY_DEFAULT_PORT;
     updateEnvValues({
-      ANTHROPIC_BASE_URL: `http://127.0.0.1:${effectivePort}/api/provider/${provider}`,
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${effectivePort}/api/provider/${providerRoute}`,
       ANTHROPIC_AUTH_TOKEN: effectiveApiKey,
       ...updates,
     });
@@ -127,9 +130,9 @@ export function ProviderEditor({
   };
 
   const handleCustomPresetApply = (values: ModelMappingValues, presetName?: string) => {
-    const effectivePort = port ?? CLIPROXY_PORT;
+    const effectivePort = port ?? CLIPROXY_DEFAULT_PORT;
     updateEnvValues({
-      ANTHROPIC_BASE_URL: `http://127.0.0.1:${effectivePort}/api/provider/${provider}`,
+      ANTHROPIC_BASE_URL: `http://127.0.0.1:${effectivePort}/api/provider/${providerRoute}`,
       ANTHROPIC_AUTH_TOKEN: effectiveApiKey,
       ANTHROPIC_MODEL: values.default,
       ANTHROPIC_DEFAULT_OPUS_MODEL: values.opus,

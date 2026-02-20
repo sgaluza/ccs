@@ -10,7 +10,7 @@
 
 import { fail, warn, info } from '../../utils/ui';
 import { CLIProxyProvider } from '../types';
-import { handleBanDetection } from '../account-safety';
+import { handleBanDetection, warnPossible403Ban } from '../account-safety';
 import { CompositeTierConfig } from '../../config/unified-config-types';
 
 /**
@@ -59,6 +59,7 @@ export async function handleTokenExpiration(
       if (account) {
         handleBanDetection(provider, account.id, tokenResult.error);
       }
+      warnPossible403Ban(provider, tokenResult.error);
     }
 
     // Token expired and refresh failed - trigger re-auth

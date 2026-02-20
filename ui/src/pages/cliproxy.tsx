@@ -8,9 +8,10 @@ import { useState, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Check, X, RefreshCw, Sparkles, Zap, GitBranch, Trash2 } from 'lucide-react';
+import { Check, X, RefreshCw, Sparkles, Zap, GitBranch, Trash2, AlertTriangle } from 'lucide-react';
 import { QuickSetupWizard } from '@/components/quick-setup-wizard';
 import { AddAccountDialog } from '@/components/account/add-account-dialog';
 import { ProviderEditor } from '@/components/cliproxy/provider-editor';
@@ -243,6 +244,10 @@ export function CliproxyPage() {
   const parentAuthForVariant = selectedVariantData
     ? providers.find((p) => p.provider === selectedVariantData.provider)
     : undefined;
+  const warningProvider = (selectedVariantData?.provider || selectedStatus?.provider || '')
+    .toLowerCase()
+    .trim();
+  const showAccountSafetyWarning = warningProvider === 'gemini' || warningProvider === 'agy';
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['cliproxy'] });
@@ -389,6 +394,30 @@ export function CliproxyPage() {
 
       {/* Right Panel */}
       <div className="flex-1 flex flex-col min-w-0 bg-background">
+        {showAccountSafetyWarning && (
+          <div className="px-4 pt-4">
+            <Alert variant="warning" className="py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Account Safety Warning (Issue #509)</AlertTitle>
+              <AlertDescription>
+                Using the same Google account in both <code className="font-mono">ccs gemini</code>{' '}
+                and <code className="font-mono">ccs agy</code> can trigger suspension. If CLI shows{' '}
+                <code className="font-mono">403 Forbidden</code>, treat it as likely account
+                disable/ban and switch accounts.{' '}
+                <a
+                  href="https://github.com/kaitranntt/ccs/issues/509"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline font-medium"
+                >
+                  Read issue #509
+                </a>
+                .
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
+
         {selectedVariantData && parentAuthForVariant ? (
           // Variant selected - show ProviderEditor with variant profile name
           <ProviderEditor
