@@ -53,56 +53,60 @@ function shouldMockCommand(command: string): boolean {
   return normalized.includes('claude');
 }
 
-mock.module('child_process', () => ({
-  ...childProcess,
-  spawn: (...spawnArgs: unknown[]) => {
-    const command = String(spawnArgs[0] ?? '');
-    const maybeArgs = spawnArgs[1];
-    const args = Array.isArray(maybeArgs) ? (maybeArgs as string[]) : [];
-    const options = (Array.isArray(maybeArgs) ? spawnArgs[2] : spawnArgs[1]) as
-      | Record<string, unknown>
-      | undefined;
+function registerChildProcessMock(): void {
+  mock.module('child_process', () => ({
+    ...childProcess,
+    spawn: (...spawnArgs: unknown[]) => {
+      const command = String(spawnArgs[0] ?? '');
+      const maybeArgs = spawnArgs[1];
+      const args = Array.isArray(maybeArgs) ? (maybeArgs as string[]) : [];
+      const options = (Array.isArray(maybeArgs) ? spawnArgs[2] : spawnArgs[1]) as
+        | Record<string, unknown>
+        | undefined;
 
-    if (!shouldMockCommand(command)) {
-      return childProcess.spawn(
+      if (!shouldMockCommand(command)) {
+        return childProcess.spawn(
+          command,
+          args,
+          options as Parameters<typeof childProcess.spawn>[2]
+        );
+      }
+
+      spawnCalls.push({ command, args, options });
+
+      const child = createMockChild();
+      setTimeout(() => child.emit('close', 0), 0);
+      return child;
+    },
+    spawnSync: (...spawnArgs: unknown[]) => {
+      const command = String(spawnArgs[0] ?? '');
+      const maybeArgs = spawnArgs[1];
+      const args = Array.isArray(maybeArgs) ? (maybeArgs as string[]) : [];
+      const options = (Array.isArray(maybeArgs) ? spawnArgs[2] : spawnArgs[1]) as
+        | Record<string, unknown>
+        | undefined;
+
+      return childProcess.spawnSync(
         command,
         args,
-        options as Parameters<typeof childProcess.spawn>[2]
+        options as Parameters<typeof childProcess.spawnSync>[2]
       );
-    }
-
-    spawnCalls.push({ command, args, options });
-
-    const child = createMockChild();
-    setTimeout(() => child.emit('close', 0), 0);
-    return child;
-  },
-  spawnSync: (...spawnArgs: unknown[]) => {
-    const command = String(spawnArgs[0] ?? '');
-    const maybeArgs = spawnArgs[1];
-    const args = Array.isArray(maybeArgs) ? (maybeArgs as string[]) : [];
-    const options = (Array.isArray(maybeArgs) ? spawnArgs[2] : spawnArgs[1]) as
-      | Record<string, unknown>
-      | undefined;
-
-    return childProcess.spawnSync(
-      command,
-      args,
-      options as Parameters<typeof childProcess.spawnSync>[2]
-    );
-  },
-  execSync: (...execArgs: unknown[]) =>
-    childProcess.execSync(
-      execArgs[0] as Parameters<typeof childProcess.execSync>[0],
-      execArgs[1] as Parameters<typeof childProcess.execSync>[1]
-    ),
-}));
+    },
+    execSync: (...execArgs: unknown[]) =>
+      childProcess.execSync(
+        execArgs[0] as Parameters<typeof childProcess.execSync>[0],
+        execArgs[1] as Parameters<typeof childProcess.execSync>[1]
+      ),
+  }));
+}
 
 let execClaude: typeof import('../../../src/utils/shell-executor').execClaude;
 let stripClaudeCodeEnv: typeof import('../../../src/utils/shell-executor').stripClaudeCodeEnv;
 let HeadlessExecutor: typeof import('../../../src/delegation/headless-executor').HeadlessExecutor;
 
 beforeAll(async () => {
+  registerChildProcessMock();
+
   const shellExecutor = await import('../../../src/utils/shell-executor');
   execClaude = shellExecutor.execClaude;
   stripClaudeCodeEnv = shellExecutor.stripClaudeCodeEnv;
