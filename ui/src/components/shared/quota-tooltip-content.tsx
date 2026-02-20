@@ -6,6 +6,7 @@
 import { Clock } from 'lucide-react';
 import {
   cn,
+  formatQuotaPercent,
   formatResetTime,
   getCodexQuotaBreakdown,
   getCodexWindowDisplayLabel,
@@ -22,6 +23,16 @@ import {
 interface QuotaTooltipContentProps {
   quota: UnifiedQuotaResult;
   resetTime: string | null;
+}
+
+function formatPlanLabel(planType: string | null | undefined): string | null {
+  if (!planType) return null;
+  const normalized = planType
+    .split(/[\s_-]+/g)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1));
+  return normalized.length > 0 ? normalized.join(' ') : planType;
 }
 
 /**
@@ -131,24 +142,32 @@ export function QuotaTooltipContent({ quota, resetTime }: QuotaTooltipContentPro
       { label: 'Completions', snapshot: quota.snapshots.completions },
     ];
     const effectiveResetTime = quota.quotaResetDate ?? resetTime;
+    const planLabel = formatPlanLabel(quota.planType);
 
     return (
       <div className="text-xs space-y-1">
         <p className="font-medium">Quota Snapshots:</p>
-        {quota.planType && <p className="text-muted-foreground">Plan: {quota.planType}</p>}
-        {snapshotRows.map(({ label, snapshot }) => (
-          <div key={label} className="flex justify-between gap-4">
-            <span className={cn(snapshot.percentRemaining < 20 && 'text-red-500')}>
-              {label}
-              {snapshot.unlimited ? ' (Unlimited)' : ''}
-            </span>
-            <span className={cn('font-mono', snapshot.percentRemaining < 20 && 'text-red-500')}>
-              {snapshot.unlimited
-                ? 'inf'
-                : `${snapshot.percentRemaining}% (${snapshot.remaining}/${snapshot.entitlement})`}
-            </span>
-          </div>
-        ))}
+        {planLabel && <p className="text-muted-foreground">Plan: {planLabel}</p>}
+        {snapshotRows.map(({ label, snapshot }) => {
+          const isLow = snapshot.percentRemaining < 20;
+          return (
+            <div key={label} className="space-y-0.5">
+              <div className="flex justify-between gap-4">
+                <span className={cn(isLow && 'text-red-500')}>{label}</span>
+                <span className={cn('font-mono', isLow && 'text-red-500')}>
+                  {snapshot.unlimited
+                    ? 'Unlimited'
+                    : `${formatQuotaPercent(snapshot.percentRemaining)}%`}
+                </span>
+              </div>
+              {!snapshot.unlimited && (
+                <div className="text-[11px] text-muted-foreground">
+                  {snapshot.remaining}/{snapshot.entitlement} remaining
+                </div>
+              )}
+            </div>
+          );
+        })}
         <ResetTimeIndicator resetTime={effectiveResetTime} />
       </div>
     );
