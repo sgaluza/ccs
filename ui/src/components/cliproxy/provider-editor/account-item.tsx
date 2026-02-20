@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import {
   cn,
+  formatQuotaPercent,
   getCodexQuotaBreakdown,
   getProviderMinQuota,
   getProviderResetTime,
@@ -129,6 +130,7 @@ export function AccountItem({
     { label: '5h', value: codexBreakdown?.fiveHourWindow?.remainingPercent ?? null },
     { label: 'Weekly', value: codexBreakdown?.weeklyWindow?.remainingPercent ?? null },
   ].filter((row): row is { label: string; value: number } => row.value !== null);
+  const minQuotaLabel = minQuota !== null ? formatQuotaPercent(minQuota) : null;
 
   return (
     <div
@@ -376,7 +378,9 @@ export function AccountItem({
                           className="h-2 flex-1"
                           indicatorClassName={getQuotaColor(minQuota)}
                         />
-                        <span className="text-xs font-medium w-10 text-right">{minQuota}%</span>
+                        <span className="text-xs font-medium w-10 text-right">
+                          {minQuotaLabel}%
+                        </span>
                       </div>
                     )}
                   </TooltipTrigger>
