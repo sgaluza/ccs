@@ -37,7 +37,7 @@ import { handleShellCompletionCommand } from './commands/shell-completion-comman
 import { handleUpdateCommand } from './commands/update-command';
 
 // Import extracted utility functions
-import { execClaude, escapeShellArg } from './utils/shell-executor';
+import { execClaude, escapeShellArg, stripClaudeCodeEnv } from './utils/shell-executor';
 import { wireChildProcessSignals } from './utils/signal-forwarder';
 
 // Import target adapter system
@@ -197,13 +197,13 @@ async function execClaudeWithProxy(
   const needsShell = isWindows && /\.(cmd|bat)$/i.test(claudeCli);
   const webSearchEnv = getWebSearchHookEnv();
   const imageAnalysisEnv = getImageAnalysisHookEnv(profileName);
-  const env = {
+  const env = stripClaudeCodeEnv({
     ...process.env,
     ...envVars,
     ...webSearchEnv,
     ...imageAnalysisEnv,
     CCS_PROFILE_TYPE: 'settings', // Signal to WebSearch hook this is a third-party provider
-  };
+  });
 
   let claude: ChildProcess;
   if (isPowerShellScript) {

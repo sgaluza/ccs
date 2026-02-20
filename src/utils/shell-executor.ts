@@ -25,6 +25,22 @@ export function stripAnthropicEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 /**
+ * Strip Claude Code nested-session guard env var from a process environment.
+ *
+ * Note: Windows env keys are case-insensitive, so remove case-insensitively
+ * to avoid missing variants like `claudecode`.
+ */
+export function stripClaudeCodeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const result: NodeJS.ProcessEnv = {};
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase() !== 'CLAUDECODE') {
+      result[key] = env[key];
+    }
+  }
+  return result;
+}
+
+/**
  * Escape arguments for shell execution (cross-platform)
  *
  * IMPORTANT: On Windows, spawn({ shell: true }) uses cmd.exe by default,
@@ -80,13 +96,13 @@ export function execClaude(
       : process.env;
 
   // Prepare environment (merge with base env if envVars provided)
-  const env = envVars
+  const mergedEnv = envVars
     ? { ...baseEnv, ...envVars, ...webSearchEnv }
     : { ...baseEnv, ...webSearchEnv };
 
   // Strip Claude Code nested session guard env var to allow CCS delegation
   // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)
-  delete env.CLAUDECODE;
+  const env = stripClaudeCodeEnv(mergedEnv);
 
   // propagate key env vars to tmux session so agent team teammates
   // (spawned via tmux split-window) inherit the correct config dir
