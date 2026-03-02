@@ -25,9 +25,11 @@ import {
   mutateUnifiedConfig,
 } from '../../config/unified-config-loader';
 import type { Settings } from '../../types/config';
+import type { CLIProxyProvider } from '../../cliproxy/types';
+import { mapExternalProviderName } from '../../cliproxy/provider-capabilities';
+import { canonicalizeModelIdForProvider } from '../../cliproxy/model-id-normalizer';
 
 const router = Router();
-const CODEX_EFFORT_SUFFIX_REGEX = /-(xhigh|high|medium)$/i;
 const MODEL_ENV_KEYS = [
   'ANTHROPIC_MODEL',
   'ANTHROPIC_DEFAULT_OPUS_MODEL',
@@ -122,18 +124,30 @@ function resolveSettingsPath(profileOrVariant: string): string {
   return path.join(ccsDir, `${profileOrVariant}.settings.json`);
 }
 
-function isCodexProfile(profileOrVariant: string): boolean {
-  if (profileOrVariant.toLowerCase() === 'codex') return true;
+function resolveProviderForProfile(profileOrVariant: string): CLIProxyProvider | null {
+  const directProvider = mapExternalProviderName(profileOrVariant);
+  if (directProvider) {
+    return directProvider;
+  }
+
   const variants = listVariants();
-  return variants[profileOrVariant]?.provider === 'codex';
+  const variantProvider = variants[profileOrVariant]?.provider;
+  if (typeof variantProvider === 'string') {
+    return mapExternalProviderName(variantProvider);
+  }
+
+  return null;
 }
 
-function stripCodexEffortSuffix(modelId: string): string {
-  return modelId.replace(CODEX_EFFORT_SUFFIX_REGEX, '');
+function canonicalizeProfileModelId(profileOrVariant: string, modelId: string): string {
+  const provider = resolveProviderForProfile(profileOrVariant);
+  if (!provider) return modelId;
+  return canonicalizeModelIdForProvider(modelId, provider);
 }
 
-function canonicalizeCodexSettings(profileOrVariant: string, settings: Settings): Settings {
-  if (!isCodexProfile(profileOrVariant)) return settings;
+function canonicalizeProfileSettings(profileOrVariant: string, settings: Settings): Settings {
+  const provider = resolveProviderForProfile(profileOrVariant);
+  if (!provider) return settings;
 
   let changed = false;
   const next: Settings = { ...settings };
@@ -143,7 +157,7 @@ function canonicalizeCodexSettings(profileOrVariant: string, settings: Settings)
     for (const key of MODEL_ENV_KEYS) {
       const value = env[key];
       if (typeof value !== 'string') continue;
-      const canonical = stripCodexEffortSuffix(value);
+      const canonical = canonicalizeModelIdForProvider(value, provider);
       if (canonical !== value) {
         env[key] = canonical;
         changed = true;
@@ -159,7 +173,8 @@ function canonicalizeCodexSettings(profileOrVariant: string, settings: Settings)
 
       for (const key of PRESET_MODEL_KEYS) {
         const value = normalizedPreset[key];
-        const canonical = stripCodexEffortSuffix(value);
+        if (typeof value !== 'string') continue;
+        const canonical = canonicalizeModelIdForProvider(value, provider);
         if (canonical !== value) {
           normalizedPreset[key] = canonical;
           presetChanged = true;
@@ -206,7 +221,7 @@ router.get('/:profile', (req: Request, res: Response): void => {
     }
 
     const stat = fs.statSync(settingsPath);
-    const settings = canonicalizeCodexSettings(profile, loadSettings(settingsPath));
+    const settings = canonicalizeProfileSettings(profile, loadSettings(settingsPath));
     const masked = maskApiKeys(settings);
 
     res.json({
@@ -234,7 +249,7 @@ router.get('/:profile/raw', (req: Request, res: Response): void => {
     }
 
     const stat = fs.statSync(settingsPath);
-    const settings = canonicalizeCodexSettings(profile, loadSettings(settingsPath));
+    const settings = canonicalizeProfileSettings(profile, loadSettings(settingsPath));
 
     res.json({
       profile,
@@ -270,7 +285,7 @@ router.put('/:profile', (req: Request, res: Response): void => {
       return;
     }
 
-    const normalizedSettings = canonicalizeCodexSettings(profile, settings as Settings);
+    const normalizedSettings = canonicalizeProfileSettings(profile, settings as Settings);
 
     // Deduplicate CCS hooks to prevent accumulation (fixes #450)
     // This handles cases where duplicate hooks were added by previous versions
@@ -355,7 +370,7 @@ router.get('/:profile/presets', (req: Request, res: Response): void => {
       return;
     }
 
-    const settings = canonicalizeCodexSettings(profile, loadSettings(settingsPath));
+    const settings = canonicalizeProfileSettings(profile, loadSettings(settingsPath));
     res.json({ presets: settings.presets || [] });
   } catch (error) {
     respondInternalError(res, error, 'Internal server error.');
@@ -393,7 +408,7 @@ router.post('/:profile/presets', (req: Request, res: Response): void => {
     }
 
     const normalizePresetModel = (modelId: string): string =>
-      isCodexProfile(profile) ? stripCodexEffortSuffix(modelId) : modelId;
+      canonicalizeProfileModelId(profile, modelId);
 
     const normalizedDefaultModel = normalizePresetModel(defaultModel);
     const normalizedOpusModel = normalizePresetModel(opus || defaultModel);

@@ -85,15 +85,6 @@ describe('Model Catalog', () => {
       assert.strictEqual(sonnetThinking.name, 'Claude Sonnet 4.5 Thinking');
     });
 
-    it('includes Claude Sonnet 4.6 Thinking', () => {
-      const { MODEL_CATALOG } = modelCatalog;
-      const sonnetThinking = MODEL_CATALOG.agy.models.find(
-        (m) => m.id === 'claude-sonnet-4-6-thinking'
-      );
-      assert(sonnetThinking, 'Should include Claude Sonnet 4.6 Thinking');
-      assert.strictEqual(sonnetThinking.name, 'Claude Sonnet 4.6 Thinking');
-    });
-
     it('includes Claude Sonnet 4.6', () => {
       const { MODEL_CATALOG } = modelCatalog;
       const sonnet = MODEL_CATALOG.agy.models.find((m) => m.id === 'claude-sonnet-4-6');
@@ -117,9 +108,9 @@ describe('Model Catalog', () => {
       assert.strictEqual(gem3.tier, undefined, 'AGY models should not have paid tier');
     });
 
-    it('has 7 models total', () => {
+    it('has 6 models total', () => {
       const { MODEL_CATALOG } = modelCatalog;
-      assert.strictEqual(MODEL_CATALOG.agy.models.length, 7);
+      assert.strictEqual(MODEL_CATALOG.agy.models.length, 6);
     });
   });
 

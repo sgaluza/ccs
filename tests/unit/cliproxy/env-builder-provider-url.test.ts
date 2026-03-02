@@ -105,10 +105,17 @@ describe('getEffectiveEnvVars local provider URL normalization', () => {
     });
 
     const env = getEffectiveEnvVars('agy', 8317, settingsPath);
-    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6-thinking');
+    expect(env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
-    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6-thinking');
+    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
     expect(env.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5');
+
+    const persisted = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')) as {
+      env: Record<string, string>;
+    };
+    expect(persisted.env.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
+    expect(persisted.env.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
+    expect(persisted.env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
   });
 
   it('migrates codex preset model mappings to canonical IDs', () => {
@@ -220,6 +227,39 @@ describe('getEffectiveEnvVars local provider URL normalization', () => {
     expect(repaired.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBeDefined();
     expect(repaired.env?.ANTHROPIC_DEFAULT_SONNET_MODEL).toBeDefined();
     expect(repaired.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBeDefined();
+  });
+
+  it('migrates deprecated agy sonnet 4.6 thinking IDs during ensureProviderSettings', () => {
+    process.env.CCS_HOME = tempHome;
+    const agySettingsPath = path.join(tempHome, '.ccs', 'agy.settings.json');
+    fs.mkdirSync(path.dirname(agySettingsPath), { recursive: true });
+    fs.writeFileSync(
+      agySettingsPath,
+      JSON.stringify(
+        {
+          env: {
+            ANTHROPIC_BASE_URL: 'http://127.0.0.1:8317/api/provider/agy',
+            ANTHROPIC_AUTH_TOKEN: 'ccs-internal-managed',
+            ANTHROPIC_MODEL: 'claude-sonnet-4-6-thinking(8192)',
+            ANTHROPIC_DEFAULT_OPUS_MODEL: 'claude-opus-4-6-thinking',
+            ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-4.6-thinking',
+            ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-sonnet-4-5',
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    ensureProviderSettings('agy');
+
+    const repaired = JSON.parse(fs.readFileSync(agySettingsPath, 'utf-8')) as {
+      env?: Record<string, string>;
+    };
+    expect(repaired.env?.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6(8192)');
+    expect(repaired.env?.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
+    expect(repaired.env?.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
+    expect(repaired.env?.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-sonnet-4-5');
   });
 
   it('recovers malformed provider settings files by writing defaults and backup copy', () => {

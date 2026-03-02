@@ -51,6 +51,10 @@ import {
 } from '../../cliproxy/platform-detector';
 import { loadOrCreateUnifiedConfig } from '../../config/unified-config-loader';
 import { CLIPROXY_DEFAULT_PORT } from '../../cliproxy/config/port-manager';
+import {
+  MODEL_ENV_VAR_KEYS,
+  canonicalizeModelIdForProvider,
+} from '../../cliproxy/model-id-normalizer';
 
 const router = Router();
 
@@ -596,16 +600,43 @@ router.put('/models/:provider', async (req: Request, res: Response): Promise<voi
     }
 
     // Read and update settings
-    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-    settings.env = settings.env || {};
-    settings.env.ANTHROPIC_MODEL = model;
+    const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')) as {
+      env?: Record<string, unknown>;
+      [key: string]: unknown;
+    };
+    const canonicalModel = canonicalizeModelIdForProvider(model, provider);
+    const env =
+      settings.env && typeof settings.env === 'object' && !Array.isArray(settings.env)
+        ? settings.env
+        : {};
+
+    const previousDefault =
+      typeof env.ANTHROPIC_MODEL === 'string' ? env.ANTHROPIC_MODEL : canonicalModel;
+    const previousCanonicalDefault = canonicalizeModelIdForProvider(previousDefault, provider);
+
+    for (const key of MODEL_ENV_VAR_KEYS) {
+      if (key === 'ANTHROPIC_MODEL') {
+        env[key] = canonicalModel;
+        continue;
+      }
+
+      const current = env[key];
+      if (typeof current !== 'string') {
+        env[key] = canonicalModel;
+        continue;
+      }
+
+      const canonicalCurrent = canonicalizeModelIdForProvider(current, provider);
+      env[key] = canonicalCurrent === previousCanonicalDefault ? canonicalModel : canonicalCurrent;
+    }
+    settings.env = env;
 
     // Write atomically
     const tempPath = settingsPath + '.tmp';
     fs.writeFileSync(tempPath, JSON.stringify(settings, null, 2) + '\n');
     fs.renameSync(tempPath, settingsPath);
 
-    res.json({ success: true, provider, model });
+    res.json({ success: true, provider, model: canonicalModel });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

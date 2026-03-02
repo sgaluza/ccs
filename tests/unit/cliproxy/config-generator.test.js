@@ -792,8 +792,8 @@ oauth-model-alias:
 
       const newConfig = fs.readFileSync(path.join(cliproxyDir, 'config.yaml'), 'utf-8');
       assert(
-        newConfig.includes('alias: claude-sonnet-4-6-thinking'),
-        'Should include normalized upstream Claude alias'
+        newConfig.includes('alias: claude-sonnet-4-6'),
+        'Should migrate deprecated sonnet thinking alias to canonical model ID'
       );
       assert(
         !newConfig.includes('alias: gemini-claude-sonnet-4-6-thinking'),

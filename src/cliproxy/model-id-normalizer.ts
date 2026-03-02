@@ -20,6 +20,10 @@ type ProviderLike = CLIProxyProvider | string | null | undefined;
 const CLAUDE_DOTTED_VERSION_REGEX = /claude-(sonnet|opus|haiku)-(\d+)\.(\d+)(?=(?:$|-|\[|\(|\/))/gi;
 const CLAUDE_DOTTED_THINKING_REGEX =
   /claude-(sonnet|opus|haiku)-(\d+)\.(\d+)-thinking(?=(?:$|-|\[|\(|\/))/gi;
+const DEPRECATED_ANTIGRAVITY_SONNET_46_THINKING_REGEX =
+  /claude-sonnet-4(?:[.-])6-thinking(?=(?:$|-|\[|\(|\/))/gi;
+const CANONICAL_ANTIGRAVITY_SONNET_46_MODEL = 'claude-sonnet-4-6';
+const CODEX_EFFORT_SUFFIX_REGEX = /-(xhigh|high|medium)$/i;
 
 /**
  * Extract provider segment from `/api/provider/{provider}` request paths.
@@ -39,6 +43,17 @@ export function isAntigravityProvider(provider: ProviderLike): boolean {
   if (typeof provider !== 'string') return false;
   const normalized = provider.trim().toLowerCase();
   return normalized === 'agy' || normalized === 'antigravity';
+}
+
+/** Whether provider maps to Codex model canonicalization rules. */
+export function isCodexProvider(provider: ProviderLike): boolean {
+  if (typeof provider !== 'string') return false;
+  return provider.trim().toLowerCase() === 'codex';
+}
+
+/** Normalize Codex effort-suffixed IDs to canonical IDs. */
+export function stripCodexEffortSuffix(model: string): string {
+  return model.replace(CODEX_EFFORT_SUFFIX_REGEX, '');
 }
 
 /** Normalize Claude dotted major.minor IDs to hyphenated format. */
@@ -63,6 +78,17 @@ export function normalizeClaudeDottedThinkingMajorMinor(model: string): string {
 }
 
 /**
+ * Antigravity no longer exposes `claude-sonnet-4-6-thinking`.
+ * Canonicalize legacy aliases to `claude-sonnet-4-6` while preserving suffixes.
+ */
+export function normalizeDeprecatedAntigravityModelAliases(model: string): string {
+  return model.replace(
+    DEPRECATED_ANTIGRAVITY_SONNET_46_THINKING_REGEX,
+    CANONICAL_ANTIGRAVITY_SONNET_46_MODEL
+  );
+}
+
+/**
  * Normalize model ID for a specific provider.
  * Antigravity requires hyphenated Claude major.minor model IDs.
  *
@@ -76,7 +102,18 @@ export function normalizeClaudeDottedThinkingMajorMinor(model: string): string {
  */
 export function normalizeModelIdForProvider(model: string, provider: ProviderLike): string {
   if (!isAntigravityProvider(provider)) return model;
-  return normalizeClaudeDottedMajorMinor(model);
+  const normalizedDottedVersion = normalizeClaudeDottedMajorMinor(model);
+  return normalizeDeprecatedAntigravityModelAliases(normalizedDottedVersion);
+}
+
+/**
+ * Canonicalize model ID for provider-specific compatibility.
+ * - Codex: strip effort suffixes.
+ * - Antigravity: normalize dotted/historical aliases.
+ */
+export function canonicalizeModelIdForProvider(model: string, provider: ProviderLike): string {
+  const withoutCodexSuffix = isCodexProvider(provider) ? stripCodexEffortSuffix(model) : model;
+  return normalizeModelIdForProvider(withoutCodexSuffix, provider);
 }
 
 /**
@@ -87,7 +124,7 @@ export function normalizeModelIdForProvider(model: string, provider: ProviderLik
  *
  * @example
  * normalizeModelIdForRouting('claude-sonnet-4.6-thinking', null)
- * // => 'claude-sonnet-4-6-thinking'
+ * // => 'claude-sonnet-4-6'
  *
  * @example
  * normalizeModelIdForRouting('claude-sonnet-4.6', null)
@@ -95,9 +132,14 @@ export function normalizeModelIdForProvider(model: string, provider: ProviderLik
  */
 export function normalizeModelIdForRouting(model: string, provider: ProviderLike): string {
   if (isAntigravityProvider(provider)) {
-    return normalizeClaudeDottedMajorMinor(model);
+    return normalizeModelIdForProvider(model, provider);
   }
-  return normalizeClaudeDottedThinkingMajorMinor(model);
+  // Explicit non-AGY provider routes should pass through unchanged.
+  if (typeof provider === 'string' && provider.trim().length > 0) {
+    return model;
+  }
+  const normalizedThinking = normalizeClaudeDottedThinkingMajorMinor(model);
+  return normalizeDeprecatedAntigravityModelAliases(normalizedThinking);
 }
 
 /**
@@ -109,7 +151,7 @@ export function normalizeModelIdForRouting(model: string, provider: ProviderLike
  *   { ANTHROPIC_MODEL: 'claude-sonnet-4.6-thinking' },
  *   'agy'
  * )
- * // => { ANTHROPIC_MODEL: 'claude-sonnet-4-6-thinking' }
+ * // => { ANTHROPIC_MODEL: 'claude-sonnet-4-6' }
  */
 export function normalizeModelEnvVarsForProvider(
   envVars: NodeJS.ProcessEnv,

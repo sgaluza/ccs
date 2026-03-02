@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import {
+  canonicalizeModelIdForProvider,
   extractProviderFromPathname,
   isAntigravityProvider,
   normalizeClaudeDottedMajorMinor,
@@ -44,18 +45,37 @@ describe('model-id-normalizer', () => {
 
     it('applies provider-aware routing normalization', () => {
       expect(normalizeModelIdForRouting('claude-sonnet-4.6-thinking', null)).toBe(
-        'claude-sonnet-4-6-thinking'
+        'claude-sonnet-4-6'
       );
       expect(normalizeModelIdForRouting('claude-sonnet-4.6', null)).toBe('claude-sonnet-4.6');
       expect(normalizeModelIdForRouting('claude-sonnet-4.6', 'agy')).toBe('claude-sonnet-4-6');
+      expect(normalizeModelIdForRouting('claude-sonnet-4-6-thinking', 'claude')).toBe(
+        'claude-sonnet-4-6-thinking'
+      );
+      expect(normalizeModelIdForRouting('claude-sonnet-4.6-thinking', 'claude')).toBe(
+        'claude-sonnet-4.6-thinking'
+      );
     });
 
     it('applies provider-only normalization for antigravity', () => {
+      expect(normalizeModelIdForProvider('claude-sonnet-4.6-thinking', 'agy')).toBe(
+        'claude-sonnet-4-6'
+      );
       expect(normalizeModelIdForProvider('claude-opus-4.6-thinking', 'agy')).toBe(
         'claude-opus-4-6-thinking'
       );
       expect(normalizeModelIdForProvider('claude-opus-4.6-thinking', 'gemini')).toBe(
         'claude-opus-4.6-thinking'
+      );
+    });
+
+    it('applies provider canonicalization for codex and antigravity', () => {
+      expect(canonicalizeModelIdForProvider('gpt-5.3-codex-xhigh', 'codex')).toBe('gpt-5.3-codex');
+      expect(canonicalizeModelIdForProvider('claude-sonnet-4.6-thinking', 'agy')).toBe(
+        'claude-sonnet-4-6'
+      );
+      expect(canonicalizeModelIdForProvider('claude-sonnet-4-6-thinking', 'claude')).toBe(
+        'claude-sonnet-4-6-thinking'
       );
     });
   });
@@ -71,7 +91,7 @@ describe('model-id-normalizer', () => {
       };
 
       const normalized = normalizeModelEnvVarsForProvider(input, 'agy');
-      expect(normalized.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6-thinking');
+      expect(normalized.ANTHROPIC_MODEL).toBe('claude-sonnet-4-6');
       expect(normalized.ANTHROPIC_DEFAULT_OPUS_MODEL).toBe('claude-opus-4-6-thinking');
       expect(normalized.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('claude-sonnet-4-6');
       expect(normalized.ANTHROPIC_DEFAULT_HAIKU_MODEL).toBe('claude-haiku-4-5');
