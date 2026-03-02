@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'bun:test';
 import {
+  canonicalizeModelIdForProvider,
   extractProviderFromPathname,
   isAntigravityProvider,
   normalizeClaudeDottedMajorMinor,
@@ -48,6 +49,12 @@ describe('model-id-normalizer', () => {
       );
       expect(normalizeModelIdForRouting('claude-sonnet-4.6', null)).toBe('claude-sonnet-4.6');
       expect(normalizeModelIdForRouting('claude-sonnet-4.6', 'agy')).toBe('claude-sonnet-4-6');
+      expect(normalizeModelIdForRouting('claude-sonnet-4-6-thinking', 'claude')).toBe(
+        'claude-sonnet-4-6-thinking'
+      );
+      expect(normalizeModelIdForRouting('claude-sonnet-4.6-thinking', 'claude')).toBe(
+        'claude-sonnet-4.6-thinking'
+      );
     });
 
     it('applies provider-only normalization for antigravity', () => {
@@ -59,6 +66,16 @@ describe('model-id-normalizer', () => {
       );
       expect(normalizeModelIdForProvider('claude-opus-4.6-thinking', 'gemini')).toBe(
         'claude-opus-4.6-thinking'
+      );
+    });
+
+    it('applies provider canonicalization for codex and antigravity', () => {
+      expect(canonicalizeModelIdForProvider('gpt-5.3-codex-xhigh', 'codex')).toBe('gpt-5.3-codex');
+      expect(canonicalizeModelIdForProvider('claude-sonnet-4.6-thinking', 'agy')).toBe(
+        'claude-sonnet-4-6'
+      );
+      expect(canonicalizeModelIdForProvider('claude-sonnet-4-6-thinking', 'claude')).toBe(
+        'claude-sonnet-4-6-thinking'
       );
     });
   });

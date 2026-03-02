@@ -23,6 +23,7 @@ const CLAUDE_DOTTED_THINKING_REGEX =
 const DEPRECATED_ANTIGRAVITY_SONNET_46_THINKING_REGEX =
   /claude-sonnet-4(?:[.-])6-thinking(?=(?:$|-|\[|\(|\/))/gi;
 const CANONICAL_ANTIGRAVITY_SONNET_46_MODEL = 'claude-sonnet-4-6';
+const CODEX_EFFORT_SUFFIX_REGEX = /-(xhigh|high|medium)$/i;
 
 /**
  * Extract provider segment from `/api/provider/{provider}` request paths.
@@ -42,6 +43,17 @@ export function isAntigravityProvider(provider: ProviderLike): boolean {
   if (typeof provider !== 'string') return false;
   const normalized = provider.trim().toLowerCase();
   return normalized === 'agy' || normalized === 'antigravity';
+}
+
+/** Whether provider maps to Codex model canonicalization rules. */
+export function isCodexProvider(provider: ProviderLike): boolean {
+  if (typeof provider !== 'string') return false;
+  return provider.trim().toLowerCase() === 'codex';
+}
+
+/** Normalize Codex effort-suffixed IDs to canonical IDs. */
+export function stripCodexEffortSuffix(model: string): string {
+  return model.replace(CODEX_EFFORT_SUFFIX_REGEX, '');
 }
 
 /** Normalize Claude dotted major.minor IDs to hyphenated format. */
@@ -95,6 +107,16 @@ export function normalizeModelIdForProvider(model: string, provider: ProviderLik
 }
 
 /**
+ * Canonicalize model ID for provider-specific compatibility.
+ * - Codex: strip effort suffixes.
+ * - Antigravity: normalize dotted/historical aliases.
+ */
+export function canonicalizeModelIdForProvider(model: string, provider: ProviderLike): string {
+  const withoutCodexSuffix = isCodexProvider(provider) ? stripCodexEffortSuffix(model) : model;
+  return normalizeModelIdForProvider(withoutCodexSuffix, provider);
+}
+
+/**
  * Normalize model ID for request routing.
  * - Antigravity routes: normalize all dotted Claude major.minor forms.
  * - Root/composite routes: normalize only thinking forms to avoid mutating
@@ -111,6 +133,10 @@ export function normalizeModelIdForProvider(model: string, provider: ProviderLik
 export function normalizeModelIdForRouting(model: string, provider: ProviderLike): string {
   if (isAntigravityProvider(provider)) {
     return normalizeModelIdForProvider(model, provider);
+  }
+  // Explicit non-AGY provider routes should pass through unchanged.
+  if (typeof provider === 'string' && provider.trim().length > 0) {
+    return model;
   }
   const normalizedThinking = normalizeClaudeDottedThinkingMajorMinor(model);
   return normalizeDeprecatedAntigravityModelAliases(normalizedThinking);
