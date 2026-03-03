@@ -59,7 +59,9 @@ jobs:
         run: |
           OUTPUT=$(bunx semantic-release 2>&1) || true
           echo "$OUTPUT"
-          if echo "$OUTPUT" | grep -q "Published release"; then
+          # Strip ANSI color codes before matching (semantic-release outputs colored text)
+          CLEAN=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+          if echo "$CLEAN" | grep -q "Published GitHub release"; then
             echo "released=true" >> $GITHUB_OUTPUT
           else
             echo "released=false" >> $GITHUB_OUTPUT
