@@ -258,6 +258,10 @@ export function getManagementAuthUrlPath(provider: CLIProxyProvider): string {
   return `/v0/management/${authUrlProvider}-auth-url?is_webui=true`;
 }
 
+export function getManagementOAuthCallbackPath(): string {
+  return '/v0/management/oauth-callback';
+}
+
 /**
  * Get OAuth config for provider
  */

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { getManagementAuthUrlPath } from '../../../src/cliproxy/auth/auth-types';
+import {
+  getManagementAuthUrlPath,
+  getManagementOAuthCallbackPath,
+} from '../../../src/cliproxy/auth/auth-types';
 
 describe('auth-types management auth-url path', () => {
   it('maps providers to CLIProxyAPI management auth-url routes', () => {
@@ -15,5 +18,9 @@ describe('auth-types management auth-url path', () => {
     );
     expect(getManagementAuthUrlPath('ghcp')).toBe('/v0/management/github-auth-url?is_webui=true');
     expect(getManagementAuthUrlPath('kiro')).toBe('/v0/management/kiro-auth-url?is_webui=true');
+  });
+
+  it('uses CLIProxyAPI management oauth-callback route', () => {
+    expect(getManagementOAuthCallbackPath()).toBe('/v0/management/oauth-callback');
   });
 });
