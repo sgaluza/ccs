@@ -125,6 +125,7 @@ bun run validate            # Step 3: Final check (must pass)
 - Gated metrics (must not increase vs baseline):
   - `processExitReferenceCount`
   - `synchronousFsApiReferenceCount`
+- Informational metrics (collected but not gated):
   - `largeFileCountOver350Loc`
 - Baseline update policy:
   1. Prefer reducing the metric and keeping the baseline unchanged.

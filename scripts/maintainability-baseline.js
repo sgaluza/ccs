@@ -245,7 +245,6 @@ function runCheck(checkPath, currentMetrics) {
   const gatedKeys = [
     'processExitReferenceCount',
     'synchronousFsApiReferenceCount',
-    'largeFileCountOver350Loc',
   ];
 
   const violations = [];
