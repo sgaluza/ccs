@@ -31,7 +31,7 @@ function sanitizeProfileNameForInstance(name: string): string {
  */
 export async function handleCreate(ctx: CommandContext, args: string[]): Promise<void> {
   await initUI();
-  const { profileName, force, shareContext, contextGroup, deeperContinuity, unknownFlags } =
+  const { profileName, force, shareContext, contextGroup, deeperContinuity, bare, unknownFlags } =
     parseArgs(args);
 
   if (unknownFlags && unknownFlags.length > 0) {
@@ -39,7 +39,7 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
     console.log(fail(`Unknown option(s): ${unknownList}`));
     console.log('');
     console.log(
-      `Usage: ${color('ccs auth create <profile> [--force] [--share-context] [--context-group <name>] [--deeper-continuity]', 'command')}`
+      `Usage: ${color('ccs auth create <profile> [--force] [--bare] [--share-context] [--context-group <name>] [--deeper-continuity]', 'command')}`
     );
     console.log(`Help:  ${color('ccs auth --help', 'command')}`);
     console.log('');
@@ -50,7 +50,7 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
     console.log(fail('Profile name is required'));
     console.log('');
     console.log(
-      `Usage: ${color('ccs auth create <profile> [--force] [--share-context] [--context-group <name>] [--deeper-continuity]', 'command')}`
+      `Usage: ${color('ccs auth create <profile> [--force] [--bare] [--share-context] [--context-group <name>] [--deeper-continuity]', 'command')}`
     );
     console.log('');
     console.log('Example:');
@@ -179,7 +179,9 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
   try {
     // Create instance directory
     console.log(info(`Creating profile: ${profileName}`));
-    const instancePath = await ctx.instanceMgr.ensureInstance(profileName, contextPolicy);
+    const instancePath = await ctx.instanceMgr.ensureInstance(profileName, contextPolicy, {
+      bare: !!bare,
+    });
 
     // Create/update profile entry based on config mode
     if (useUnifiedConfig) {
@@ -188,10 +190,14 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
         ctx.registry.updateAccountUnified(profileName, {
           context_mode: contextMetadata.context_mode,
           context_group: contextMetadata.context_group,
+          ...(bare ? { bare: true } : {}),
         });
         ctx.registry.touchAccountUnified(profileName);
       } else {
-        ctx.registry.createAccountUnified(profileName, contextMetadata);
+        ctx.registry.createAccountUnified(profileName, {
+          ...contextMetadata,
+          ...(bare ? { bare: true } : {}),
+        });
       }
     } else {
       // Use legacy profiles.json
@@ -200,12 +206,14 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
           type: 'account',
           context_mode: contextMetadata.context_mode,
           context_group: contextMetadata.context_group,
+          ...(bare ? { bare: true } : {}),
         });
       } else {
         ctx.registry.createProfile(profileName, {
           type: 'account',
           context_mode: contextMetadata.context_mode,
           context_group: contextMetadata.context_group,
+          ...(bare ? { bare: true } : {}),
         });
       }
     }
@@ -262,7 +270,8 @@ export async function handleCreate(ctx: CommandContext, args: string[]): Promise
             `Profile:  ${profileName}\n` +
               `Instance: ${instancePath}\n` +
               `Type:     account\n` +
-              `Context:  ${formatAccountContextPolicy(contextPolicy)}`,
+              `Context:  ${formatAccountContextPolicy(contextPolicy)}` +
+              (bare ? '\nMode:     bare (no shared symlinks)' : ''),
             'Profile Created'
           )
         );
