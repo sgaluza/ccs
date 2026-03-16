@@ -1,0 +1,186 @@
+import type { CursorTool } from './cursor-protobuf-schema';
+import type {
+  AnthropicContentBlock,
+  CursorAnthropicRequest,
+  CursorOpenAIMessage,
+} from './cursor-anthropic-types';
+
+export interface TranslatedAnthropicRequest {
+  model?: string;
+  stream: boolean;
+  reasoning_effort?: string;
+  tools?: CursorTool[];
+  messages: CursorOpenAIMessage[];
+}
+
+function assertObject(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error(`${label} must be an object`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function flattenTextContent(content: unknown, label: string): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (!Array.isArray(content)) {
+    throw new Error(`${label} must be a string or content block array`);
+  }
+
+  return content
+    .map((block, index) => {
+      const parsed = assertObject(block, `${label}[${index}]`);
+      if (parsed.type !== 'text') {
+        throw new Error(`${label}[${index}].type "${String(parsed.type)}" is not supported`);
+      }
+      return typeof parsed.text === 'string' ? parsed.text : '';
+    })
+    .join('\n');
+}
+
+function toToolResultContent(content: unknown, label: string): string {
+  if (content === undefined) {
+    return '';
+  }
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return flattenTextContent(content, label);
+  }
+  return JSON.stringify(content);
+}
+
+function mapThinkingToReasoningEffort(
+  thinking: CursorAnthropicRequest['thinking']
+): string | undefined {
+  if (!thinking) {
+    return undefined;
+  }
+  if (thinking.type === 'disabled') {
+    return undefined;
+  }
+  if (thinking.type !== 'enabled') {
+    throw new Error('thinking.type must be "enabled" or "disabled"');
+  }
+  return typeof thinking.budget_tokens === 'number' && thinking.budget_tokens >= 8192
+    ? 'high'
+    : 'medium';
+}
+
+export function translateAnthropicRequest(raw: unknown): TranslatedAnthropicRequest {
+  const request = assertObject(raw, 'request') as CursorAnthropicRequest;
+  const translatedMessages: CursorOpenAIMessage[] = [];
+
+  if (request.system !== undefined) {
+    translatedMessages.push({
+      role: 'system',
+      content: flattenTextContent(request.system, 'system'),
+    });
+  }
+
+  if (!Array.isArray(request.messages)) {
+    throw new Error('messages must be an array');
+  }
+
+  request.messages.forEach((message, messageIndex) => {
+    const role = message.role;
+    if (role !== 'user' && role !== 'assistant') {
+      throw new Error(`messages[${messageIndex}].role must be "user" or "assistant"`);
+    }
+
+    const content = message.content;
+    if (typeof content === 'string') {
+      translatedMessages.push({ role, content });
+      return;
+    }
+
+    if (!Array.isArray(content)) {
+      throw new Error(`messages[${messageIndex}].content must be a string or array`);
+    }
+
+    const textParts: string[] = [];
+    const toolCalls: NonNullable<CursorOpenAIMessage['tool_calls']> = [];
+
+    content.forEach((block, blockIndex) => {
+      const parsed = assertObject(
+        block,
+        `messages[${messageIndex}].content[${blockIndex}]`
+      ) as unknown as AnthropicContentBlock;
+
+      if (parsed.type === 'text') {
+        textParts.push(typeof parsed.text === 'string' ? parsed.text : '');
+        return;
+      }
+
+      if (parsed.type === 'tool_use') {
+        if (role !== 'assistant') {
+          throw new Error(
+            `messages[${messageIndex}].content[${blockIndex}] tool_use requires assistant role`
+          );
+        }
+        toolCalls.push({
+          id:
+            typeof parsed.id === 'string' && parsed.id.length > 0
+              ? parsed.id
+              : `toolu_${messageIndex}_${blockIndex}`,
+          type: 'function',
+          function: {
+            name: typeof parsed.name === 'string' ? parsed.name : 'tool',
+            arguments: JSON.stringify(parsed.input ?? {}),
+          },
+        });
+        return;
+      }
+
+      if (parsed.type === 'tool_result') {
+        if (role !== 'user') {
+          throw new Error(
+            `messages[${messageIndex}].content[${blockIndex}] tool_result requires user role`
+          );
+        }
+        translatedMessages.push({
+          role: 'tool',
+          tool_call_id: typeof parsed.tool_use_id === 'string' ? parsed.tool_use_id : '',
+          content: toToolResultContent(
+            parsed.content,
+            `messages[${messageIndex}].content[${blockIndex}].content`
+          ),
+        });
+        return;
+      }
+
+      throw new Error(
+        `messages[${messageIndex}].content[${blockIndex}].type "${String((parsed as { type?: unknown }).type)}" is not supported`
+      );
+    });
+
+    if (role === 'assistant') {
+      translatedMessages.push({
+        role,
+        content: textParts.join('\n'),
+        tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
+      });
+      return;
+    }
+
+    if (textParts.length > 0 || toolCalls.length === 0) {
+      translatedMessages.push({
+        role,
+        content: textParts.join('\n'),
+      });
+    }
+  });
+
+  return {
+    model:
+      typeof request.model === 'string' && request.model.trim().length > 0
+        ? request.model
+        : undefined,
+    stream: request.stream === true,
+    reasoning_effort: mapThinkingToReasoningEffort(request.thinking),
+    tools: Array.isArray(request.tools) ? request.tools : undefined,
+    messages: translatedMessages,
+  };
+}

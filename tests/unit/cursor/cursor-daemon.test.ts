@@ -151,34 +151,46 @@ describe('startDaemon', () => {
     const running = await isDaemonRunning(port);
     expect(running).toBe(true);
 
-      // Verify models endpoint exists and is OpenAI-compatible list shape
-      const modelsResponse = await fetch(`http://127.0.0.1:${port}/v1/models`);
-      expect(modelsResponse.status).toBe(200);
-      const modelsJson = (await modelsResponse.json()) as { object?: string; data?: unknown[] };
-      expect(modelsJson.object).toBe('list');
-      expect(Array.isArray(modelsJson.data)).toBe(true);
+    // Verify models endpoint exists and is OpenAI-compatible list shape
+    const modelsResponse = await fetch(`http://127.0.0.1:${port}/v1/models`);
+    expect(modelsResponse.status).toBe(200);
+    const modelsJson = (await modelsResponse.json()) as { object?: string; data?: unknown[] };
+    expect(modelsJson.object).toBe('list');
+    expect(Array.isArray(modelsJson.data)).toBe(true);
 
-      // Verify chat endpoint exists (requires auth, should not be 404)
-      const chatResponse = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'gpt-4.1',
-          messages: [{ role: 'user', content: 'hello' }],
-        }),
-      });
-      expect(chatResponse.status).toBe(401);
+    // Verify chat endpoint exists (requires auth, should not be 404)
+    const chatResponse = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    });
+    expect(chatResponse.status).toBe(401);
+
+    const anthropicResponse = await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4.5',
+        max_tokens: 256,
+        messages: [{ role: 'user', content: 'hello' }],
+      }),
+    });
+    expect(anthropicResponse.status).toBe(401);
 
     // Stop
     const stopResult = await stopDaemon();
     expect(stopResult.success).toBe(true);
 
-      // Verify stopped
-      const stillRunning = await isDaemonRunning(port);
-      expect(stillRunning).toBe(false);
-    },
-    35000
-  );
+    // Verify stopped
+    const stillRunning = await isDaemonRunning(port);
+    expect(stillRunning).toBe(false);
+  }, 35000);
 
   it('returns 404 for unknown routes', async () => {
     const port = 10000 + Math.floor(Math.random() * 50000);
@@ -247,6 +259,20 @@ describe('startDaemon', () => {
         }),
       });
       expect(invalidSchema.status).toBe(400);
+
+      const invalidAnthropic = await fetch(`http://127.0.0.1:${port}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4.5',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: [{ type: 'image' }] }],
+        }),
+      });
+      expect(invalidAnthropic.status).toBe(400);
 
       const oversized = await fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
         method: 'POST',
