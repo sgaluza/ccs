@@ -59,6 +59,36 @@ describe('translateAnthropicRequest', () => {
       })
     ).toThrow('is not supported');
   });
+
+  it('does not append an empty user message after tool_result-only turns', () => {
+    const translated = translateAnthropicRequest({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'toolu_1', name: 'search', input: { q: 'x' } }],
+        },
+        {
+          role: 'user',
+          content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'done' }],
+        },
+      ],
+    });
+
+    expect(translated.messages).toEqual([
+      {
+        role: 'assistant',
+        content: '',
+        tool_calls: [
+          {
+            id: 'toolu_1',
+            type: 'function',
+            function: { name: 'search', arguments: '{"q":"x"}' },
+          },
+        ],
+      },
+      { role: 'tool', tool_call_id: 'toolu_1', content: 'done' },
+    ]);
+  });
 });
 
 describe('createAnthropicProxyResponse', () => {

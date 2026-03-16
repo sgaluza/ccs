@@ -102,6 +102,7 @@ export function translateAnthropicRequest(raw: unknown): TranslatedAnthropicRequ
 
     const textParts: string[] = [];
     const toolCalls: NonNullable<CursorOpenAIMessage['tool_calls']> = [];
+    let sawToolResult = false;
 
     content.forEach((block, blockIndex) => {
       const parsed = assertObject(
@@ -140,6 +141,7 @@ export function translateAnthropicRequest(raw: unknown): TranslatedAnthropicRequ
             `messages[${messageIndex}].content[${blockIndex}] tool_result requires user role`
           );
         }
+        sawToolResult = true;
         translatedMessages.push({
           role: 'tool',
           tool_call_id: typeof parsed.tool_use_id === 'string' ? parsed.tool_use_id : '',
@@ -165,7 +167,7 @@ export function translateAnthropicRequest(raw: unknown): TranslatedAnthropicRequ
       return;
     }
 
-    if (textParts.length > 0 || toolCalls.length === 0) {
+    if (textParts.length > 0 || !sawToolResult) {
       translatedMessages.push({
         role,
         content: textParts.join('\n'),
