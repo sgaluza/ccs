@@ -67,12 +67,12 @@ export function findAccountByQuery(provider: CLIProxyProvider, query: string): A
   if (exactMatch) return exactMatch;
 
   // Partial match on nickname or email prefix
-  const partialMatch = accounts.find(
+  const partialMatches = accounts.filter(
     (a) =>
       a.nickname?.toLowerCase().startsWith(lowerQuery) ||
       a.email?.toLowerCase().startsWith(lowerQuery)
   );
-  return partialMatch || null;
+  return partialMatches.length === 1 ? partialMatches[0] : null;
 }
 
 /**

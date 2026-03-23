@@ -13,7 +13,9 @@ import {
   getAccountsRegistryPath,
   getPausedDir,
   extractAccountIdFromTokenFile,
+  deriveNoEmailProviderAccountId,
   generateNickname,
+  hasAccountNameConflict,
   validateNickname,
   moveTokenToPaused,
   moveTokenFromPaused,
@@ -21,10 +23,12 @@ import {
 } from './token-file-ops';
 
 /** Default registry structure */
-const DEFAULT_REGISTRY: AccountsRegistry = {
-  version: 1,
-  providers: {},
-};
+function createDefaultRegistry(): AccountsRegistry {
+  return {
+    version: 1,
+    providers: {},
+  };
+}
 
 /**
  * Load accounts registry
@@ -33,7 +37,7 @@ export function loadAccountsRegistry(): AccountsRegistry {
   const registryPath = getAccountsRegistryPath();
 
   if (!fs.existsSync(registryPath)) {
-    return { ...DEFAULT_REGISTRY };
+    return createDefaultRegistry();
   }
 
   try {
@@ -44,7 +48,7 @@ export function loadAccountsRegistry(): AccountsRegistry {
       providers: data.providers || {},
     };
   } catch {
-    return { ...DEFAULT_REGISTRY };
+    return createDefaultRegistry();
   }
 }
 
@@ -115,8 +119,8 @@ export function syncRegistryWithTokenFiles(registry: AccountsRegistry): boolean 
  * Called after successful OAuth to record the account
  *
  * For providers without email (kiro, ghcp):
- * - nickname is REQUIRED and used as accountId
- * - Uniqueness is enforced to prevent overwriting
+ * - internal accountId is derived from token metadata
+ * - nickname is optional metadata
  *
  * For providers with email:
  * - email is used as accountId
@@ -149,23 +153,22 @@ export function registerAccount(
   let accountNickname: string;
 
   if (PROVIDERS_WITHOUT_EMAIL.includes(provider)) {
-    // For kiro/ghcp: nickname is REQUIRED and used as accountId
-    if (!nickname || nickname === 'default') {
-      throw new Error(
-        `Nickname is required when adding ${provider} accounts. ` +
-          `Use --nickname <name> or provide a nickname in the UI.`
-      );
-    }
+    accountId = email
+      ? extractAccountIdFromTokenFile(tokenFile, email)
+      : deriveNoEmailProviderAccountId(provider, tokenFile, providerAccounts.accounts);
+    const existingAccount = providerAccounts.accounts[accountId];
 
-    // Validate nickname format
-    const validationError = validateNickname(nickname);
-    if (validationError) {
-      throw new Error(validationError);
-    }
+    if (nickname) {
+      const validationError = validateNickname(nickname);
+      if (validationError) {
+        throw new Error(validationError);
+      }
 
-    // Check uniqueness
-    for (const [existingId, _account] of Object.entries(providerAccounts.accounts)) {
-      if (existingId.toLowerCase() === nickname.toLowerCase()) {
+      const existingAccounts = Object.entries(providerAccounts.accounts).map(([id, account]) => ({
+        id,
+        nickname: account.nickname,
+      }));
+      if (hasAccountNameConflict(existingAccounts, nickname, accountId)) {
         throw new Error(
           `An account with nickname "${nickname}" already exists for ${provider}. ` +
             `Choose a different nickname.`
@@ -173,8 +176,8 @@ export function registerAccount(
       }
     }
 
-    accountId = nickname;
-    accountNickname = nickname;
+    accountNickname =
+      nickname || existingAccount?.nickname || (email ? generateNickname(email) : accountId);
   } else {
     // For other providers: use email as accountId, fallback to filename extraction
     accountId = extractAccountIdFromTokenFile(tokenFile, email);
@@ -184,11 +187,12 @@ export function registerAccount(
   const isFirstAccount = Object.keys(providerAccounts.accounts).length === 0;
 
   // Create or update account
+  const existingAccount = providerAccounts.accounts[accountId];
   const accountMeta: Omit<AccountInfo, 'id' | 'provider' | 'isDefault'> = {
     email,
     nickname: accountNickname,
     tokenFile,
-    createdAt: new Date().toISOString(),
+    createdAt: existingAccount?.createdAt || new Date().toISOString(),
     lastUsedAt: new Date().toISOString(),
   };
 
@@ -339,11 +343,12 @@ export function renameAccount(
     return false;
   }
 
-  // Check if nickname is already used by another account
-  for (const [id, account] of Object.entries(providerAccounts.accounts)) {
-    if (id !== accountId && account.nickname?.toLowerCase() === newNickname.toLowerCase()) {
-      throw new Error(`Nickname "${newNickname}" is already used by another account`);
-    }
+  const existingAccounts = Object.entries(providerAccounts.accounts).map(([id, account]) => ({
+    id,
+    nickname: account.nickname,
+  }));
+  if (hasAccountNameConflict(existingAccounts, newNickname, accountId)) {
+    throw new Error(`Nickname "${newNickname}" is already used by another account`);
   }
 
   providerAccounts.accounts[accountId].nickname = newNickname;
@@ -476,28 +481,10 @@ export function discoverExistingAccounts(): void {
         continue;
       }
 
-      // Determine accountId based on provider type
-      let accountId: string;
-
-      if (PROVIDERS_WITHOUT_EMAIL.includes(provider) && !email) {
-        // For kiro/ghcp without email: extract from filename or generate unique
-        // Pattern: kiro-github-ABC123.json -> github-ABC123
-        const filenameId = extractAccountIdFromTokenFile(file, undefined);
-
-        if (filenameId !== 'default') {
-          accountId = filenameId;
-        } else {
-          // Generate unique ID: provider + incrementing index
-          let index = 1;
-          while (providerAccounts.accounts[`${provider}-${index}`]) {
-            index++;
-          }
-          accountId = `${provider}-${index}`;
-        }
-      } else {
-        // For providers with email: use email or filename extraction
-        accountId = extractAccountIdFromTokenFile(file, email);
-      }
+      const accountId =
+        PROVIDERS_WITHOUT_EMAIL.includes(provider) && !email
+          ? deriveNoEmailProviderAccountId(provider, file, providerAccounts.accounts)
+          : extractAccountIdFromTokenFile(file, email);
 
       // Skip if account already registered
       if (providerAccounts.accounts[accountId]) {
@@ -517,7 +504,7 @@ export function discoverExistingAccounts(): void {
       const lastModified = stats.mtime || stats.birthtime || new Date();
       const accountMeta: Omit<AccountInfo, 'id' | 'provider' | 'isDefault'> = {
         email,
-        nickname: generateNickname(email),
+        nickname: email ? generateNickname(email) : accountId,
         tokenFile: file,
         createdAt: stats.birthtime?.toISOString() || new Date().toISOString(),
         lastUsedAt: lastModified.toISOString(),

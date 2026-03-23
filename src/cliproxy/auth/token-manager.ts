@@ -11,6 +11,7 @@ import { CLIProxyProvider } from '../types';
 import { CLIPROXY_PROFILES } from '../../auth/profile-detector';
 import { getProviderAuthDir } from '../config-generator';
 import { getProviderAccounts, getDefaultAccount } from '../account-manager';
+import { deleteTokenFile } from '../accounts/token-file-ops';
 import {
   AuthStatus,
   PROVIDER_AUTH_PREFIXES,
@@ -202,14 +203,15 @@ export function registerAccountFromToken(
   provider: CLIProxyProvider,
   tokenDir: string,
   nickname?: string,
-  verbose = false
+  verbose = false,
+  expectedAccountId?: string
 ): import('../account-manager').AccountInfo | null {
-  const { registerAccount, generateNickname } = require('../account-manager');
+  const { registerAccount } = require('../account-manager');
+  let newestFile: string | null = null;
   try {
     const files = fs.readdirSync(tokenDir);
     const jsonFiles = files.filter((f: string) => f.endsWith('.json'));
 
-    let newestFile: string | null = null;
     let newestMtime = 0;
 
     for (const file of jsonFiles) {
@@ -233,19 +235,33 @@ export function registerAccountFromToken(
     const email = data.email || undefined;
     const projectId = data.project_id || undefined;
 
-    const account = registerAccount(
-      provider,
-      newestFile,
-      email,
-      nickname || generateNickname(email),
-      projectId
-    );
+    const account = registerAccount(provider, newestFile, email, nickname, projectId);
 
     // Upload token to remote server if configured (async, don't block)
     uploadTokenToRemoteAsync(tokenPath, verbose);
 
     return account;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (verbose) {
+      console.error(`[auth] Failed to register token-backed account: ${message}`);
+    }
+
+    if (typeof newestFile === 'string') {
+      const hasExistingRegistration = getProviderAccounts(provider).some(
+        (account) => account.tokenFile === newestFile
+      );
+      if (!hasExistingRegistration) {
+        deleteTokenFile(newestFile);
+      }
+    }
+
+    if (expectedAccountId && verbose) {
+      console.error(
+        `[auth] Reauthentication target ${expectedAccountId} did not resolve cleanly from the new token`
+      );
+    }
+
     return null;
   }
 }

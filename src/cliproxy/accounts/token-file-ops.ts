@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getCliproxyDir, getAuthDir } from '../config-generator';
+import type { CLIProxyProvider } from '../types';
 import { AccountInfo } from './types';
 
 /**
@@ -144,6 +145,50 @@ export function extractAccountIdFromTokenFile(filename: string, email?: string):
 }
 
 /**
+ * Derive a collision-safe internal account ID for providers that may not expose email.
+ * Reuses the existing entry when the token file is already known, otherwise prefers the
+ * filename-derived ID before falling back to provider-scoped sequential IDs.
+ */
+export function deriveNoEmailProviderAccountId(
+  provider: CLIProxyProvider,
+  tokenFile: string,
+  existingAccounts: Record<string, Pick<AccountInfo, 'tokenFile' | 'nickname'>>
+): string {
+  const existingEntries = Object.entries(existingAccounts);
+  const existingEntry = existingEntries.find(([, account]) => account.tokenFile === tokenFile);
+  if (existingEntry) {
+    return existingEntry[0];
+  }
+
+  const extractedId = extractAccountIdFromTokenFile(tokenFile);
+  const lowerExtractedId = extractedId.toLowerCase();
+
+  if (
+    extractedId !== 'default' &&
+    !existingEntries.some(
+      ([existingId, account]) =>
+        existingId.toLowerCase() === lowerExtractedId ||
+        account.nickname?.toLowerCase() === lowerExtractedId
+    )
+  ) {
+    return extractedId;
+  }
+
+  let index = 1;
+  while (
+    existingEntries.some(
+      ([existingId, account]) =>
+        existingId.toLowerCase() === `${provider}-${index}` ||
+        account.nickname?.toLowerCase() === `${provider}-${index}`
+    )
+  ) {
+    index++;
+  }
+
+  return `${provider}-${index}`;
+}
+
+/**
  * Generate nickname from email
  * Takes prefix before @ symbol, sanitizes whitespace
  * Validation: 1-50 chars, any non-whitespace (permissive per user preference)
@@ -179,4 +224,45 @@ export function validateNickname(nickname: string): string | null {
     return 'Nickname cannot match reserved pattern (kiro-N, ghcp-N)';
   }
   return null;
+}
+
+/**
+ * Check whether a nickname would collide with any existing account ID or nickname.
+ */
+export function hasAccountNameConflict(
+  accounts: Array<Pick<AccountInfo, 'id' | 'nickname'>>,
+  candidateName: string,
+  excludeAccountId?: string
+): boolean {
+  const normalizedCandidate = candidateName.toLowerCase();
+  const normalizedExcludedId = excludeAccountId?.toLowerCase();
+
+  return accounts.some((account) => {
+    if (normalizedExcludedId && account.id.toLowerCase() === normalizedExcludedId) {
+      return false;
+    }
+
+    return (
+      account.id.toLowerCase() === normalizedCandidate ||
+      account.nickname?.toLowerCase() === normalizedCandidate
+    );
+  });
+}
+
+/**
+ * Find the existing account that already owns the supplied id/nickname.
+ */
+export function findAccountNameMatch(
+  accounts: Array<Pick<AccountInfo, 'id' | 'nickname'>>,
+  candidateName: string
+): Pick<AccountInfo, 'id' | 'nickname'> | null {
+  const normalizedCandidate = candidateName.toLowerCase();
+
+  return (
+    accounts.find(
+      (account) =>
+        account.id.toLowerCase() === normalizedCandidate ||
+        account.nickname?.toLowerCase() === normalizedCandidate
+    ) || null
+  );
 }
