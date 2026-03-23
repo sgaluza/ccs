@@ -48,13 +48,16 @@ router.put('/', (req: Request, res: Response): void => {
         providers: providers
           ? {
               exa: {
-                enabled: providers.exa?.enabled ?? config.websearch?.providers?.exa?.enabled ?? false,
+                enabled:
+                  providers.exa?.enabled ?? config.websearch?.providers?.exa?.enabled ?? false,
                 max_results:
                   providers.exa?.max_results ?? config.websearch?.providers?.exa?.max_results ?? 5,
               },
               tavily: {
                 enabled:
-                  providers.tavily?.enabled ?? config.websearch?.providers?.tavily?.enabled ?? false,
+                  providers.tavily?.enabled ??
+                  config.websearch?.providers?.tavily?.enabled ??
+                  false,
                 max_results:
                   providers.tavily?.max_results ??
                   config.websearch?.providers?.tavily?.max_results ??
@@ -80,7 +83,9 @@ router.put('/', (req: Request, res: Response): void => {
               },
               gemini: {
                 enabled:
-                  providers.gemini?.enabled ?? config.websearch?.providers?.gemini?.enabled ?? false,
+                  providers.gemini?.enabled ??
+                  config.websearch?.providers?.gemini?.enabled ??
+                  false,
                 model:
                   providers.gemini?.model ??
                   config.websearch?.providers?.gemini?.model ??
