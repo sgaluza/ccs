@@ -201,7 +201,38 @@ function redactYamlScalarLine(line: string): string {
 }
 
 function isYamlBlockScalarIndicator(value: string): boolean {
-  return /^[>|](?:[1-9][+-]?|[+-]?[1-9])?$/.test(value);
+  const trimmedValue = value.trim();
+  if (!(trimmedValue.startsWith('|') || trimmedValue.startsWith('>'))) {
+    return false;
+  }
+
+  const indicators = trimmedValue.slice(1);
+  if (indicators.length === 0) {
+    return true;
+  }
+
+  if (indicators.length > 2) {
+    return false;
+  }
+
+  let sawChompingIndicator = false;
+  let sawIndentIndicator = false;
+
+  for (const indicator of indicators) {
+    if ((indicator === '+' || indicator === '-') && !sawChompingIndicator) {
+      sawChompingIndicator = true;
+      continue;
+    }
+
+    if (/[1-9]/.test(indicator) && !sawIndentIndicator) {
+      sawIndentIndicator = true;
+      continue;
+    }
+
+    return false;
+  }
+
+  return true;
 }
 
 function shouldRedactRawYamlPath(pathKeys: string[]): boolean {
@@ -404,7 +435,7 @@ function mergeCliproxyAuthConfig(
   nextAuth: UnifiedConfig['cliproxy']['auth']
 ): UnifiedConfig['cliproxy']['auth'] {
   if (!nextAuth) {
-    return undefined;
+    return currentAuth;
   }
 
   const mergedAuth = { ...nextAuth };

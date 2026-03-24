@@ -412,6 +412,74 @@ describe('web-server config-routes account context validation', () => {
     );
   });
 
+  it('preserves cliproxy auth secrets when hidden auth subtrees are omitted on save', async () => {
+    const config = createEmptyUnifiedConfig();
+    config.cliproxy.auth = {
+      api_key: 'cliproxy-global-api-key',
+      management_secret: 'cliproxy-global-management-secret',
+    };
+    config.cliproxy.variants.gemini = {
+      provider: 'gemini',
+      auth: {
+        api_key: 'variant-api-key',
+        management_secret: 'variant-management-secret',
+      },
+    };
+    saveUnifiedConfig(config);
+
+    const getResponse = await fetch(`${baseUrl}/api/config`);
+    const sanitized = (await getResponse.json()) as typeof config;
+    delete sanitized.cliproxy.auth;
+    if (sanitized.cliproxy.variants.gemini) {
+      delete sanitized.cliproxy.variants.gemini.auth;
+    }
+    sanitized.cliproxy.kiro_no_incognito = true;
+
+    const putResponse = await putJson(baseUrl, '/api/config', sanitized);
+    expect(putResponse.status).toBe(200);
+
+    const savedConfig = loadUnifiedConfig();
+    expect(savedConfig?.cliproxy.kiro_no_incognito).toBe(true);
+    expect(savedConfig?.cliproxy.auth?.api_key).toBe('cliproxy-global-api-key');
+    expect(savedConfig?.cliproxy.auth?.management_secret).toBe(
+      'cliproxy-global-management-secret'
+    );
+    expect(savedConfig?.cliproxy.variants.gemini?.auth?.api_key).toBe('variant-api-key');
+    expect(savedConfig?.cliproxy.variants.gemini?.auth?.management_secret).toBe(
+      'variant-management-secret'
+    );
+  });
+
+  it('clears cliproxy auth secrets when empty auth objects are saved explicitly', async () => {
+    const config = createEmptyUnifiedConfig();
+    config.cliproxy.auth = {
+      api_key: 'cliproxy-global-api-key',
+      management_secret: 'cliproxy-global-management-secret',
+    };
+    config.cliproxy.variants.gemini = {
+      provider: 'gemini',
+      auth: {
+        api_key: 'variant-api-key',
+        management_secret: 'variant-management-secret',
+      },
+    };
+    saveUnifiedConfig(config);
+
+    const getResponse = await fetch(`${baseUrl}/api/config`);
+    const sanitized = (await getResponse.json()) as typeof config;
+    sanitized.cliproxy.auth = {};
+    if (sanitized.cliproxy.variants.gemini) {
+      sanitized.cliproxy.variants.gemini.auth = {};
+    }
+
+    const putResponse = await putJson(baseUrl, '/api/config', sanitized);
+    expect(putResponse.status).toBe(200);
+
+    const savedConfig = loadUnifiedConfig();
+    expect(savedConfig?.cliproxy.auth).toBeUndefined();
+    expect(savedConfig?.cliproxy.variants.gemini?.auth).toBeUndefined();
+  });
+
   it('redacts block-scalar secrets from raw YAML responses', async () => {
     const yamlPath = path.join(tempHome, '.ccs', 'config.yaml');
     fs.writeFileSync(
@@ -428,18 +496,18 @@ describe('web-server config-routes account context validation', () => {
         '    gemini:',
         '      provider: gemini',
         '      auth:',
-        '        api_key: |',
+        '        api_key: |-',
         '          variant-api-secret-line-1',
         '          variant-api-secret-line-2',
         '  auth:',
-        '    api_key: >',
+        '    api_key: >+',
         '      cliproxy-global-api-secret',
-        '    management_secret: |',
+        '    management_secret: |+',
         '      cliproxy-global-management-secret',
         'global_env:',
         '  enabled: true',
         '  env:',
-        '    GITHUB_TOKEN: |',
+        '    GITHUB_TOKEN: |-',
         '      github-token-secret-line-1',
         '      github-token-secret-line-2',
         'cliproxy_server:',
@@ -447,12 +515,12 @@ describe('web-server config-routes account context validation', () => {
         '    enabled: true',
         '    host: proxy.example.com',
         '    protocol: https',
-        '    auth_token: >',
+        '    auth_token: >-',
         '      remote-auth-secret',
         'dashboard_auth:',
         '  enabled: true',
         '  username: admin',
-        '  password_hash: |',
+        '  password_hash: >+',
         '    dashboard-password-secret',
         '',
       ].join('\n')
