@@ -29,6 +29,27 @@ const boundedConsumers = [
   },
 ] as const;
 
+const boundedLayoutContracts = [
+  {
+    file: 'src/components/profiles/editor/index.tsx',
+    snippets: [
+      'min-h-0 flex-1 grid grid-cols-[40%_60%] divide-x overflow-hidden',
+      'flex min-h-0 min-w-0 flex-col overflow-hidden',
+    ],
+  },
+  {
+    file: 'src/components/cliproxy/provider-editor/index.tsx',
+    snippets: [
+      'min-h-0 flex-1 grid grid-cols-[40%_60%] divide-x overflow-hidden',
+      'flex min-h-0 min-w-0 flex-col overflow-hidden',
+    ],
+  },
+  {
+    file: 'src/pages/api.tsx',
+    snippets: ['flex min-h-0 flex-1 flex-col min-w-0 overflow-hidden'],
+  },
+] as const;
+
 describe('bounded CodeEditor consumers', () => {
   it.each(boundedConsumers)('$file opts into fill-parent mode for every bounded editor', ({
     file,
@@ -39,4 +60,15 @@ describe('bounded CodeEditor consumers', () => {
 
     expect(matches).toHaveLength(expectedCount);
   });
+
+  it.each(boundedLayoutContracts)(
+    '$file keeps bounded editor ancestors shrinkable',
+    ({ file, snippets }) => {
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
+
+      for (const snippet of snippets) {
+        expect(source).toContain(snippet);
+      }
+    }
+  );
 });

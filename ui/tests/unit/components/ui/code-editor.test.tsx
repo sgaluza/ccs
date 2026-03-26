@@ -20,9 +20,10 @@ describe('CodeEditor', () => {
     );
 
     const viewport = container.querySelector('[data-slot="code-editor-viewport"]');
+    const root = container.firstElementChild;
 
     expect(viewport).toBeInTheDocument();
-    expect(viewport).toHaveStyle({ height: '100%' });
+    expect(root).toHaveStyle({ height: '100%' });
     expect(viewport).not.toContainElement(screen.getByText('Valid JSON'));
   });
 
@@ -40,8 +41,9 @@ describe('CodeEditor', () => {
 
     const viewport = container.querySelector('[data-slot="code-editor-viewport"]');
     const textarea = container.querySelector('textarea');
+    const root = container.firstElementChild;
 
-    expect(viewport).toHaveStyle({ height: 'calc(60vh - 120px)' });
+    expect(root).toHaveStyle({ height: 'calc(60vh - 120px)' });
     expect(textarea).toBeDisabled();
     expect(viewport).not.toContainElement(screen.getByText('(Read-only)'));
   });
