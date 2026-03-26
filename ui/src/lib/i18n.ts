@@ -484,6 +484,12 @@ const resources = {
         powerUserEnabled: 'Power user mode enabled',
         powerUserSkipped:
           'Settings > Proxy power user mode is skipping the AGY responsibility checklist and Gemini dashboard risk phrase. You accept full responsibility for OAuth/account risk.',
+        powerUserLoadFailed:
+          'Failed to load power user mode settings. Check Settings > Proxy and try again.',
+        powerUserLoading:
+          'Loading power user safety settings. Please wait a moment and retry.',
+        powerUserUnavailableRetry:
+          'Power user mode is unavailable. Complete the required provider safety step and retry.',
         authMethod: 'Auth Method',
         selectKiroAuthMethod: 'Select Kiro auth method',
         nicknameRequired: 'Nickname (required)',
@@ -1668,6 +1674,9 @@ const resources = {
         powerUserEnabled: '已启用高级用户模式',
         powerUserSkipped:
           '设置 > 代理 中的高级用户模式会跳过 AGY 责任确认清单和 Gemini Dashboard 的风险短语。OAuth / 账号风险需自行承担。',
+        powerUserLoadFailed: '加载高级用户模式设置失败。请检查“设置 > 代理”后重试。',
+        powerUserLoading: '正在加载高级用户安全设置。请稍候后重试。',
+        powerUserUnavailableRetry: '高级用户模式不可用。请完成当前提供商要求的安全步骤后重试。',
         authMethod: '认证方式',
         selectKiroAuthMethod: '选择 Kiro 认证方式',
         nicknameRequired: '昵称（必填）',
@@ -2862,6 +2871,12 @@ const resources = {
         powerUserEnabled: 'Đã bật chế độ power user',
         powerUserSkipped:
           'Chế độ power user trong Cài đặt > Proxy đang bỏ qua danh sách kiểm tra trách nhiệm AGY và bước nhập cụm từ rủi ro của Gemini trên dashboard. Bạn tự chịu hoàn toàn rủi ro OAuth/tài khoản.',
+        powerUserLoadFailed:
+          'Không thể tải cài đặt chế độ power user. Hãy kiểm tra Cài đặt > Proxy rồi thử lại.',
+        powerUserLoading:
+          'Đang tải cài đặt an toàn cho chế độ power user. Vui lòng đợi một chút rồi thử lại.',
+        powerUserUnavailableRetry:
+          'Chế độ power user hiện không khả dụng. Hãy hoàn tất bước an toàn bắt buộc của nhà cung cấp rồi thử lại.',
         authMethod: 'Phương thức xác thực',
         selectKiroAuthMethod: 'Chọn phương thức xác thực Kiro',
         nicknameRequired: 'Biệt danh (bắt buộc)',
@@ -4086,6 +4101,12 @@ const resources = {
         powerUserEnabled: '上級者モードが有効です',
         powerUserSkipped:
           '設定 > プロキシのパワーユーザーモードにより、AGY の責任確認チェックと Gemini ダッシュボードのリスク文言入力をスキップしています。OAuth / アカウントに関するリスクはすべて自己責任です。',
+        powerUserLoadFailed:
+          'パワーユーザーモード設定を読み込めませんでした。設定 > プロキシを確認してから再試行してください。',
+        powerUserLoading:
+          'パワーユーザーモードの安全設定を読み込み中です。少し待ってから再試行してください。',
+        powerUserUnavailableRetry:
+          'パワーユーザーモードは利用できません。必要なプロバイダーの安全確認を完了してから再試行してください。',
         authMethod: '認証方法',
         selectKiroAuthMethod: 'Kiro の認証方法を選択',
         nicknameRequired: 'ニックネーム（必須）',

@@ -60,6 +60,11 @@ function normalizeRiskPhrase(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toUpperCase();
 }
 
+interface PowerUserModeSyncOptions {
+  pendingMessage?: string | null;
+  disabledMessage?: string | null;
+}
+
 export function AddAccountDialog({
   open,
   onClose,
@@ -78,6 +83,8 @@ export function AddAccountDialog({
   const [kiroAuthMethod, setKiroAuthMethod] = useState<KiroAuthMethod>(DEFAULT_KIRO_AUTH_METHOD);
   const { t } = useTranslation();
   const wasAuthenticatingRef = useRef(false);
+  const powerUserModeRequestIdRef = useRef(0);
+  const powerUserModeLoadErrorShownRef = useRef(false);
   const authFlow = useCliproxyAuthFlow();
   const kiroImportMutation = useKiroImport();
 
@@ -104,6 +111,53 @@ export function AddAccountDialog({
     return data.antigravityAckBypass === true;
   }, []);
 
+  const syncPowerUserModeState = useCallback(
+    async ({ pendingMessage = null, disabledMessage = null }: PowerUserModeSyncOptions = {}) => {
+      const requestId = ++powerUserModeRequestIdRef.current;
+      setPowerUserModeLoading(true);
+
+      if (pendingMessage !== null) {
+        setLocalError(pendingMessage);
+      }
+
+      try {
+        const enabled = await fetchPowerUserModeState();
+        if (powerUserModeRequestIdRef.current !== requestId) {
+          return enabled;
+        }
+
+        setPowerUserModeEnabled(enabled);
+
+        if (disabledMessage) {
+          setLocalError(enabled ? null : disabledMessage);
+        } else if (pendingMessage !== null) {
+          setLocalError(null);
+        }
+
+        return enabled;
+      } catch {
+        if (powerUserModeRequestIdRef.current !== requestId) {
+          return false;
+        }
+
+        setPowerUserModeEnabled(false);
+        setLocalError(disabledMessage ?? t('addAccountDialog.powerUserLoadFailed'));
+
+        if (!powerUserModeLoadErrorShownRef.current) {
+          powerUserModeLoadErrorShownRef.current = true;
+          toast.error(t('addAccountDialog.powerUserLoadFailed'));
+        }
+
+        return false;
+      } finally {
+        if (powerUserModeRequestIdRef.current === requestId) {
+          setPowerUserModeLoading(false);
+        }
+      }
+    },
+    [fetchPowerUserModeState, t]
+  );
+
   const resetAndClose = () => {
     setNickname('');
     setCallbackUrl('');
@@ -114,6 +168,8 @@ export function AddAccountDialog({
     setPowerUserModeEnabled(false);
     setPowerUserModeLoading(false);
     setKiroAuthMethod(DEFAULT_KIRO_AUTH_METHOD);
+    powerUserModeRequestIdRef.current += 1;
+    powerUserModeLoadErrorShownRef.current = false;
     wasAuthenticatingRef.current = false;
     onClose();
   };
@@ -127,38 +183,21 @@ export function AddAccountDialog({
   }, [provider, open]);
 
   useEffect(() => {
-    let cancelled = false;
+    return () => {
+      powerUserModeRequestIdRef.current += 1;
+    };
+  }, []);
 
+  useEffect(() => {
     if (!open || !supportsPowerUserMode) {
+      powerUserModeRequestIdRef.current += 1;
       setPowerUserModeEnabled(false);
       setPowerUserModeLoading(false);
       return;
     }
 
-    const loadPowerUserModeState = async () => {
-      try {
-        setPowerUserModeLoading(true);
-        const enabled = await fetchPowerUserModeState();
-        if (!cancelled) {
-          setPowerUserModeEnabled(enabled);
-        }
-      } catch {
-        if (!cancelled) {
-          setPowerUserModeEnabled(false);
-        }
-      } finally {
-        if (!cancelled) {
-          setPowerUserModeLoading(false);
-        }
-      }
-    };
-
-    loadPowerUserModeState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchPowerUserModeState, open, supportsPowerUserMode]);
+    void syncPowerUserModeState();
+  }, [open, provider, supportsPowerUserMode, syncPowerUserModeState]);
 
   useEffect(() => {
     if (!open || provider !== 'agy' || !authFlow.error || !powerUserModeEnabled) {
@@ -172,34 +211,11 @@ export function AddAccountDialog({
       normalizedError.includes('responsibility checklist');
     if (!ackRequired) return;
 
-    let cancelled = false;
-
-    const syncBypassState = async () => {
-      try {
-        setPowerUserModeLoading(true);
-        const enabled = await fetchPowerUserModeState();
-        if (cancelled) return;
-        setPowerUserModeEnabled(enabled);
-        if (!enabled) {
-          setLocalError('Power user mode is off. Complete the AGY checklist and retry.');
-        }
-      } catch {
-        if (cancelled) return;
-        setPowerUserModeEnabled(false);
-        setLocalError('Power user mode is off. Complete the AGY checklist and retry.');
-      } finally {
-        if (!cancelled) {
-          setPowerUserModeLoading(false);
-        }
-      }
-    };
-
-    void syncBypassState();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [authFlow.error, fetchPowerUserModeState, open, powerUserModeEnabled, provider]);
+    void syncPowerUserModeState({
+      pendingMessage: t('addAccountDialog.powerUserLoading'),
+      disabledMessage: t('addAccountDialog.powerUserUnavailableRetry'),
+    });
+  }, [authFlow.error, open, powerUserModeEnabled, provider, syncPowerUserModeState, t]);
 
   // When authFlow completes successfully (polling detected success), apply preset and close
   useEffect(() => {
@@ -250,7 +266,7 @@ export function AddAccountDialog({
    */
   const handleAuthenticate = () => {
     if (isPowerUserModePending) {
-      setLocalError('Loading power user safety settings. Please wait a moment and retry.');
+      setLocalError(t('addAccountDialog.powerUserLoading'));
       return;
     }
     if (requiresAgyResponsibilityFlow && !isAgyRiskChecklistComplete) {
