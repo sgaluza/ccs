@@ -33,7 +33,10 @@ describe('Gemini CLI Quota Fetcher', () => {
     return tokenPath;
   }
 
-  function writeActiveGeminiAccount(accountId: string, overrides: Record<string, unknown> = {}): string {
+  function writeActiveGeminiAccount(
+    accountId: string,
+    overrides: Record<string, unknown> = {}
+  ): string {
     return writeGeminiToken({
       type: 'gemini',
       email: accountId,
@@ -380,6 +383,72 @@ describe('Gemini CLI Quota Fetcher', () => {
       expect(result.errorCode).toBe('RESOURCE_EXHAUSTED');
       expect(result.actionHint).toContain('Retry');
       expect(result.error).toBe('Too many quota requests');
+    });
+
+    it('preserves non-JSON upstream error text when Gemini returns a plain-text failure', async () => {
+      writeActiveGeminiAccount('plaintext@example.com');
+
+      mockFetch([
+        {
+          url: GEMINI_QUOTA_URL,
+          method: 'POST',
+          status: 418,
+          headers: { 'Content-Type': 'text/plain' },
+          response: 'Internal Server Error',
+        },
+      ]);
+
+      const result = await fetchGeminiCliQuota('plaintext@example.com');
+
+      expect(result.success).toBe(false);
+      expect(result.httpStatus).toBe(418);
+      expect(result.errorCode).toBe('quota_request_failed');
+      expect(result.retryable).toBe(false);
+      expect(result.error).toBe('Internal Server Error');
+      expect(result.errorDetail).toBe('Internal Server Error');
+    });
+
+    it('marks 5xx Gemini quota responses as retryable provider outages', async () => {
+      writeActiveGeminiAccount('outage@example.com');
+
+      mockFetch([
+        {
+          url: GEMINI_QUOTA_URL,
+          method: 'POST',
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
+          response: 'Service temporarily unavailable',
+        },
+      ]);
+
+      const result = await fetchGeminiCliQuota('outage@example.com');
+
+      expect(result.success).toBe(false);
+      expect(result.httpStatus).toBe(503);
+      expect(result.errorCode).toBe('provider_unavailable');
+      expect(result.retryable).toBe(true);
+      expect(result.actionHint).toContain('temporary Google upstream problem');
+      expect(result.error).toBe('Service temporarily unavailable');
+    });
+
+    it('omits raw HTML upstream bodies from Gemini quota error detail', async () => {
+      writeActiveGeminiAccount('html@example.com');
+
+      mockFetch([
+        {
+          url: GEMINI_QUOTA_URL,
+          method: 'POST',
+          status: 502,
+          headers: { 'Content-Type': 'text/html' },
+          response: '<!doctype html><html><body>bad gateway</body></html>',
+        },
+      ]);
+
+      const result = await fetchGeminiCliQuota('html@example.com');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Gemini quota service unavailable (HTTP 502)');
+      expect(result.errorDetail).toBe('[HTML error response omitted]');
     });
   });
 

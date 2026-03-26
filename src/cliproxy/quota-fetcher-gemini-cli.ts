@@ -17,6 +17,7 @@ import type { GeminiCliQuotaResult, GeminiCliBucket } from './quota-types';
 const GEMINI_CLI_API_BASE = 'https://cloudcode-pa.googleapis.com';
 const GEMINI_CLI_API_VERSION = 'v1internal';
 const GEMINI_CLI_ERROR_DETAIL_MAX_LENGTH = 320;
+const GEMINI_CLI_ERROR_DETAIL_TRUNCATION_SUFFIX = '...[truncated]';
 
 /**
  * Model groups for quota consolidation.
@@ -297,7 +298,10 @@ function sanitizeGeminiCliErrorDetail(bodyText: string): string | undefined {
     .replace(/\s+/g, ' ');
 
   if (sanitized.length > GEMINI_CLI_ERROR_DETAIL_MAX_LENGTH) {
-    sanitized = `${sanitized.slice(0, GEMINI_CLI_ERROR_DETAIL_MAX_LENGTH - 14)}...[truncated]`;
+    sanitized = `${sanitized.slice(
+      0,
+      GEMINI_CLI_ERROR_DETAIL_MAX_LENGTH - GEMINI_CLI_ERROR_DETAIL_TRUNCATION_SUFFIX.length
+    )}${GEMINI_CLI_ERROR_DETAIL_TRUNCATION_SUFFIX}`;
   }
 
   return sanitized;
@@ -323,7 +327,9 @@ function extractGeminiCliNestedMessage(value: unknown): string | undefined {
     record.description,
     record.reason,
     record.error,
-  ].find((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
+  ].find(
+    (candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0
+  );
   if (directMessage) {
     return directMessage;
   }
@@ -341,10 +347,14 @@ function parseGeminiCliErrorBody(bodyText: string): ParsedGeminiCliErrorBody {
 
   try {
     const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    const topLevelMessage = [parsed.message, parsed.error]
-      .find((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
-    const topLevelCode = [parsed.code, parsed.status]
-      .find((candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0);
+    const topLevelMessage = [parsed.message, parsed.error].find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.trim().length > 0
+    );
+    const topLevelCode = [parsed.code, parsed.status].find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.trim().length > 0
+    );
 
     if (parsed.error && typeof parsed.error === 'object') {
       const error = parsed.error as Record<string, unknown>;
@@ -356,7 +366,12 @@ function parseGeminiCliErrorBody(bodyText: string): ParsedGeminiCliErrorBody {
           ) || undefined,
         errorDetail: sanitizedDetail,
         message:
-          [error.message, error.error, extractGeminiCliNestedMessage(error.details), topLevelMessage].find(
+          [
+            error.message,
+            error.error,
+            extractGeminiCliNestedMessage(error.details),
+            topLevelMessage,
+          ].find(
             (candidate): candidate is string =>
               typeof candidate === 'string' && candidate.trim().length > 0
           ) || undefined,
@@ -368,13 +383,14 @@ function parseGeminiCliErrorBody(bodyText: string): ParsedGeminiCliErrorBody {
       errorDetail: sanitizedDetail,
       message:
         [topLevelMessage, extractGeminiCliNestedMessage(parsed.details)].find(
-          (candidate): candidate is string => typeof candidate === 'string' && candidate.trim().length > 0
+          (candidate): candidate is string =>
+            typeof candidate === 'string' && candidate.trim().length > 0
         ) || undefined,
     };
   } catch {
     return {
       errorDetail: sanitizedDetail,
-      message: trimmed,
+      message: sanitizedDetail === '[HTML error response omitted]' ? undefined : trimmed,
     };
   }
 }
@@ -577,7 +593,12 @@ async function fetchWithAuthData(
 
     if (!response.ok) {
       const bodyText = await response.text();
-      return buildGeminiCliHttpFailureResult(accountId, authData.projectId, response.status, bodyText);
+      return buildGeminiCliHttpFailureResult(
+        accountId,
+        authData.projectId,
+        response.status,
+        bodyText
+      );
     }
 
     const data = (await response.json()) as GeminiCliQuotaResponse;
@@ -606,7 +627,8 @@ async function fetchWithAuthData(
 
     return buildGeminiCliFailureResult(accountId, authData.projectId, {
       error: errorMsg,
-      errorCode: err instanceof Error && err.name === 'AbortError' ? 'network_timeout' : 'network_error',
+      errorCode:
+        err instanceof Error && err.name === 'AbortError' ? 'network_timeout' : 'network_error',
       actionHint: 'Retry later. This looks temporary.',
       retryable: true,
       httpStatus: err instanceof Error && err.name === 'AbortError' ? 408 : undefined,
