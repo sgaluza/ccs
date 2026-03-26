@@ -22,6 +22,7 @@ describe('Gemini CLI Quota Fetcher', () => {
   let buildGeminiCliBuckets: typeof import('../../../src/cliproxy/quota-fetcher-gemini-cli').buildGeminiCliBuckets;
   let fetchGeminiCliQuota: typeof import('../../../src/cliproxy/quota-fetcher-gemini-cli').fetchGeminiCliQuota;
   let resolveGeminiCliProjectId: typeof import('../../../src/cliproxy/quota-fetcher-gemini-cli').resolveGeminiCliProjectId;
+  let geminiTestExports: typeof import('../../../src/cliproxy/quota-fetcher-gemini-cli').__testExports;
   let refreshGeminiToken: typeof import('../../../src/cliproxy/auth/gemini-token-refresh').refreshGeminiToken;
   let getProviderAuthDir: typeof import('../../../src/cliproxy/config-generator').getProviderAuthDir;
 
@@ -69,7 +70,12 @@ describe('Gemini CLI Quota Fetcher', () => {
     const configGenerator = await import(
       `../../../src/cliproxy/config-generator?gemini-config-generator=${moduleVersion}`
     );
-    ({ buildGeminiCliBuckets, fetchGeminiCliQuota, resolveGeminiCliProjectId } = await import(
+    ({
+      buildGeminiCliBuckets,
+      fetchGeminiCliQuota,
+      resolveGeminiCliProjectId,
+      __testExports: geminiTestExports,
+    } = await import(
       `../../../src/cliproxy/quota-fetcher-gemini-cli?gemini-quota-fetcher=${moduleVersion}`
     ));
     ({ refreshGeminiToken } = await import(
@@ -449,6 +455,62 @@ describe('Gemini CLI Quota Fetcher', () => {
       expect(result.success).toBe(false);
       expect(result.error).toBe('Gemini quota service unavailable (HTTP 502)');
       expect(result.errorDetail).toBe('[HTML error response omitted]');
+    });
+  });
+
+  describe('direct Gemini error helper coverage', () => {
+    it('sanitizes HTML and truncates oversized token-bearing error details', () => {
+      const longTokenBody = JSON.stringify({
+        access_token: 'super-secret-token',
+        detail: `Bearer top-secret ${'x'.repeat(400)}`,
+      });
+
+      const sanitized = geminiTestExports.sanitizeGeminiCliErrorDetail(longTokenBody);
+
+      expect(sanitized).toContain('[redacted]');
+      expect(sanitized).toContain('Bearer [redacted]');
+      expect(sanitized?.endsWith('...[truncated]')).toBe(true);
+      expect(sanitized?.length).toBeLessThanOrEqual(320);
+      expect(geminiTestExports.sanitizeGeminiCliErrorDetail('<html>bad gateway</html>')).toBe(
+        '[HTML error response omitted]'
+      );
+    });
+
+    it('extracts nested messages and parses structured JSON error bodies', () => {
+      expect(
+        geminiTestExports.extractGeminiCliNestedMessage([
+          { reason: 'ACCOUNT_VERIFICATION_REQUIRED' },
+        ])
+      ).toBe('ACCOUNT_VERIFICATION_REQUIRED');
+
+      const parsed = geminiTestExports.parseGeminiCliErrorBody(
+        JSON.stringify({
+          error: {
+            message: 'Verification required',
+            status: 'PERMISSION_DENIED',
+            details: [{ reason: 'ACCOUNT_VERIFICATION_REQUIRED' }],
+          },
+        })
+      );
+
+      expect(parsed.message).toBe('Verification required');
+      expect(parsed.errorCode).toBe('PERMISSION_DENIED');
+      expect(parsed.errorDetail).toContain('ACCOUNT_VERIFICATION_REQUIRED');
+    });
+
+    it('builds verification and project-specific forbidden action hints', () => {
+      expect(
+        geminiTestExports.buildGeminiCliForbiddenActionHint({
+          message: 'Please verify this account',
+          errorDetail: 'ACCOUNT_VERIFICATION_REQUIRED',
+        })
+      ).toContain('verification');
+
+      expect(
+        geminiTestExports.buildGeminiCliForbiddenActionHint({
+          message: 'Project no longer has access',
+        })
+      ).toContain('project');
     });
   });
 

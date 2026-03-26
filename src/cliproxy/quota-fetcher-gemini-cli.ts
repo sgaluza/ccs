@@ -743,5 +743,12 @@ export async function fetchAllGeminiCliQuotas(
   return results;
 }
 
+export const __testExports = {
+  sanitizeGeminiCliErrorDetail,
+  extractGeminiCliNestedMessage,
+  parseGeminiCliErrorBody,
+  buildGeminiCliForbiddenActionHint,
+};
+
 // Export for testing
 export { resolveGeminiCliProjectId, buildGeminiCliBuckets };
