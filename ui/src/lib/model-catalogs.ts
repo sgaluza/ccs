@@ -5,13 +5,7 @@
 
 import type { ModelEntry, ProviderCatalog } from '@/components/cliproxy/provider-model-selector';
 import { stripModelConfigurationSuffixes } from '@/lib/extended-context-utils';
-
-const GEMINI_MINOR_VERSION_COMPATIBILITY_IDS = Object.freeze({
-  'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
-  'gemini-3.1-pro-preview': 'gemini-3-pro-preview',
-  'gemini-3-flash-preview': 'gemini-3.1-flash-preview',
-  'gemini-3.1-flash-preview': 'gemini-3-flash-preview',
-});
+import { GEMINI_MINOR_VERSION_COMPATIBILITY_IDS } from '../../../src/shared/gemini-minor-version-compatibility';
 
 const GEMINI_PREVIEW_MODEL_ID_PATTERN =
   /^gemini-(\d+(?:[.-]\d+)*)-(pro|flash)-preview(-customtools)?$/i;
@@ -695,11 +689,7 @@ export function findCatalogModel(provider: string, modelId: string) {
     .sort((left, right) => compareGeminiVersions(right.info.version, left.info.version))[0]?.model;
 }
 
-export function resolveCatalogModelId(
-  _provider: string,
-  modelId: string,
-  availableModels: CatalogAvailableModel[] = []
-): string {
+export function resolveCatalogModelId(modelId: string, availableModels: CatalogAvailableModel[] = []): string {
   const normalizedModelId = normalizeModelId(modelId);
   const liveGeminiModelId = resolveGeminiPreviewModelId(normalizedModelId, availableModels);
   if (liveGeminiModelId) return liveGeminiModelId;
@@ -719,15 +709,14 @@ export function resolveCatalogModelId(
 }
 
 export function resolvePresetMapping(
-  provider: string,
   presetMapping: NonNullable<ModelEntry['presetMapping']>,
   availableModels: CatalogAvailableModel[] = []
 ) {
   return {
-    default: resolveCatalogModelId(provider, presetMapping.default, availableModels),
-    opus: resolveCatalogModelId(provider, presetMapping.opus, availableModels),
-    sonnet: resolveCatalogModelId(provider, presetMapping.sonnet, availableModels),
-    haiku: resolveCatalogModelId(provider, presetMapping.haiku, availableModels),
+    default: resolveCatalogModelId(presetMapping.default, availableModels),
+    opus: resolveCatalogModelId(presetMapping.opus, availableModels),
+    sonnet: resolveCatalogModelId(presetMapping.sonnet, availableModels),
+    haiku: resolveCatalogModelId(presetMapping.haiku, availableModels),
   };
 }
 
@@ -741,9 +730,9 @@ export function getResolvedCatalogModels(
 
   return catalog.models
     .map((model) => {
-      const resolvedModelId = resolveCatalogModelId(catalog.provider, model.id, availableModels);
+      const resolvedModelId = resolveCatalogModelId(model.id, availableModels);
       const resolvedPresetModelMapping = model.presetMapping
-        ? resolvePresetMapping(catalog.provider, model.presetMapping, availableModels)
+        ? resolvePresetMapping(model.presetMapping, availableModels)
         : undefined;
 
       return {

@@ -247,12 +247,18 @@ describe('Model Catalog', () => {
     });
 
     it('treats Gemini 3 and 3.1 preview IDs as the same catalog family', () => {
-      const { findModel } = modelCatalog;
+      const { findModel, getSuggestedReplacementModel } = modelCatalog;
+      const legacyAgyGemini = findModel('agy', 'gemini-3-pro-preview');
       const legacyGemini = findModel('gemini', 'gemini-3-pro-preview');
       const currentGemini = findModel('gemini', 'gemini-3.1-pro-preview');
 
+      assert.strictEqual(legacyAgyGemini?.id, 'gemini-3.1-pro-preview');
       assert.strictEqual(legacyGemini?.id, 'gemini-3.1-pro-preview');
       assert.strictEqual(currentGemini?.id, 'gemini-3.1-pro-preview');
+      assert.strictEqual(
+        getSuggestedReplacementModel('gemini', 'gemini-3.1-pro-preview'),
+        'gemini-2.5-pro'
+      );
     });
 
     it('returns undefined for unknown model', () => {

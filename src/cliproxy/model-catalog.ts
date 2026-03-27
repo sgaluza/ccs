@@ -12,13 +12,7 @@ import {
   normalizeModelIdForProvider,
 } from './model-id-normalizer';
 import { stripModelConfigurationSuffixes } from '../shared/extended-context-utils';
-
-const GEMINI_MINOR_VERSION_COMPATIBILITY_IDS = Object.freeze({
-  'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
-  'gemini-3.1-pro-preview': 'gemini-3-pro-preview',
-  'gemini-3-flash-preview': 'gemini-3.1-flash-preview',
-  'gemini-3.1-flash-preview': 'gemini-3-flash-preview',
-});
+import { GEMINI_MINOR_VERSION_COMPATIBILITY_IDS } from '../shared/gemini-minor-version-compatibility';
 
 /**
  * Thinking support configuration for a model.
@@ -389,6 +383,26 @@ export function supportsModelConfig(provider: CLIProxyProvider): boolean {
  */
 export function getProviderCatalog(provider: CLIProxyProvider): ProviderCatalog | undefined {
   return MODEL_CATALOG[provider];
+}
+
+/**
+ * Suggest a supported replacement model from the provider catalog.
+ * Prefers the provider default unless it matches the excluded model or is itself broken.
+ */
+export function getSuggestedReplacementModel(
+  provider: CLIProxyProvider,
+  excludedModelId?: string
+): string | undefined {
+  const catalog = MODEL_CATALOG[provider];
+  if (!catalog) return undefined;
+
+  const excludedId = excludedModelId ? findModel(provider, excludedModelId)?.id : undefined;
+  const defaultModel = findModel(provider, catalog.defaultModel);
+  if (defaultModel && !defaultModel.broken && defaultModel.id !== excludedId) {
+    return defaultModel.id;
+  }
+
+  return catalog.models.find((model) => !model.broken && model.id !== excludedId)?.id;
 }
 
 /**

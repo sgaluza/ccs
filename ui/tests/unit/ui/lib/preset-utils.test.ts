@@ -68,10 +68,10 @@ describe('claude preset utils', () => {
       { id: 'gemini-3.1-pro-preview', owned_by: 'antigravity' },
     ];
 
-    expect(resolveCatalogModelId('agy', 'gemini-3.1-pro-preview', availableModels)).toBe(
+    expect(resolveCatalogModelId('gemini-3.1-pro-preview', availableModels)).toBe(
       'gemini-3.9-pro-preview'
     );
-    expect(resolveCatalogModelId('agy', 'gemini-3-flash-preview', availableModels)).toBe(
+    expect(resolveCatalogModelId('gemini-3-flash-preview', availableModels)).toBe(
       'gemini-3-9-flash-preview'
     );
     expect(findCatalogModel('agy', 'gemini-3.9-pro-preview')?.id).toBe('gemini-3.1-pro-preview');
@@ -88,7 +88,7 @@ describe('claude preset utils', () => {
   it('does not silently swap Gemini Flash presets to flash-lite', () => {
     const availableModels = [{ id: 'gemini-3.1-flash-lite-preview', owned_by: 'google' }];
 
-    expect(resolveCatalogModelId('gemini', 'gemini-3-flash-preview', availableModels)).toBe(
+    expect(resolveCatalogModelId('gemini-3-flash-preview', availableModels)).toBe(
       'gemini-3-flash-preview'
     );
   });
