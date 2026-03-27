@@ -63,7 +63,6 @@ jobs:
       author_association: ${{ steps.context.outputs.author_association }}
       contributor_source: ${{ steps.context.outputs.contributor_source }}
       runs_on: ${{ steps.context.outputs.runs_on }}
-      claude_path: ${{ steps.context.outputs.claude_path }}
 
     # Conditions:
     # - PR event: on opened, synchronize (new commits), or reopened
@@ -108,11 +107,9 @@ jobs:
           if [ "$HEAD_REPO" = "$REPOSITORY" ]; then
             CONTRIBUTOR_SOURCE="internal"
             RUNS_ON='["self-hosted","cliproxy"]'
-            CLAUDE_PATH="/home/github-runner/.local/bin/claude"
           else
             CONTRIBUTOR_SOURCE="external"
             RUNS_ON='["ubuntu-latest"]'
-            CLAUDE_PATH=""
           fi
 
           {
@@ -124,7 +121,6 @@ jobs:
             echo "author_association=$AUTHOR_ASSOCIATION"
             echo "contributor_source=$CONTRIBUTOR_SOURCE"
             echo "runs_on=$RUNS_ON"
-            echo "claude_path=$CLAUDE_PATH"
           } >> "$GITHUB_OUTPUT"
 
   review:
@@ -172,23 +168,6 @@ jobs:
             echo "XDG_CACHE_HOME=$REVIEW_CACHE_HOME"
             echo "XDG_STATE_HOME=$REVIEW_STATE_HOME"
           } >> "$GITHUB_ENV"
-
-      - name: Resolve runner Bun executable
-        id: bun-path
-        if: needs.prepare.outputs.contributor_source == 'internal'
-        run: |
-          RUNNER_BUN=""
-          if command -v bun >/dev/null 2>&1; then
-            RUNNER_BUN="$(command -v bun)"
-          fi
-
-          echo "path=$RUNNER_BUN" >> "$GITHUB_OUTPUT"
-
-          if [ -n "$RUNNER_BUN" ]; then
-            echo "[i] Using runner Bun executable: $RUNNER_BUN"
-          else
-            echo "[i] No runner Bun executable found; Claude action will install Bun"
-          fi
 
       - name: Generate App Token
         id: app-token
@@ -244,8 +223,6 @@ jobs:
           anthropic_api_key: ${{ secrets.GLM_API_KEY }}
           github_token: ${{ steps.app-token.outputs.token }}
           allowed_non_write_users: ${{ needs.prepare.outputs.contributor_source == 'external' && '*' || '' }}
-          path_to_claude_code_executable: ${{ needs.prepare.outputs.claude_path }}
-          path_to_bun_executable: ${{ steps.bun-path.outputs.path }}
           track_progress: false # Disabled - no progress comments, just final review
           prompt: |
             ultrathink
