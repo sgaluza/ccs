@@ -9,6 +9,8 @@ import {
 } from '../cliproxy/config-generator';
 import { CLIPROXY_DEFAULT_PORT } from '../cliproxy/config/port-manager';
 import { getCliproxyConfigPath } from '../cliproxy/config/path-resolver';
+import { registerSession, unregisterSession } from '../cliproxy/session-tracker';
+import { getInstalledCliproxyVersion } from '../cliproxy/binary-manager';
 
 async function prepareIntegratedRuntime(): Promise<{ binaryPath: string; configPath: string }> {
   const binaryPath = await ensureCLIProxyBinary(false);
@@ -32,8 +34,18 @@ async function runCliproxy(): Promise<number> {
       },
     });
 
+    // Register session lock so dashboard can detect the running proxy
+    let sessionId: string | undefined;
+    child.on('spawn', () => {
+      const version = getInstalledCliproxyVersion() ?? undefined;
+      sessionId = registerSession(CLIPROXY_DEFAULT_PORT, child.pid ?? 0, version, 'plus');
+    });
+
     child.on('error', reject);
     child.on('close', (code) => {
+      if (sessionId) {
+        unregisterSession(sessionId, CLIPROXY_DEFAULT_PORT);
+      }
       resolve(code ?? 1);
     });
   });
