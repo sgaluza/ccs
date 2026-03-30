@@ -78,11 +78,12 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
       };
     }
 
-    // Local mode - use effective management secret from auth tokens API
+    // Local mode - proxy through dashboard server to avoid cross-origin/port issues
+    // (e.g., in Docker the browser cannot reach the internal CLIProxy port directly)
     const effectiveSecret = authTokens?.managementSecret?.value || 'ccs';
     return {
-      managementUrl: `http://localhost:${port}/management.html`,
-      checkUrl: `http://localhost:${port}/`,
+      managementUrl: '/cliproxy-local/management.html',
+      checkUrl: '/cliproxy-local/',
       authToken: effectiveSecret,
       isRemote: false,
       displayHost: `localhost:${port}`,
@@ -98,19 +99,36 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
 
     const checkConnection = async () => {
       try {
-        const response = await fetch(checkUrl, {
-          signal: controller.signal,
-        });
-        if (response.ok) {
-          setIsConnected(true);
-          setError(null);
+        if (isRemote) {
+          // Remote mode: use the test endpoint via same-origin API to avoid CORS
+          const remote = cliproxyConfig?.remote;
+          const result = await api.cliproxyServer.test({
+            host: remote?.host ?? '',
+            port: remote?.port,
+            protocol: remote?.protocol ?? 'http',
+            authToken: remote?.auth_token,
+          });
+          if (result?.reachable) {
+            setIsConnected(true);
+            setError(null);
+          } else {
+            setIsConnected(false);
+            setError(
+              result?.error
+                ? `Remote CLIProxy at ${displayHost}: ${result.error}`
+                : `Remote CLIProxy at ${displayHost} returned an error`
+            );
+          }
         } else {
-          setIsConnected(false);
-          setError(
-            isRemote
-              ? `Remote CLIProxy at ${displayHost} returned an error`
-              : 'CLIProxy returned an error'
-          );
+          // Local mode: use same-origin API to check proxy status (avoids CORS)
+          const status = await api.cliproxy.proxyStatus();
+          if (status.running) {
+            setIsConnected(true);
+            setError(null);
+          } else {
+            setIsConnected(false);
+            setError('CLIProxy is not running');
+          }
         }
       } catch (e) {
         // Ignore abort errors (component unmounting)
@@ -131,7 +149,7 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
 
     // Cleanup: abort fetch on unmount
     return () => controller.abort();
-  }, [checkUrl, isRemote, displayHost]);
+  }, [isRemote, displayHost, cliproxyConfig]);
 
   const postAutoLoginCredentials = useCallback(() => {
     // Auto-login can only run when iframe has loaded and authToken is available.
@@ -140,12 +158,21 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
     }
 
     try {
-      // Derive apiBase from checkUrl (remove trailing slash)
-      const apiBase = checkUrl.replace(/\/$/, '');
+      // Derive apiBase and targetOrigin from checkUrl
+      // Local mode: checkUrl is a relative path (/cliproxy-local/) → same origin
+      // Remote mode: checkUrl is an absolute URL (http://host:port/)
+      const isRelative = checkUrl.startsWith('/');
+      const apiBase = isRelative
+        ? `${window.location.origin}/cliproxy-local`
+        : checkUrl.replace(/\/$/, '');
+      const targetOrigin = isRelative ? window.location.origin : apiBase;
 
       // Security: Validate iframe src matches target origin before sending credentials
       const iframeSrc = iframeRef.current.src;
-      if (!iframeSrc.startsWith(apiBase)) {
+      const resolvedSrc = isRelative
+        ? new URL(iframeSrc, window.location.origin).href
+        : iframeSrc;
+      if (!resolvedSrc.startsWith(targetOrigin)) {
         console.warn('[ControlPanelEmbed] Iframe origin mismatch, skipping postMessage');
         return;
       }
@@ -157,7 +184,7 @@ export function ControlPanelEmbed({ port = CLIPROXY_DEFAULT_PORT }: ControlPanel
           apiBase,
           managementKey: authToken,
         },
-        apiBase
+        targetOrigin
       );
     } catch (e) {
       // Cross-origin restriction - expected if not same origin

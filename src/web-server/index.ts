@@ -79,6 +79,10 @@ export async function startServer(options: ServerOptions): Promise<ServerInstanc
   const { usageRoutes } = await import('./usage-routes');
   app.use('/api/usage', usageRoutes);
 
+  // CLIProxy local reverse proxy (avoids cross-origin issues in Docker)
+  const cliproxyLocalProxy = (await import('./routes/cliproxy-local-proxy')).default;
+  app.use('/cliproxy-local', cliproxyLocalProxy);
+
   // Dev mode: use Vite middleware for HMR
   if (options.dev) {
     const { createServer: createViteServer } = await import('vite');
