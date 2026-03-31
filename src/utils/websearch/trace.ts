@@ -7,11 +7,11 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { getCcsDir } from '../config-manager';
 
 const TRACE_FILE_NAME = 'websearch-trace.jsonl';
-const SAFE_SYSTEM_TRACE_PREFIXES = ['/tmp/', '/var/log/'];
 const NATIVE_WEBSEARCH_TOOL = 'WebSearch';
 const DISALLOWED_TOOLS_FLAG = '--disallowedTools';
 const APPEND_SYSTEM_PROMPT_FLAG = '--append-system-prompt';
@@ -75,26 +75,36 @@ function hasExactFlagValue(args: string[], flag: string, expectedValue: string):
   return false;
 }
 
-function getTraceFilePath(env: NodeJS.ProcessEnv): string {
+function normalizeSafePrefix(inputPath: string): string {
+  return `${path.resolve(inputPath)}${path.sep}`;
+}
+
+function getSafeTracePrefixes(): string[] {
+  return [
+    normalizeSafePrefix(path.join(getCcsDir(), 'logs')),
+    normalizeSafePrefix(os.tmpdir()),
+    normalizeSafePrefix('/var/log'),
+  ];
+}
+
+export function resolveAllowedWebSearchTraceFile(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
   const configured = env.CCS_WEBSEARCH_TRACE_FILE?.trim();
   if (!configured) {
-    return path.join(getCcsDir(), 'logs', TRACE_FILE_NAME);
+    return null;
   }
 
   const resolved = path.resolve(configured);
-  const home = env.HOME || env.USERPROFILE || '';
-  const normalizedHome = home ? `${path.resolve(home)}${path.sep}` : '';
-  const normalizedCcsDir = `${path.resolve(getCcsDir())}${path.sep}`;
-
-  if (
-    resolved.startsWith(normalizedCcsDir) ||
-    (normalizedHome && resolved.startsWith(normalizedHome)) ||
-    SAFE_SYSTEM_TRACE_PREFIXES.some((prefix) => resolved.startsWith(prefix))
-  ) {
+  if (getSafeTracePrefixes().some((prefix) => resolved.startsWith(prefix))) {
     return resolved;
   }
 
-  return path.join(getCcsDir(), 'logs', TRACE_FILE_NAME);
+  return null;
+}
+
+function getTraceFilePath(env: NodeJS.ProcessEnv): string {
+  return resolveAllowedWebSearchTraceFile(env) ?? path.join(getCcsDir(), 'logs', TRACE_FILE_NAME);
 }
 
 export function isWebSearchTraceEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -197,8 +207,9 @@ export function createWebSearchTraceContext(params: {
     CCS_WEBSEARCH_TRACE_LAUNCHER: params.launcher,
   };
 
-  if (env.CCS_WEBSEARCH_TRACE_FILE) {
-    traceEnv.CCS_WEBSEARCH_TRACE_FILE = env.CCS_WEBSEARCH_TRACE_FILE;
+  const traceFileOverride = resolveAllowedWebSearchTraceFile(env);
+  if (traceFileOverride) {
+    traceEnv.CCS_WEBSEARCH_TRACE_FILE = traceFileOverride;
   }
 
   appendWebSearchTrace(

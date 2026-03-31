@@ -1039,9 +1039,10 @@ export async function execClaudeWithCLIProxy(
   const traceEnv = createWebSearchTraceContext({
     launcher: 'cliproxy.executor',
     args: launchArgs,
-    profile: provider,
-    profileType: 'settings',
+    profile: cfg.profileName || provider,
+    profileType: 'cliproxy',
     settingsPath,
+    claudeConfigDir: inheritedClaudeConfigDir,
   });
   const tracedEnv = { ...env, ...traceEnv };
   if (needsShell) {

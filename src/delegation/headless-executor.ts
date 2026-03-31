@@ -18,12 +18,15 @@ import { buildExecutionResult } from './executor/result-aggregator';
 import { getCcsDir, getModelDisplayName } from '../utils/config-manager';
 import { getProfileLookupCandidates } from '../utils/profile-compat';
 import { getClaudeLaunchEnvOverrides, stripClaudeCodeEnv } from '../utils/shell-executor';
+import { resolveProfileContinuityInheritance } from '../auth/profile-continuity-inheritance';
 import {
   appendThirdPartyWebSearchToolArgs,
   appendWebSearchTrace,
   createWebSearchTraceContext,
+  ensureWebSearchMcpOrThrow,
   getWebSearchHookEnv,
   readWebSearchTraceRecords,
+  syncWebSearchMcpToConfigDir,
 } from '../utils/websearch-manager';
 
 // Re-export types for consumers
@@ -87,6 +90,23 @@ export class HeadlessExecutor {
       );
     }
 
+    const continuityInheritance = await resolveProfileContinuityInheritance({
+      profileName: profile,
+      profileType: 'settings',
+      target: 'claude',
+    });
+    const inheritedClaudeConfigDir = continuityInheritance.claudeConfigDir;
+    if (continuityInheritance.sourceAccount && process.env.CCS_DEBUG) {
+      console.error(
+        info(
+          `Continuity inheritance active: profile "${profile}" -> account "${continuityInheritance.sourceAccount}"`
+        )
+      );
+    }
+
+    ensureWebSearchMcpOrThrow();
+    syncWebSearchMcpToConfigDir(inheritedClaudeConfigDir);
+
     // Smart slash command detection and preservation
     const processedPrompt = this._processSlashCommand(enhancedPrompt);
 
@@ -132,7 +152,7 @@ export class HeadlessExecutor {
       args.push('--allowedTools', ...toolRestrictions.allowedTools);
     }
     if (toolRestrictions.disallowedTools.length > 0) {
-      args.push('--disallowedTools', ...toolRestrictions.disallowedTools);
+      args.push('--disallowedTools', toolRestrictions.disallowedTools.join(','));
     }
 
     // Claude Code CLI passthrough flags (explicit, validated)
@@ -178,6 +198,7 @@ export class HeadlessExecutor {
       profile,
       profileType: 'settings',
       settingsPath,
+      claudeConfigDir: inheritedClaudeConfigDir,
     });
 
     if (process.env.CCS_DEBUG) {
@@ -195,6 +216,7 @@ export class HeadlessExecutor {
       resumeSession,
       sessionId,
       sessionMgr,
+      claudeConfigDir: inheritedClaudeConfigDir,
       traceEnv,
     });
   }
@@ -212,10 +234,20 @@ export class HeadlessExecutor {
       resumeSession: boolean;
       sessionId: string | null;
       sessionMgr: SessionManager;
+      claudeConfigDir?: string;
       traceEnv?: Record<string, string>;
     }
   ): Promise<ExecutionResult> {
-    const { cwd, profile, timeout, resumeSession, sessionId, sessionMgr, traceEnv = {} } = ctx;
+    const {
+      cwd,
+      profile,
+      timeout,
+      resumeSession,
+      sessionId,
+      sessionMgr,
+      claudeConfigDir,
+      traceEnv = {},
+    } = ctx;
 
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
@@ -234,6 +266,7 @@ export class HeadlessExecutor {
         ...getClaudeLaunchEnvOverrides(),
         ...getWebSearchHookEnv(),
         ...traceEnv,
+        ...(claudeConfigDir ? { CLAUDE_CONFIG_DIR: claudeConfigDir } : {}),
         CCS_PROFILE_TYPE: 'settings',
       });
 

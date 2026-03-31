@@ -194,7 +194,19 @@ export function installWebSearchMcpServer(): boolean {
   try {
     fs.copyFileSync(sourcePath, tempPath);
     fs.chmodSync(tempPath, 0o755);
-    fs.renameSync(tempPath, serverPath);
+    try {
+      fs.renameSync(tempPath, serverPath);
+    } catch (renameError) {
+      const errorCode = (renameError as NodeJS.ErrnoException).code;
+      if (errorCode !== 'EEXIST' && errorCode !== 'EPERM') {
+        throw renameError;
+      }
+
+      if (!hasMatchingContents(sourcePath, serverPath)) {
+        fs.copyFileSync(tempPath, serverPath);
+        fs.chmodSync(serverPath, 0o755);
+      }
+    }
     appendWebSearchTrace('websearch_mcp_install_ready', { serverPath });
     return true;
   } catch (error) {

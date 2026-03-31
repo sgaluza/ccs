@@ -115,6 +115,18 @@ exit 0
     expect(fs.existsSync(claudeArgsLogPath)).toBe(false);
   });
 
+  it('fails before delegated headless launch when the local WebSearch tool runtime cannot be prepared', () => {
+    if (process.platform === 'win32') return;
+
+    fs.writeFileSync(path.join(ccsDir, 'hooks'), 'not-a-directory', 'utf8');
+
+    const result = runCcs(['glm', '-p', 'smoke'], baseEnv);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('could not prepare the local WebSearch tool');
+    expect(fs.existsSync(claudeArgsLogPath)).toBe(false);
+  });
+
   it('keeps launch non-fatal when WebSearch is disabled', () => {
     if (process.platform === 'win32') return;
 

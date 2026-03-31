@@ -147,7 +147,7 @@ The dashboard provides visual management for all account types:
 
 **Ollama Integration**: Run local open-source models (qwen3-coder, gpt-oss:20b) with full privacy. Use `ccs api create --preset ollama` - requires [Ollama v0.14.0+](https://ollama.com) installed. For cloud models, use `ccs api create --preset ollama-cloud`.
 
-> **Third-party WebSearch steering:** Claude-backed third-party launches keep Anthropic's native `WebSearch` disabled, expose `ccs-websearch.WebSearch`, and append a short system hint so Claude prefers that managed tool over ad hoc Bash or `curl` lookups whenever current web information is needed.
+> **Third-party WebSearch steering:** Claude-backed third-party launches keep Anthropic's native `WebSearch` disabled, provision `ccs-websearch.WebSearch` when the managed runtime is available, and append a short system hint so Claude prefers that managed tool over ad hoc Bash or `curl` lookups whenever current web information is needed.
 > Setting `websearch.enabled: false` disables the managed local runtime, but CCS still suppresses Anthropic's native `WebSearch` on third-party backends because those providers cannot execute it correctly.
 
 > **Copilot config behavior:** Opening the dashboard or other read-only Copilot endpoints does not rewrite `~/.ccs/copilot.settings.json`. If CCS detects deprecated Copilot model IDs such as `raptor-mini`, it shows warnings immediately and only persists replacements when you explicitly save the Copilot configuration.
@@ -633,18 +633,18 @@ Without Developer Mode, CCS falls back to copying directories.
 
 ## WebSearch
 
-Third-party profiles (Gemini, Codex, GLM, etc.) cannot use Anthropic's native WebSearch. CCS now provisions a first-class local `ccs-websearch` MCP tool, disables native `WebSearch` on third-party launches, and routes search through real local providers instead of surfacing a denied native-tool call.
+Third-party profiles (Gemini, Codex, GLM, etc.) cannot use Anthropic's native WebSearch. CCS now provisions a first-class local `ccs-websearch` MCP tool when the managed runtime is available, disables native `WebSearch` on third-party launches, and steers Claude toward real local providers instead of surfacing a denied native-tool call.
 
 ### How It Works
 
 | Profile Type | WebSearch Method |
 |--------------|------------------|
 | Claude (native) | Anthropic WebSearch API |
-| Third-party profiles | CCS local MCP `WebSearch` tool |
+| Third-party profiles | CCS local MCP `WebSearch` tool when available; otherwise Bash/network fallback |
 
 ### Local Search Backend Chain
 
-For third-party profiles, Claude uses the managed `ccs-websearch.WebSearch` MCP tool. The tool is intentionally named to match the native `WebSearch` concept, which helps Claude prefer it over ad hoc Bash or `curl` fetches. CCS then routes that request through deterministic search providers in this order:
+For third-party profiles, CCS steers Claude toward the managed `ccs-websearch.WebSearch` MCP tool when it is available. The tool is intentionally named to match the native `WebSearch` concept, which helps Claude prefer it over ad hoc Bash or `curl` fetches, but Bash/network fallback can still happen if the tool is unavailable or ignored. When the tool is used, CCS routes that request through deterministic search providers in this order:
 
 | Priority | Provider | Setup | Notes |
 |----------|----------|-------|-------|

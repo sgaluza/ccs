@@ -94,7 +94,7 @@ CCS provides:
 
 ### FR-007: WebSearch Fallback
 - Expose a CCS-managed local WebSearch tool for third-party profiles that cannot reach Anthropic's native tool
-- Suppress native `WebSearch` on third-party launches so Claude uses the CCS-owned path
+- Suppress native `WebSearch` on third-party launches and steer Claude toward the CCS-owned path when it is available
 - Support Exa, Tavily, Brave, and DuckDuckGo real search backends
 - Keep Gemini CLI, OpenCode, and Grok as optional legacy fallback
 - Graceful fallback chain

@@ -336,9 +336,25 @@ describe('CLAUDECODE environment stripping', () => {
     writeConfigWithAutoUpdatePreference(false);
     const ccsDir = path.join(process.env.CCS_HOME as string, '.ccs');
     fs.writeFileSync(path.join(ccsDir, 'glm.settings.json'), '{}\n', 'utf8');
+    const projectDir = path.join(ccsDir, 'project');
+    fs.mkdirSync(path.join(projectDir, '.claude'), { recursive: true });
+    fs.writeFileSync(
+      path.join(projectDir, '.claude', 'settings.local.json'),
+      JSON.stringify(
+        {
+          permissions: {
+            deny: ['Bash', 'WebFetch'],
+          },
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
     process.env.CCS_CLAUDE_PATH = 'claude';
 
     const result = await HeadlessExecutor.execute('glm', 'latest AI chip news', {
+      cwd: projectDir,
       permissionMode: 'default',
       timeout: 1000,
     });
@@ -347,12 +363,23 @@ describe('CLAUDECODE environment stripping', () => {
     expect(spawnCalls.length).toBeGreaterThan(0);
     const launch = spawnCalls[0];
     expect(launch.args).toContain('--disallowedTools');
-    expect(launch.args).toContain('WebSearch');
+    const disallowedToolsIndex = launch.args.indexOf('--disallowedTools');
+    expect(disallowedToolsIndex).toBeGreaterThan(-1);
+    expect(launch.args[disallowedToolsIndex + 1]).toBe('Bash,WebFetch,WebSearch');
     expect(launch.args).toContain('--append-system-prompt');
     expect(launch.args.join(' ')).toContain(STEERING_PROMPT_SNIPPET);
     const env = launch.options?.env as NodeJS.ProcessEnv;
     expect(env.CCS_PROFILE_TYPE).toBe('settings');
     expect(env.CCS_WEBSEARCH_ENABLED || env.CCS_WEBSEARCH_SKIP).toBeDefined();
+    const claudeUserConfig = JSON.parse(
+      fs.readFileSync(path.join(process.env.CCS_HOME as string, '.claude.json'), 'utf8')
+    ) as {
+      mcpServers?: Record<string, { command: string; args: string[] }>;
+    };
+    expect(claudeUserConfig.mcpServers?.['ccs-websearch']).toEqual({
+      command: 'node',
+      args: [path.join(ccsDir, 'mcp', 'ccs-websearch-server.cjs')],
+    });
   });
 
   it('headless executor propagates a WebSearch trace launch id when tracing is enabled', async () => {

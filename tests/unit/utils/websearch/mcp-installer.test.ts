@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -39,6 +39,8 @@ describe('ensureWebSearchMcp', () => {
   }
 
   afterEach(() => {
+    mock.restore();
+
     if (originalCcsHome !== undefined) {
       process.env.CCS_HOME = originalCcsHome;
     } else {
@@ -157,5 +159,24 @@ describe('ensureWebSearchMcp', () => {
     expect(instanceConfig.mcpServers).toEqual({
       existing: { command: 'uvx', args: ['instance-server'] },
     });
+  });
+
+  it('falls back to copy-overwrite when rename is blocked during MCP server install', () => {
+    setupTempHome();
+    writeEnabledConfig();
+
+    const realRenameSync = fs.renameSync;
+    const renameSpy = spyOn(fs, 'renameSync').mockImplementation((oldPath, newPath) => {
+      if (String(newPath) === getWebSearchMcpServerPath()) {
+        const error = new Error('busy') as NodeJS.ErrnoException;
+        error.code = 'EPERM';
+        throw error;
+      }
+      return realRenameSync(oldPath, newPath);
+    });
+
+    expect(ensureWebSearchMcp()).toBe(true);
+    expect(renameSpy).toHaveBeenCalled();
+    expect(fs.existsSync(getWebSearchMcpServerPath())).toBe(true);
   });
 });

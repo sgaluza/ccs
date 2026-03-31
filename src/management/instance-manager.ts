@@ -14,6 +14,8 @@ import { DEFAULT_ACCOUNT_CONTEXT_MODE } from '../auth/account-context';
 import type { AccountContextPolicy } from '../auth/account-context';
 import { getCcsDir, getCcsHome } from '../utils/config-manager';
 
+const MANAGED_MCP_SERVER_NAMES = new Set(['ccs-websearch']);
+
 /** Options for instance creation */
 export interface InstanceOptions {
   /** Skip shared symlinks (commands, skills, agents, settings.json) */
@@ -235,13 +237,20 @@ class InstanceManager {
         }
       }
 
-      // Merge: global MCP servers as base, instance-specific overrides on top
+      // Merge: global MCP servers as base, instance-specific overrides on top,
+      // except for CCS-managed entries which must stay aligned with the global runtime.
       const rawExistingMcp = instanceContent.mcpServers;
       const existingMcp =
         rawExistingMcp && typeof rawExistingMcp === 'object' && !Array.isArray(rawExistingMcp)
           ? (rawExistingMcp as Record<string, unknown>)
           : {};
-      instanceContent.mcpServers = { ...mcpServers, ...existingMcp };
+      const mergedMcpServers = { ...mcpServers, ...existingMcp };
+      for (const managedName of MANAGED_MCP_SERVER_NAMES) {
+        if (managedName in mcpServers) {
+          mergedMcpServers[managedName] = mcpServers[managedName];
+        }
+      }
+      instanceContent.mcpServers = mergedMcpServers;
 
       fs.writeFileSync(instanceClaudeJson, JSON.stringify(instanceContent, null, 2), {
         encoding: 'utf8',

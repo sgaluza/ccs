@@ -12,7 +12,7 @@ Native Claude subscription accounts still use Anthropic's server-side WebSearch 
 
 ### Third-Party Profiles
 
-Third-party profiles cannot execute Anthropic's server-side WebSearch because the tool never reaches their backend. CCS now solves that by provisioning a first-class local MCP tool, suppressing native `WebSearch` for those launches, appending a short launch-time steering hint, and running real local search providers directly.
+Third-party profiles cannot execute Anthropic's server-side WebSearch because the tool never reaches their backend. CCS now handles that by provisioning a first-class local MCP tool when the managed runtime is available, suppressing native `WebSearch` for those launches, appending a short launch-time steering hint, and running real local search providers directly.
 
 ## Architecture
 
@@ -26,18 +26,19 @@ Third-party profiles cannot execute Anthropic's server-side WebSearch because th
 │       │                                                      │
 │       └── Third-party Profile? → native WebSearch disabled  │
 │                                   │                          │
-│                                   └── CCS MCP tool           │
-│                                    ccs-websearch.WebSearch  │
-│                                              │               │
-│                                              ├── 1. Exa      │
-│                                              ├── 2. Tavily   │
-│                                              ├── 3. Brave    │
-│                                              ├── 4. DuckDuckGo│
-│                                              └── 5. Legacy CLI│
-│                                                 fallback      │
-│                                                 (Gemini/      │
-│                                                  OpenCode/    │
-│                                                  Grok)        │
+│                                   ├── CCS MCP tool when ready│
+│                                   │   ccs-websearch.WebSearch│
+│                                   │             │            │
+│                                   │             ├── 1. Exa   │
+│                                   │             ├── 2. Tavily│
+│                                   │             ├── 3. Brave │
+│                                   │             ├── 4. DuckDuckGo│
+│                                   │             └── 5. Legacy CLI│
+│                                   │                fallback   │
+│                                   │                (Gemini/   │
+│                                   │                 OpenCode/ │
+│                                   │                 Grok)     │
+│                                   └── Bash/network fallback   │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,7 +53,7 @@ The previous design asked another model CLI to perform web search and summarize 
 
 The new flow matches the `goclaw` model more closely: web search is treated as a first-class deterministic capability, not an LLM-to-LLM workaround or a denied native tool call.
 
-The managed MCP tool is exposed as `ccs-websearch.WebSearch`, not a generic `search` helper. That naming is deliberate: it gives Claude a tool that matches the native `WebSearch` concept more directly, which should reduce cases where the model reaches for ad hoc Bash or `curl` fetches instead.
+When provisioned, the managed MCP tool is exposed as `ccs-websearch.WebSearch`, not a generic `search` helper. That naming is deliberate: it gives Claude a tool that matches the native `WebSearch` concept more directly, which should reduce cases where the model reaches for ad hoc Bash or `curl` fetches instead.
 
 CCS also appends a third-party-only `--append-system-prompt` hint telling Claude to prefer that managed `WebSearch` tool for web lookups and current-information requests. This is soft steering only: if the user explicitly asks for shell commands, or the tool is unavailable, Claude can still fall back to Bash/network tools.
 That shared launch helper applies to normal third-party settings profiles, CLIProxy/Copilot-backed Claude launches, and CCS headless/delegation runs that execute through a settings profile.
@@ -125,10 +126,10 @@ Note: `enabled: false` stops provisioning the managed local `ccs-websearch.WebSe
 | `TAVILY_API_KEY` | Enables Tavily when `providers.tavily.enabled: true` |
 | `BRAVE_API_KEY` | Enables Brave Search when `providers.brave.enabled: true` |
 | `GROK_API_KEY` | Required only for legacy Grok CLI fallback |
-| `CCS_WEBSEARCH_SKIP` | Disable the CCS local WebSearch runtime for the current process |
+| `CCS_WEBSEARCH_SKIP` | Disable the CCS local WebSearch runtime for the current process; third-party launches still keep native Anthropic `WebSearch` disabled |
 | `CCS_DEBUG` | Verbose WebSearch runtime logging |
 | `CCS_WEBSEARCH_TRACE` | Write opt-in JSONL trace records under `~/.ccs/logs/websearch-trace.jsonl` |
-| `CCS_WEBSEARCH_TRACE_FILE` | Override the trace file path (must stay inside `~/.ccs/`, `/tmp`, or `/var/log`) |
+| `CCS_WEBSEARCH_TRACE_FILE` | Override the trace file path (must stay inside `~/.ccs/`, your system temp directory, or `/var/log`) |
 
 ## Managed Runtime Files
 

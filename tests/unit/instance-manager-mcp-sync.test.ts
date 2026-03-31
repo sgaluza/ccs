@@ -144,6 +144,53 @@ describe('InstanceManager MCP sync', () => {
     });
   });
 
+  it('repairs managed ccs-websearch entries from global config while preserving other instance MCP overrides', () => {
+    fs.writeFileSync(
+      path.join(tempRoot, '.claude.json'),
+      JSON.stringify(
+        {
+          mcpServers: {
+            'ccs-websearch': { command: 'node', args: ['/global/server.cjs'] },
+            shared: { command: 'global-shared' },
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    const manager = new InstanceManager();
+    const instancePath = manager.getInstancePath('work');
+    fs.mkdirSync(instancePath, { recursive: true });
+    fs.writeFileSync(
+      path.join(instancePath, '.claude.json'),
+      JSON.stringify(
+        {
+          mcpServers: {
+            'ccs-websearch': { command: 'node', args: ['/old/server.cjs'] },
+            shared: { command: 'instance-shared' },
+            instanceOnly: { command: 'instance-only' },
+          },
+        },
+        null,
+        2
+      ),
+      'utf8'
+    );
+
+    expect(manager.syncMcpServers(instancePath)).toBe(true);
+
+    const instanceContent = readJson(path.join(instancePath, '.claude.json')) as {
+      mcpServers: Record<string, unknown>;
+    };
+    expect(instanceContent.mcpServers).toEqual({
+      'ccs-websearch': { command: 'node', args: ['/global/server.cjs'] },
+      shared: { command: 'instance-shared' },
+      instanceOnly: { command: 'instance-only' },
+    });
+  });
+
   it('logs warning when global MCP sync fails', () => {
     fs.writeFileSync(path.join(tempRoot, '.claude.json'), '{invalid-json', 'utf8');
     const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});

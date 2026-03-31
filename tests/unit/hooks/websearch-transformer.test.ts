@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -265,6 +265,59 @@ describe('websearch-transformer hook helpers', () => {
       expect(fingerprintEvent?.queryLength).toBe(9);
     } finally {
       rmSync(tempDir, { force: true, recursive: true });
+    }
+  });
+
+  it('falls back to the default trace file when CCS_WEBSEARCH_TRACE_FILE points outside safe paths', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'websearch-hook-trace-safe-'));
+    const preloadPath = join(tempDir, 'mock-fetch.cjs');
+    const ccsHome = join(tempDir, 'home');
+    const fallbackTracePath = join(ccsHome, '.ccs', 'logs', 'websearch-trace.jsonl');
+    const disallowedTracePath = join(process.cwd(), '.tmp-websearch-trace-unsafe.jsonl');
+    const html = `
+      <a class="result__a" href="/l/?uddg=https%3A%2F%2Fexample.com%2Farticle">Example title</a>
+      <a class="result__snippet">Example snippet</a>
+    `.trim();
+
+    writeFileSync(
+      preloadPath,
+      `global.fetch = async () => ({ ok: true, text: async () => ${JSON.stringify(html)} });\n`,
+      'utf8'
+    );
+
+    try {
+      rmSync(disallowedTracePath, { force: true });
+      const result = spawnSync('node', ['-r', preloadPath, hookPath], {
+        encoding: 'utf8',
+        input: JSON.stringify({
+          tool_name: 'WebSearch',
+          tool_input: { query: 'btc price' },
+        }),
+        env: {
+          ...process.env,
+          CCS_HOME: ccsHome,
+          CCS_WEBSEARCH_TRACE: '1',
+          CCS_WEBSEARCH_TRACE_FILE: disallowedTracePath,
+          CCS_WEBSEARCH_TRACE_LAUNCH_ID: 'hook-trace-safe-test',
+          CCS_WEBSEARCH_TRACE_LAUNCHER: 'unit-test',
+          CCS_WEBSEARCH_ENABLED: '1',
+          CCS_WEBSEARCH_SKIP: '0',
+          CCS_WEBSEARCH_BRAVE: '0',
+          CCS_WEBSEARCH_DUCKDUCKGO: '1',
+          CCS_WEBSEARCH_EXA: '0',
+          CCS_WEBSEARCH_GEMINI: '0',
+          CCS_WEBSEARCH_GROK: '0',
+          CCS_WEBSEARCH_OPENCODE: '0',
+          CCS_WEBSEARCH_TAVILY: '0',
+        },
+      });
+
+      expect(result.status).toBe(0);
+      expect(existsSync(disallowedTracePath)).toBe(false);
+      expect(existsSync(fallbackTracePath)).toBe(true);
+    } finally {
+      rmSync(disallowedTracePath, { force: true });
+      rmSync(tempDir, { recursive: true, force: true });
     }
   });
 });
