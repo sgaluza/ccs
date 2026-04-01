@@ -1,0 +1,98 @@
+import { describe, expect, it } from 'bun:test';
+import {
+  DEFAULT_IMAGE_ANALYSIS_CONFIG,
+  type ImageAnalysisConfig,
+} from '../../../../src/config/unified-config-types';
+import {
+  canonicalizeImageAnalysisConfig,
+  resolveImageAnalysisStatus,
+} from '../../../../src/utils/hooks/image-analysis-backend-resolver';
+
+describe('image-analysis-backend-resolver', () => {
+  it('canonicalizes provider aliases in config', () => {
+    const config = canonicalizeImageAnalysisConfig({
+      enabled: true,
+      timeout: 60,
+      provider_models: {
+        copilot: 'claude-haiku-4.5',
+        gemini: 'gemini-2.5-flash',
+      },
+      fallback_backend: 'Gemini',
+      profile_backends: {
+        orq: 'copilot',
+      },
+    });
+
+    expect(config.provider_models.ghcp).toBe('claude-haiku-4.5');
+    expect(config.provider_models.copilot).toBeUndefined();
+    expect(config.fallback_backend).toBe('gemini');
+    expect(config.profile_backends?.orq).toBe('ghcp');
+  });
+
+  it('resolves copilot to the ghcp backend without a duplicate provider key', () => {
+    const status = resolveImageAnalysisStatus(
+      {
+        profileName: 'copilot',
+        profileType: 'copilot',
+      },
+      DEFAULT_IMAGE_ANALYSIS_CONFIG
+    );
+
+    expect(status.supported).toBe(true);
+    expect(status.backendId).toBe('ghcp');
+    expect(status.model).toBe('claude-haiku-4.5');
+    expect(status.resolutionSource).toBe('copilot-alias');
+  });
+
+  it('uses the fallback backend for an unmapped settings profile', () => {
+    const status = resolveImageAnalysisStatus(
+      {
+        profileName: 'glm',
+        profileType: 'settings',
+      },
+      DEFAULT_IMAGE_ANALYSIS_CONFIG
+    );
+
+    expect(status.supported).toBe(true);
+    expect(status.backendId).toBe('gemini');
+    expect(status.resolutionSource).toBe('fallback-backend');
+    expect(status.model).toBe('gemini-2.5-flash');
+  });
+
+  it('uses explicit profile_backends overrides for custom aliases', () => {
+    const config: ImageAnalysisConfig = {
+      ...DEFAULT_IMAGE_ANALYSIS_CONFIG,
+      profile_backends: {
+        orq: 'copilot',
+      },
+    };
+
+    const status = resolveImageAnalysisStatus(
+      {
+        profileName: 'orq',
+        profileType: 'settings',
+      },
+      config
+    );
+
+    expect(status.supported).toBe(true);
+    expect(status.status).toBe('mapped');
+    expect(status.backendId).toBe('ghcp');
+    expect(status.resolutionSource).toBe('profile-backend');
+  });
+
+  it('reports hook-missing when the profile should persist a hook but it is absent', () => {
+    const status = resolveImageAnalysisStatus(
+      {
+        profileName: 'glm',
+        profileType: 'settings',
+        hookInstalled: false,
+        sharedHookInstalled: true,
+      },
+      DEFAULT_IMAGE_ANALYSIS_CONFIG
+    );
+
+    expect(status.status).toBe('hook-missing');
+    expect(status.reason).toContain('Profile hook is missing');
+  });
+});
