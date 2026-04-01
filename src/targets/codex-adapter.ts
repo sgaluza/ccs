@@ -83,6 +83,32 @@ function normalizeCodexReasoningOverride(value: string | number | undefined): st
   );
 }
 
+function ensureExplicitCodexHomeDir(env: NodeJS.ProcessEnv): string | undefined {
+  const codexHome = env.CODEX_HOME?.trim();
+  if (!codexHome) {
+    return undefined;
+  }
+
+  try {
+    fs.mkdirSync(codexHome, { recursive: true });
+  } catch (err) {
+    const error = err as NodeJS.ErrnoException;
+    if (error.code !== 'EEXIST') {
+      return `[X] Unable to initialize CODEX_HOME (${error.code || 'unknown'}): ${codexHome}`;
+    }
+  }
+
+  try {
+    if (!fs.statSync(codexHome).isDirectory()) {
+      return `[X] CODEX_HOME path is not a directory: ${codexHome}`;
+    }
+    return undefined;
+  } catch (err) {
+    const error = err as NodeJS.ErrnoException;
+    return `[X] Unable to access CODEX_HOME (${error.code || 'unknown'}): ${codexHome}`;
+  }
+}
+
 export class CodexAdapter implements TargetAdapter {
   readonly type: TargetType = 'codex';
   readonly displayName = 'Codex CLI';
@@ -204,6 +230,12 @@ export class CodexAdapter implements TargetAdapter {
       console.error(
         `[X] Codex CLI path is not accessible (${error.code || 'unknown'}): ${codexPath}`
       );
+      return exitWithCleanup(1);
+    }
+
+    const codexHomeInitError = ensureExplicitCodexHomeDir(env);
+    if (codexHomeInitError) {
+      console.error(codexHomeInitError);
       return exitWithCleanup(1);
     }
 

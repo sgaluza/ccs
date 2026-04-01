@@ -270,6 +270,58 @@ process.exit(0);
     ]);
   });
 
+  it('creates an explicit CODEX_HOME directory before launching native Codex', () => {
+    if (process.platform === 'win32') return;
+
+    const freshCodexHome = path.join(tmpHome, 'fresh-codex-home');
+    const result = runCcsxpAlias(['--version'], {
+      ...process.env,
+      CI: '1',
+      NO_COLOR: '1',
+      CCS_HOME: tmpHome,
+      CCS_CODEX_PATH: fakeCodexPath,
+      CCS_TEST_CODEX_ARGS_OUT: codexArgsLogPath,
+      CCS_TEST_CODEX_ENV_OUT: codexEnvLogPath,
+      CCS_TEST_CODEX_VERSION: 'codex-cli 9.9.9-test',
+      CODEX_HOME: freshCodexHome,
+    });
+
+    expect(result.status).toBe(0);
+    expect(fs.existsSync(freshCodexHome)).toBe(true);
+    expect(fs.statSync(freshCodexHome).isDirectory()).toBe(true);
+    expect(readLoggedCodexCalls(codexArgsLogPath)).toEqual([['--version']]);
+    expect(readLoggedCodexEnv(codexEnvLogPath)).toEqual([
+      {
+        CODEX_HOME: freshCodexHome,
+        CODEX_CI: undefined,
+        CODEX_MANAGED_BY_BUN: undefined,
+        CODEX_THREAD_ID: undefined,
+        ANTHROPIC_BASE_URL: undefined,
+      },
+    ]);
+  });
+
+  it('fails with a clean error when CODEX_HOME points to a file', () => {
+    if (process.platform === 'win32') return;
+
+    const invalidCodexHome = path.join(tmpHome, 'codex-home-file');
+    fs.writeFileSync(invalidCodexHome, 'not-a-directory');
+
+    const result = runCcsxpAlias(['--version'], {
+      ...process.env,
+      CI: '1',
+      NO_COLOR: '1',
+      CCS_HOME: tmpHome,
+      CCS_CODEX_PATH: fakeCodexPath,
+      CCS_TEST_CODEX_ARGS_OUT: codexArgsLogPath,
+      CODEX_HOME: invalidCodexHome,
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(`[X] CODEX_HOME path is not a directory: ${invalidCodexHome}`);
+    expect(readLoggedCodexCalls(codexArgsLogPath)).toEqual([]);
+  });
+
   it('keeps ccsxp pinned to native Codex even when a user passes another --target override', () => {
     if (process.platform === 'win32') return;
 
