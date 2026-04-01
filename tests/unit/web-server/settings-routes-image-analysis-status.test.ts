@@ -103,6 +103,8 @@ describe('settings-routes image-analysis status', () => {
         resolutionSource: string;
         model: string | null;
         persistencePath: string | null;
+        authReadiness: string;
+        effectiveRuntimeMode: string;
       };
     };
 
@@ -111,6 +113,8 @@ describe('settings-routes image-analysis status', () => {
     expect(body.imageAnalysisStatus.resolutionSource).toBe('fallback-backend');
     expect(body.imageAnalysisStatus.model).toBe('gemini-2.5-flash');
     expect(body.imageAnalysisStatus.persistencePath).toContain('glm.settings.json');
+    expect(body.imageAnalysisStatus.authReadiness).toBe('missing');
+    expect(body.imageAnalysisStatus.effectiveRuntimeMode).toBe('native-read');
   });
 
   it('keeps direct Anthropic settings profiles on native read diagnostics', async () => {
@@ -130,6 +134,8 @@ describe('settings-routes image-analysis status', () => {
         shouldPersistHook: boolean;
         runtimePath: string | null;
         reason: string | null;
+        authReadiness: string;
+        proxyReadiness: string;
       };
     };
 
@@ -138,6 +144,8 @@ describe('settings-routes image-analysis status', () => {
     expect(body.imageAnalysisStatus.shouldPersistHook).toBe(false);
     expect(body.imageAnalysisStatus.runtimePath).toBeNull();
     expect(body.imageAnalysisStatus.reason).toContain('native file access');
+    expect(body.imageAnalysisStatus.authReadiness).toBe('not-needed');
+    expect(body.imageAnalysisStatus.proxyReadiness).toBe('not-needed');
   });
 
   it('returns explicit mapped status for custom aliases', async () => {
@@ -169,6 +177,8 @@ describe('settings-routes image-analysis status', () => {
         backendId: string | null;
         resolutionSource: string;
         model: string | null;
+        authReadiness: string;
+        effectiveRuntimeMode: string;
       };
     };
 
@@ -176,6 +186,8 @@ describe('settings-routes image-analysis status', () => {
     expect(body.imageAnalysisStatus.backendId).toBe('ghcp');
     expect(body.imageAnalysisStatus.resolutionSource).toBe('profile-backend');
     expect(body.imageAnalysisStatus.model).toBe('claude-haiku-4.5');
+    expect(body.imageAnalysisStatus.authReadiness).toBe('missing');
+    expect(body.imageAnalysisStatus.effectiveRuntimeMode).toBe('native-read');
   });
 
   it('uses the configured custom settings path for status and persistence diagnostics', async () => {
@@ -235,10 +247,12 @@ describe('settings-routes image-analysis status', () => {
       imageAnalysisStatus: {
         backendId: string | null;
         resolutionSource: string;
+        authReadiness: string;
       };
     };
 
     expect(body.imageAnalysisStatus.backendId).toBe('ghcp');
     expect(body.imageAnalysisStatus.resolutionSource).toBe('cliproxy-bridge');
+    expect(body.imageAnalysisStatus.authReadiness).toBe('missing');
   });
 });

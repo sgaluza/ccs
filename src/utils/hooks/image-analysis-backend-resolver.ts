@@ -33,6 +33,16 @@ export type ImageAnalysisStatusCode =
   | 'skipped'
   | 'hook-missing';
 
+export type ImageAnalysisAuthReadiness = 'not-needed' | 'ready' | 'missing' | 'unknown';
+export type ImageAnalysisProxyReadiness =
+  | 'not-needed'
+  | 'ready'
+  | 'remote'
+  | 'stopped'
+  | 'unavailable'
+  | 'unknown';
+export type ImageAnalysisEffectiveRuntimeMode = 'cliproxy-image-analysis' | 'native-read';
+
 export interface ImageAnalysisResolutionContext {
   profileName: string;
   profileType?: ProfileType;
@@ -61,6 +71,14 @@ export interface ImageAnalysisStatus {
   usesCurrentAuthToken: boolean | null;
   hookInstalled: boolean | null;
   sharedHookInstalled: boolean | null;
+  authReadiness: ImageAnalysisAuthReadiness;
+  authProvider: string | null;
+  authDisplayName: string | null;
+  authReason: string | null;
+  proxyReadiness: ImageAnalysisProxyReadiness;
+  proxyReason: string | null;
+  effectiveRuntimeMode: ImageAnalysisEffectiveRuntimeMode;
+  effectiveRuntimeReason: string | null;
 }
 
 function resolveProviderFromBaseUrl(baseUrl: unknown): string | null {
@@ -397,5 +415,34 @@ export function resolveImageAnalysisStatus(
     usesCurrentAuthToken: context.cliproxyBridge?.usesCurrentAuthToken ?? null,
     hookInstalled: context.hookInstalled ?? null,
     sharedHookInstalled: context.sharedHookInstalled ?? null,
+    authReadiness:
+      resolution.backendId && model && isCLIProxyProvider(resolution.backendId)
+        ? 'unknown'
+        : 'not-needed',
+    authProvider:
+      resolution.backendId && isCLIProxyProvider(resolution.backendId)
+        ? resolution.backendId
+        : null,
+    authDisplayName:
+      resolution.backendId && isCLIProxyProvider(resolution.backendId)
+        ? getProviderDisplayName(resolution.backendId)
+        : null,
+    authReason:
+      resolution.backendId && model && isCLIProxyProvider(resolution.backendId)
+        ? 'Auth readiness has not been verified yet.'
+        : null,
+    proxyReadiness: resolution.backendId && model ? 'unknown' : 'not-needed',
+    proxyReason:
+      resolution.backendId && model
+        ? 'CLIProxy runtime readiness has not been verified yet.'
+        : null,
+    effectiveRuntimeMode:
+      config.enabled && resolution.backendId && model && status !== 'hook-missing'
+        ? 'cliproxy-image-analysis'
+        : 'native-read',
+    effectiveRuntimeReason:
+      status === 'hook-missing' || !config.enabled || !resolution.backendId || !model
+        ? reason
+        : null,
   };
 }

@@ -33,7 +33,11 @@ import {
 } from './utils/websearch-manager';
 import { getGlobalEnvConfig, getOfficialChannelsConfig } from './config/unified-config-loader';
 import { ensureProfileHooks as ensureImageAnalyzerHooks } from './utils/hooks/image-analyzer-profile-hook-injector';
-import { getImageAnalysisHookEnv, installImageAnalyzerHook } from './utils/hooks';
+import {
+  getImageAnalysisHookEnv,
+  installImageAnalyzerHook,
+  resolveImageAnalysisRuntimeStatus,
+} from './utils/hooks';
 import { fail, info, warn } from './utils/ui';
 import { isCopilotSubcommandToken } from './copilot/constants';
 import {
@@ -1013,6 +1017,12 @@ async function main(): Promise<void> {
       }
 
       const webSearchEnv = getWebSearchHookEnv();
+      const imageAnalysisStatus = await resolveImageAnalysisRuntimeStatus({
+        profileName: profileInfo.name,
+        profileType: profileInfo.type,
+        settings,
+        cliproxyBridge,
+      });
       let imageAnalysisEnv = getImageAnalysisHookEnv({
         profileName: profileInfo.name,
         profileType: profileInfo.type,
@@ -1032,10 +1042,10 @@ async function main(): Promise<void> {
           targetRemainingArgs.includes('--verbose') ||
           targetRemainingArgs.includes('-v');
 
-        if (!isAuthenticated(imageAnalysisProvider as CLIProxyProvider)) {
+        if (imageAnalysisStatus.effectiveRuntimeMode === 'native-read') {
           console.error(
             info(
-              `Image analysis via ${imageAnalysisProvider} is configured, but CLIProxy auth is missing. This session will use native Read. Run "ccs ${imageAnalysisProvider} --auth" to enable it.`
+              `${imageAnalysisStatus.effectiveRuntimeReason || `Image analysis via ${imageAnalysisProvider} is unavailable.`} This session will use native Read.`
             )
           );
           imageAnalysisEnv = {
@@ -1043,7 +1053,7 @@ async function main(): Promise<void> {
             CCS_CURRENT_PROVIDER: '',
             CCS_IMAGE_ANALYSIS_SKIP: '1',
           };
-        } else {
+        } else if (imageAnalysisStatus.proxyReadiness === 'stopped') {
           const ensureServiceResult = await ensureCliproxyService(
             CLIPROXY_DEFAULT_PORT,
             verboseProxyLaunch

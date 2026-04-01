@@ -138,6 +138,14 @@ export interface ImageAnalysisStatus {
   usesCurrentAuthToken: boolean | null;
   hookInstalled: boolean | null;
   sharedHookInstalled: boolean | null;
+  authReadiness: 'not-needed' | 'ready' | 'missing' | 'unknown';
+  authProvider: string | null;
+  authDisplayName: string | null;
+  authReason: string | null;
+  proxyReadiness: 'not-needed' | 'ready' | 'remote' | 'stopped' | 'unavailable' | 'unknown';
+  proxyReason: string | null;
+  effectiveRuntimeMode: 'cliproxy-image-analysis' | 'native-read';
+  effectiveRuntimeReason: string | null;
 }
 
 export interface Profile {

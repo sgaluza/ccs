@@ -15,6 +15,10 @@ export {
   type ImageAnalysisStatus,
 } from './image-analysis-backend-resolver';
 export {
+  hydrateImageAnalysisRuntimeStatus,
+  resolveImageAnalysisRuntimeStatus,
+} from './image-analysis-runtime-status';
+export {
   getImageAnalyzerHookPath,
   getImageAnalyzerHookConfig,
   hasImageAnalyzerHook,

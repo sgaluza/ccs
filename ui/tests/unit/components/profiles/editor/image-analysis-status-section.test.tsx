@@ -48,6 +48,14 @@ function createStatus(overrides: Partial<ImageAnalysisStatus> = {}): ImageAnalys
     usesCurrentAuthToken: true,
     hookInstalled: true,
     sharedHookInstalled: true,
+    authReadiness: 'ready',
+    authProvider: 'gemini',
+    authDisplayName: 'Google Gemini',
+    authReason: null,
+    proxyReadiness: 'ready',
+    proxyReason: 'Local CLIProxy service is reachable.',
+    effectiveRuntimeMode: 'cliproxy-image-analysis',
+    effectiveRuntimeReason: null,
     ...overrides,
   };
 }
@@ -75,13 +83,17 @@ describe('ImageAnalysisStatusSection', () => {
     expect(screen.getByText('Image-analysis backend')).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Saved runtime status for this profile\. This section is derived and is not written into the JSON editor above\./i
+        /Saved runtime status for this profile\. Config stays in the JSON editor above; auth and proxy readiness are derived at runtime\./i
       )
     ).toBeInTheDocument();
-    expect(screen.getByText('Configured')).toBeInTheDocument();
-    expect(screen.getByText(/Configured via Google Gemini\./i)).toBeInTheDocument();
+    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Configured via Google Gemini\. Image and PDF reads use CLIProxy/i)
+    ).toBeInTheDocument();
     expect(screen.getByText('Google Gemini')).toBeInTheDocument();
     expect(screen.getByTitle(/\/api\/provider\/gemini/)).toBeInTheDocument();
+    expect(screen.getAllByText('Google Gemini ready')).toHaveLength(1);
+    expect(screen.getByText('Local CLIProxy ready')).toBeInTheDocument();
     expect(screen.getByText('gemini-2.5-flash')).toBeInTheDocument();
   });
 
@@ -89,19 +101,22 @@ describe('ImageAnalysisStatusSection', () => {
     render(
       <ImageAnalysisStatusSection
         status={createStatus({
-          status: 'mapped',
           backendId: 'ghcp',
           backendDisplayName: 'GitHub Copilot (OAuth)',
           model: 'claude-haiku-4.5',
           resolutionSource: 'profile-backend',
-          reason: 'Using explicit profile mapping.',
+          authReadiness: 'ready',
+          authProvider: 'ghcp',
+          authDisplayName: 'GitHub Copilot (OAuth)',
         })}
       />
     );
 
-    expect(screen.getByText('Saved mapping')).toBeInTheDocument();
+    expect(screen.getByText('Ready via mapping')).toBeInTheDocument();
     expect(
-      screen.getByText(/Configured via saved GitHub Copilot \(OAuth\) mapping/i)
+      screen.getByText(
+        /Configured via saved GitHub Copilot \(OAuth\) mapping\. Auth and runtime are ready/i
+      )
     ).toBeInTheDocument();
     expect(screen.getByText('GitHub Copilot (OAuth)')).toBeInTheDocument();
     expect(screen.getByText('claude-haiku-4.5')).toBeInTheDocument();
@@ -113,6 +128,8 @@ describe('ImageAnalysisStatusSection', () => {
         status={createStatus({
           status: 'hook-missing',
           reason: 'Profile hook is missing from the persisted settings file.',
+          effectiveRuntimeMode: 'native-read',
+          effectiveRuntimeReason: 'Profile hook is missing from the persisted settings file.',
         })}
       />
     );
@@ -121,31 +138,55 @@ describe('ImageAnalysisStatusSection', () => {
     expect(
       screen.getByText(/Configured for Google Gemini, but Profile hook is missing/i)
     ).toBeInTheDocument();
-    expect(screen.getByTitle(/native file access \(hook install required\)/i)).toBeInTheDocument();
+    expect(screen.getByTitle(/native file access/i)).toBeInTheDocument();
   });
 
-  it('uses the resolver reason for attention states like auth-token drift', () => {
+  it('shows auth readiness gaps separately from backend resolution', () => {
     render(
       <ImageAnalysisStatusSection
         status={createStatus({
-          status: 'attention',
-          reason:
-            'Runtime uses the current CLIProxy auth token instead of the saved token in this profile.',
-          usesCurrentTarget: true,
-          usesCurrentAuthToken: false,
+          backendId: 'ghcp',
+          backendDisplayName: 'GitHub Copilot (OAuth)',
+          model: 'claude-haiku-4.5',
+          runtimePath: '/api/provider/ghcp',
+          authReadiness: 'missing',
+          authProvider: 'ghcp',
+          authDisplayName: 'GitHub Copilot (OAuth)',
+          authReason:
+            'GitHub Copilot (OAuth) auth is missing. Run "ccs ghcp --auth" to enable image analysis.',
+          effectiveRuntimeMode: 'native-read',
+          effectiveRuntimeReason:
+            'GitHub Copilot (OAuth) auth is missing. Run "ccs ghcp --auth" to enable image analysis.',
         })}
       />
     );
 
-    expect(screen.getByText('Needs review')).toBeInTheDocument();
+    expect(screen.getByText('Needs auth')).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Configured via Google Gemini, but Runtime uses the current CLIProxy auth token/i
+        /Configured via GitHub Copilot \(OAuth\), but GitHub Copilot \(OAuth\) auth is missing/i
       )
     ).toBeInTheDocument();
+    expect(screen.getAllByText(/Run "ccs ghcp --auth" to enable image analysis/i)).toHaveLength(3);
+  });
+
+  it('treats an idle local proxy as launchable instead of unavailable', () => {
+    render(
+      <ImageAnalysisStatusSection
+        status={createStatus({
+          proxyReadiness: 'stopped',
+          proxyReason:
+            'Local CLIProxy service is idle. CCS will start it automatically when image analysis is needed.',
+        })}
+      />
+    );
+
+    expect(screen.getByText('Starts on launch')).toBeInTheDocument();
     expect(
-      screen.getAllByText(/current CLIProxy auth token instead of the saved token/i)
-    ).toHaveLength(2);
+      screen.getByText(/Auth is ready and CCS will start the local CLIProxy runtime on launch/i)
+    ).toBeInTheDocument();
+    expect(screen.getByText('Local CLIProxy idle; starts on launch')).toBeInTheDocument();
+    expect(screen.getByTitle(/start local CLIProxy/i)).toBeInTheDocument();
   });
 
   it('switches the panel to a live preview when the current editor JSON changes', async () => {
@@ -178,6 +219,9 @@ describe('ImageAnalysisStatusSection', () => {
               backendDisplayName: 'GitHub Copilot (OAuth)',
               model: 'claude-haiku-4.5',
               runtimePath: '/api/provider/ghcp',
+              authReadiness: 'ready',
+              authProvider: 'ghcp',
+              authDisplayName: 'GitHub Copilot (OAuth)',
             }),
           })
         );
@@ -212,7 +256,7 @@ describe('ImageAnalysisStatusSection', () => {
     });
     expect(
       screen.getByText(
-        /Live preview from the current editor state\. Save to persist these backend and hook changes\./i
+        /Live preview from the current editor state\. Save to persist config changes; auth and proxy readiness stay derived below\./i
       )
     ).toBeInTheDocument();
   });

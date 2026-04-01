@@ -41,7 +41,7 @@ import {
   hasImageAnalysisProfileHook,
 } from '../../utils/hooks/image-analyzer-profile-hook-injector';
 import { hasImageAnalyzerHook } from '../../utils/hooks/image-analyzer-hook-installer';
-import { resolveImageAnalysisStatus } from '../../utils/hooks';
+import { resolveImageAnalysisRuntimeStatus } from '../../utils/hooks';
 
 const router = Router();
 const MODEL_ENV_KEYS = [
@@ -269,16 +269,16 @@ function canonicalizeProfileSettings(profileOrVariant: string, settings: Setting
   return changed ? next : settings;
 }
 
-function resolveImageAnalysisStatusForProfile(
+async function resolveImageAnalysisStatusForProfile(
   profileOrVariant: string,
   settings: Settings,
   settingsPath: string
-) {
+): Promise<Awaited<ReturnType<typeof resolveImageAnalysisRuntimeStatus>>> {
   const variants = listVariants();
   const variant = variants[profileOrVariant];
   const cliproxyProvider = resolveProviderForProfile(profileOrVariant);
   const cliproxyBridge = resolveCliproxyBridgeMetadata(settings);
-  const status = resolveImageAnalysisStatus(
+  const status = await resolveImageAnalysisRuntimeStatus(
     {
       profileName: profileOrVariant,
       profileType: cliproxyProvider ? 'cliproxy' : 'settings',
@@ -303,7 +303,7 @@ function resolveImageAnalysisStatusForProfile(
   };
 }
 
-function resolvePreviewImageAnalysisStatus(profileOrVariant: string, settings: Settings) {
+async function resolvePreviewImageAnalysisStatus(profileOrVariant: string, settings: Settings) {
   const normalizedSettings = canonicalizeProfileSettings(profileOrVariant, settings);
   const settingsPath = resolveSettingsPath(profileOrVariant);
 
@@ -377,7 +377,7 @@ function maskApiKeys(settings: Settings): Settings {
 /**
  * GET /api/settings/:profile - Get settings with masked API keys
  */
-router.get('/:profile', (req: Request, res: Response): void => {
+router.get('/:profile', async (req: Request, res: Response): Promise<void> => {
   try {
     const { profile } = req.params;
     const settingsPath = resolveSettingsPath(profile);
@@ -397,7 +397,11 @@ router.get('/:profile', (req: Request, res: Response): void => {
       mtime: stat.mtime.getTime(),
       path: settingsPath,
       cliproxyBridge: resolveCliproxyBridgeMetadata(settings),
-      imageAnalysisStatus: resolveImageAnalysisStatusForProfile(profile, settings, settingsPath),
+      imageAnalysisStatus: await resolveImageAnalysisStatusForProfile(
+        profile,
+        settings,
+        settingsPath
+      ),
     });
   } catch (error) {
     respondInternalError(res, error, 'Internal server error.');
@@ -407,7 +411,7 @@ router.get('/:profile', (req: Request, res: Response): void => {
 /**
  * GET /api/settings/:profile/raw - Get full settings (for editing)
  */
-router.get('/:profile/raw', (req: Request, res: Response): void => {
+router.get('/:profile/raw', async (req: Request, res: Response): Promise<void> => {
   if (!requireSensitiveLocalAccess(req, res)) return;
 
   try {
@@ -428,7 +432,11 @@ router.get('/:profile/raw', (req: Request, res: Response): void => {
       mtime: stat.mtime.getTime(),
       path: settingsPath,
       cliproxyBridge: resolveCliproxyBridgeMetadata(settings),
-      imageAnalysisStatus: resolveImageAnalysisStatusForProfile(profile, settings, settingsPath),
+      imageAnalysisStatus: await resolveImageAnalysisStatusForProfile(
+        profile,
+        settings,
+        settingsPath
+      ),
     });
   } catch (error) {
     respondInternalError(res, error, 'Internal server error.');
@@ -438,25 +446,28 @@ router.get('/:profile/raw', (req: Request, res: Response): void => {
 /**
  * POST /api/settings/:profile/image-analysis-status - Preview image analysis status from editor JSON
  */
-router.post('/:profile/image-analysis-status', (req: Request, res: Response): void => {
-  if (!requireSensitiveLocalAccess(req, res)) return;
+router.post(
+  '/:profile/image-analysis-status',
+  async (req: Request, res: Response): Promise<void> => {
+    if (!requireSensitiveLocalAccess(req, res)) return;
 
-  try {
-    const { profile } = req.params;
-    const { settings } = req.body;
+    try {
+      const { profile } = req.params;
+      const { settings } = req.body;
 
-    if (!settings || typeof settings !== 'object') {
-      res.status(400).json({ error: 'settings object is required in request body' });
-      return;
+      if (!settings || typeof settings !== 'object') {
+        res.status(400).json({ error: 'settings object is required in request body' });
+        return;
+      }
+
+      res.json({
+        imageAnalysisStatus: await resolvePreviewImageAnalysisStatus(profile, settings as Settings),
+      });
+    } catch (error) {
+      respondInternalError(res, error, 'Internal server error.');
     }
-
-    res.json({
-      imageAnalysisStatus: resolvePreviewImageAnalysisStatus(profile, settings as Settings),
-    });
-  } catch (error) {
-    respondInternalError(res, error, 'Internal server error.');
   }
-});
+);
 
 /** Required env vars for CLIProxy providers to function */
 const REQUIRED_ENV_KEYS = ['ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN'] as const;
