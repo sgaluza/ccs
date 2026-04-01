@@ -64,6 +64,7 @@
     "prebuild": "node scripts/clean-dist.js",
     "prebuild:server": "node scripts/clean-dist.js",
     "prebuild:all": "rm -rf dist tsconfig.tsbuildinfo",
+    "prepack": "bun run build:all",
     "postbuild:all": "node scripts/verify-bundle.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
@@ -87,7 +88,6 @@
     "ui:build": "cd ui && bun run build",
     "ui:preview": "cd ui && bun run preview",
     "ui:validate": "cd ui && bun run validate",
-    "prepack": "bun run build:all",
     "prepare": "husky",
     "postinstall": "node scripts/postinstall.js"
   },
