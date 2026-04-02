@@ -121,11 +121,16 @@ function writeClaudeUserConfig(configPath: string, config: ClaudeUserConfig): bo
 }
 
 function withClaudeUserConfigLock<T>(configPath: string, callback: () => T): T {
-  const lockTarget = path.dirname(configPath);
+  const configDir = path.dirname(configPath);
+  const lockTarget = path.join(configDir, `${path.basename(configPath)}.ccs-lock`);
   let release: (() => void) | undefined;
 
-  if (!fs.existsSync(path.dirname(configPath))) {
-    fs.mkdirSync(path.dirname(configPath), { recursive: true, mode: 0o700 });
+  if (!fs.existsSync(configDir)) {
+    fs.mkdirSync(configDir, { recursive: true, mode: 0o700 });
+  }
+
+  if (!fs.existsSync(lockTarget)) {
+    fs.writeFileSync(lockTarget, '', { encoding: 'utf8', mode: 0o600 });
   }
 
   try {

@@ -191,7 +191,7 @@ describe('ensureImageAnalysisMcp', () => {
 
     expect(ensureImageAnalysisMcp()).toBe(true);
     expect(lockSpy).toHaveBeenCalled();
-    expect(lockSpy.mock.calls[0]?.[0]).toBe(tempHome as string);
+    expect(lockSpy.mock.calls[0]?.[0]).toBe(path.join(tempHome as string, '.claude.json.ccs-lock'));
   });
 
   it('returns false instead of throwing when ~/.claude.json is already locked', () => {
@@ -200,8 +200,11 @@ describe('ensureImageAnalysisMcp', () => {
 
     const claudeUserConfigPath = path.join(tempHome as string, '.claude.json');
     fs.writeFileSync(claudeUserConfigPath, '{}\n', 'utf8');
+    fs.writeFileSync(path.join(tempHome as string, '.claude.json.ccs-lock'), '', 'utf8');
 
-    const release = lockfile.lockSync(tempHome as string, { stale: 10000 }) as () => void;
+    const release = lockfile.lockSync(path.join(tempHome as string, '.claude.json.ccs-lock'), {
+      stale: 10000,
+    }) as () => void;
 
     try {
       let result: boolean | undefined;
