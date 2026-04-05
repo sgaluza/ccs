@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it } from 'bun:test';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import type { ProxyTarget } from '../../../src/cliproxy/proxy-target-resolver';
 import { getCapturedFetchRequests, mockFetch, restoreFetch } from '../../mocks';
 
@@ -127,6 +130,56 @@ describe('resolvePasteCallbackAuthUrl', () => {
     );
     expect(request.method).toBe('GET');
     expect(request.headers['Authorization']).toBe('Bearer test-mgmt-key');
+  });
+});
+
+describe('findNewTokenSnapshotForManualAuth', () => {
+  it('detects newly created provider token files', async () => {
+    const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-kiro-manual-auth-'));
+    const existingFile = path.join(tokenDir, 'kiro-existing.json');
+    fs.writeFileSync(existingFile, JSON.stringify({ type: 'kiro', email: 'existing@example.com' }));
+    const existingMtimeMs = fs.statSync(existingFile).mtimeMs;
+
+    const { findNewTokenSnapshotForManualAuth } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?manual-auth-new-token=${Date.now()}`
+    );
+
+    const newFile = path.join(tokenDir, 'kiro-new.json');
+    fs.writeFileSync(newFile, JSON.stringify({ type: 'kiro', email: 'new@example.com' }));
+
+    const snapshot = findNewTokenSnapshotForManualAuth(
+      'kiro',
+      tokenDir,
+      [{ file: 'kiro-existing.json', mtimeMs: existingMtimeMs }]
+    );
+
+    expect(snapshot?.file).toBe('kiro-new.json');
+    fs.rmSync(tokenDir, { recursive: true, force: true });
+  });
+
+  it('treats a modified existing token as the new token during reauth', async () => {
+    const tokenDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccs-kiro-reauth-'));
+    const tokenFile = path.join(tokenDir, 'kiro-existing.json');
+    fs.writeFileSync(tokenFile, JSON.stringify({ type: 'kiro', email: 'existing@example.com' }));
+    const existingMtimeMs = fs.statSync(tokenFile).mtimeMs;
+
+    const { findNewTokenSnapshotForManualAuth } = await import(
+      `../../../src/cliproxy/auth/oauth-handler?manual-auth-updated-token=${Date.now()}`
+    );
+
+    fs.writeFileSync(tokenFile, JSON.stringify({ type: 'kiro', email: 'existing@example.com', refreshed: true }));
+    const bumpedTime = new Date(existingMtimeMs + 10_000);
+    fs.utimesSync(tokenFile, bumpedTime, bumpedTime);
+
+    const snapshot = findNewTokenSnapshotForManualAuth(
+      'kiro',
+      tokenDir,
+      [{ file: 'kiro-existing.json', mtimeMs: existingMtimeMs }],
+      'kiro-existing.json'
+    );
+
+    expect(snapshot?.file).toBe('kiro-existing.json');
+    fs.rmSync(tokenDir, { recursive: true, force: true });
   });
 });
 

@@ -11,6 +11,7 @@
  */
 
 import * as fs from 'fs';
+import * as path from 'path';
 import { fail, info, warn, color, ok } from '../../utils/ui';
 import { ensureCLIProxyBinary } from '../binary-manager';
 import { generateConfig } from '../config-generator';
@@ -46,7 +47,12 @@ import {
   normalizeKiroIDCFlow,
 } from './auth-types';
 import { isHeadlessEnvironment, killProcessOnPort, showStep } from './environment-detector';
-import { getProviderTokenDir, isAuthenticated, registerAccountFromToken } from './token-manager';
+import {
+  getProviderTokenDir,
+  isAuthenticated,
+  isTokenFileForProvider,
+  registerAccountFromToken,
+} from './token-manager';
 import { executeOAuthProcess } from './oauth-process';
 import { importKiroToken } from './kiro-import';
 import {
@@ -71,6 +77,12 @@ interface PasteCallbackStartData {
 }
 
 const PASTE_CALLBACK_AUTH_URL_POLL_INTERVAL_MS = 3000;
+const POLLED_AUTH_LOCAL_TOKEN_GRACE_MS = 15 * 1000;
+
+type ProviderTokenSnapshot = {
+  file: string;
+  mtimeMs: number;
+};
 
 export async function requestPasteCallbackStart(
   provider: CLIProxyProvider,
@@ -120,6 +132,134 @@ export function getCliAuthNicknameError(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseAuthUrlState(url: string | null | undefined): string | null {
+  if (!url) {
+    return null;
+  }
+
+  try {
+    return new URL(url).searchParams.get('state');
+  } catch {
+    return null;
+  }
+}
+
+function listProviderTokenSnapshots(
+  provider: CLIProxyProvider,
+  tokenDir: string
+): ProviderTokenSnapshot[] {
+  if (!fs.existsSync(tokenDir)) {
+    return [];
+  }
+
+  return fs
+    .readdirSync(tokenDir)
+    .filter((file) => file.endsWith('.json'))
+    .map((file): ProviderTokenSnapshot | null => {
+      const filePath = path.join(tokenDir, file);
+      if (!isTokenFileForProvider(filePath, provider)) {
+        return null;
+      }
+
+      return {
+        file,
+        mtimeMs: fs.statSync(filePath).mtimeMs,
+      };
+    })
+    .filter((snapshot): snapshot is ProviderTokenSnapshot => snapshot !== null)
+    .sort((left, right) => right.mtimeMs - left.mtimeMs);
+}
+
+export function findNewTokenSnapshotForManualAuth(
+  provider: CLIProxyProvider,
+  tokenDir: string,
+  knownTokenFiles: ProviderTokenSnapshot[],
+  expectedAccountId?: string
+): ProviderTokenSnapshot | null {
+  const knownTokenMtimes = new Map(
+    knownTokenFiles.map((snapshot) => [snapshot.file, snapshot.mtimeMs])
+  );
+
+  return (
+    listProviderTokenSnapshots(provider, tokenDir).find((snapshot) => {
+      const knownMtime = knownTokenMtimes.get(snapshot.file);
+      if (knownMtime === undefined) {
+        return true;
+      }
+
+      if (!expectedAccountId) {
+        return false;
+      }
+
+      return snapshot.mtimeMs > knownMtime + 1;
+    }) || null
+  );
+}
+
+async function waitForManualCallbackToken(
+  provider: CLIProxyProvider,
+  target: ProxyTarget,
+  tokenDir: string,
+  oauthState: string | null,
+  knownTokenFiles: ProviderTokenSnapshot[],
+  expectedAccountId: string | undefined,
+  timeoutMs: number,
+  pollIntervalMs: number = PASTE_CALLBACK_AUTH_URL_POLL_INTERVAL_MS
+): Promise<{ tokenSnapshot: ProviderTokenSnapshot | null; error?: string }> {
+  const deadline = Date.now() + timeoutMs;
+  let upstreamCompletedAt: number | null = null;
+
+  while (Date.now() < deadline) {
+    const tokenSnapshot = findNewTokenSnapshotForManualAuth(
+      provider,
+      tokenDir,
+      knownTokenFiles,
+      expectedAccountId
+    );
+    if (tokenSnapshot) {
+      return { tokenSnapshot };
+    }
+
+    if (oauthState) {
+      const response = await fetch(
+        buildProxyUrl(
+          target,
+          `/v0/management/get-auth-status?state=${encodeURIComponent(oauthState)}`
+        ),
+        { headers: buildManagementHeaders(target) }
+      );
+
+      if (response.ok) {
+        const data = (await response.json()) as { status?: string; error?: string };
+        if (data.status === 'error') {
+          return {
+            tokenSnapshot: null,
+            error: data.error || 'Authentication failed while waiting for local token persistence',
+          };
+        }
+        if (data.status === 'ok' && upstreamCompletedAt === null) {
+          upstreamCompletedAt = Date.now();
+        }
+      }
+    }
+
+    if (
+      upstreamCompletedAt !== null &&
+      Date.now() - upstreamCompletedAt >= POLLED_AUTH_LOCAL_TOKEN_GRACE_MS
+    ) {
+      break;
+    }
+
+    if (Date.now() + pollIntervalMs >= deadline) {
+      break;
+    }
+
+    await sleep(pollIntervalMs);
+  }
+
+  return { tokenSnapshot: null };
 }
 
 export async function resolvePasteCallbackAuthUrl(
@@ -397,6 +537,9 @@ async function handlePasteCallbackMode(
       return null;
     }
 
+    const oauthState = startData.state || parseAuthUrlState(authUrl);
+    const knownTokenFiles = listProviderTokenSnapshots(provider, tokenDir);
+
     // Display auth URL in box
     console.log('');
     console.log('  ╔══════════════════════════════════════════════════════════════╗');
@@ -489,14 +632,48 @@ async function handlePasteCallbackMode(
       return null;
     }
 
-    console.log(ok('Authentication successful!'));
+    console.log(info('Callback submitted. Waiting for token exchange...'));
+    const { tokenSnapshot, error: tokenWaitError } = await waitForManualCallbackToken(
+      provider,
+      target,
+      tokenDir,
+      oauthState,
+      knownTokenFiles,
+      expectedAccountId,
+      OAUTH_STATE_TIMEOUT_MS
+    );
+
+    if (tokenWaitError) {
+      console.log(fail(tokenWaitError));
+      warnPossible403Ban(provider, tokenWaitError);
+      return null;
+    }
+
+    if (!tokenSnapshot) {
+      console.log(
+        fail(
+          'Authentication completed upstream, but no new local token was saved for this account. Update CCS/CLIProxy and retry.'
+        )
+      );
+      return null;
+    }
+
     const account = registerAccountFromToken(
       provider,
       tokenDir,
       nickname,
       verbose,
-      expectedAccountId
+      tokenSnapshot.file
     );
+
+    if (!account) {
+      console.log(
+        fail('Authenticated token could not be matched to the requested account. Retry the flow.')
+      );
+      return null;
+    }
+
+    console.log(ok('Authentication successful!'));
 
     // Account safety: check for cross-provider conflicts
     if (account?.email) {

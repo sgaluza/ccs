@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
   extractLikelyAuthFailureFromStderr,
+  extractLikelyOAuthAuthorizationUrl,
   getExpectedLocalCallback,
   getKiroBuilderIdSelectionInput,
   validateManualCallbackUrl,
@@ -89,9 +90,9 @@ describe('oauth-process manual callback validation', () => {
 describe('oauth-process Kiro Builder ID menu parsing', () => {
   it('selects Builder ID when it is the first option', () => {
     const output = `
-Select login method
-1. Builder ID
-2. IAM Identity Center
+? Select login method:
+  1) Use with Builder ID (personal AWS account)
+  2) Use with IDC Account (organization SSO)
 `;
 
     expect(getKiroBuilderIdSelectionInput(output)).toBe('1\n');
@@ -115,5 +116,30 @@ Select login method
 `;
 
     expect(getKiroBuilderIdSelectionInput(output)).toBeNull();
+  });
+});
+
+describe('oauth-process OAuth URL extraction', () => {
+  it('prefers the real auth URL over the IDC start URL banner', () => {
+    const authUrl =
+      'https://oidc.us-east-1.amazonaws.com/authorize?response_type=code&client_id=test-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A9876%2Foauth%2Fcallback&state=test-state&code_challenge=test-challenge&code_challenge_method=S256';
+    const output = `
+Using IDC with Start URL: https://d-123.awsapps.com/start
+Region: us-east-1
+URL: ${authUrl}
+`;
+
+    expect(extractLikelyOAuthAuthorizationUrl(output)).toBe(authUrl);
+  });
+
+  it('ignores local callback server URLs when the auth URL is also present', () => {
+    const authUrl =
+      'https://device.sso.us-east-1.amazonaws.com/authorize?response_type=code&client_id=test-client&redirect_uri=http%3A%2F%2F127.0.0.1%3A9876%2Foauth%2Fcallback&state=test-state&code_challenge=test-challenge&code_challenge_method=S256';
+    const output = `
+Callback server started, redirect URI: http://127.0.0.1:9876/oauth/callback
+URL: ${authUrl}
+`;
+
+    expect(extractLikelyOAuthAuthorizationUrl(output)).toBe(authUrl);
   });
 });

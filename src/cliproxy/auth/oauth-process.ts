@@ -198,12 +198,39 @@ export function getKiroBuilderIdSelectionInput(output: string): string | null {
   }
 
   const promptWindow = output.slice(promptMatch.index, promptMatch.index + 600);
-  const optionMatch = /(?:^|\n)\s*(\d+)\s*[\).:-]?\s*(?:AWS\s+)?Builder ID\b/im.exec(promptWindow);
+  const optionMatch = /(?:^|\n)\s*(\d+)\s*[\).:-]?\s*.*\bBuilder ID\b/im.exec(promptWindow);
   if (!optionMatch) {
     return null;
   }
 
   return `${optionMatch[1]}\n`;
+}
+
+export function extractLikelyOAuthAuthorizationUrl(output: string): string | null {
+  const urls = Array.from(output.matchAll(/https?:\/\/[^\s]+/g), (match) => match[0]);
+  let selectedUrl: string | null = null;
+  let selectedScore = 0;
+
+  for (const url of urls) {
+    try {
+      const parsed = new URL(url);
+      let score = 0;
+      if (parsed.searchParams.has('redirect_uri')) score += 4;
+      if (parsed.searchParams.has('state')) score += 2;
+      if (parsed.searchParams.has('code_challenge')) score += 1;
+      if (parsed.pathname.includes('/authorize')) score += 1;
+      if (isLoopbackHost(parsed.hostname)) score -= 3;
+
+      if (score >= selectedScore && score > 0) {
+        selectedUrl = url;
+        selectedScore = score;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return selectedUrl;
 }
 
 async function promptManualCallbackUrl(
@@ -332,17 +359,12 @@ async function handleStdout(
     !state.kiroMethodSelectionHandled &&
     state.accumulatedOutput.includes('Select login method')
   ) {
-    state.kiroMethodSelectionHandled = true;
     const builderIdSelection = getKiroBuilderIdSelectionInput(state.accumulatedOutput);
-    if (!builderIdSelection) {
-      console.log(fail('Unable to auto-select Kiro Builder ID from the upstream login menu.'));
-      console.log('    The upstream Kiro prompt format may have changed.');
-      killWithEscalation(authProcess);
-      return;
+    if (builderIdSelection) {
+      state.kiroMethodSelectionHandled = true;
+      authProcess.stdin?.write(builderIdSelection);
+      log(`Auto-selected Kiro Builder ID flow (${builderIdSelection.trim()})`);
     }
-
-    authProcess.stdin?.write(builderIdSelection);
-    log(`Auto-selected Kiro Builder ID flow (${builderIdSelection.trim()})`);
   }
 
   // Parse project list when available
@@ -413,11 +435,11 @@ async function handleStdout(
 
   // Display OAuth URL for all modes (enables VS Code terminal URL detection popup)
   if (!isDeviceCodeFlow && !state.urlDisplayed) {
-    const urlMatch = output.match(/https?:\/\/[^\s]+/);
-    if (urlMatch) {
+    const authUrl = extractLikelyOAuthAuthorizationUrl(state.accumulatedOutput);
+    if (authUrl) {
       console.log('');
       console.log(info(`${options.oauthConfig.displayName} OAuth URL:`));
-      console.log(`    ${urlMatch[0]}`);
+      console.log(`    ${authUrl}`);
       console.log('');
       state.urlDisplayed = true;
 
@@ -426,7 +448,7 @@ async function handleStdout(
         await replayManualCallback(
           options.oauthConfig,
           authProcess,
-          urlMatch[0],
+          authUrl,
           options.verbose,
           state,
           10 * 60 * 1000
@@ -442,11 +464,11 @@ function displayUrlFromStderr(
   state: ProcessState,
   oauthConfig: ProviderOAuthConfig
 ): void {
-  const urlMatch = output.match(/https?:\/\/[^\s]+/);
-  if (urlMatch) {
+  const authUrl = extractLikelyOAuthAuthorizationUrl(output);
+  if (authUrl) {
     console.log('');
     console.log(info(`${oauthConfig.displayName} OAuth URL:`));
-    console.log(`    ${urlMatch[0]}`);
+    console.log(`    ${authUrl}`);
     console.log('');
     state.urlDisplayed = true;
   }
