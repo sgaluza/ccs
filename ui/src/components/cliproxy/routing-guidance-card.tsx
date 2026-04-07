@@ -51,14 +51,32 @@ export function RoutingGuidanceCard({
     };
 
     return (
-      <div className={cn('flex items-center justify-between', className)}>
-        <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-          <ArrowRightLeft className="h-3.5 w-3.5" />
-          <span>Routing</span>
-          {isSaving && <RefreshCw className="ml-0.5 h-3 w-3 shrink-0 animate-spin opacity-50" />}
+      <div
+        className={cn(
+          'group/routing flex items-center justify-between mt-1 p-1 -mx-1 rounded-lg transition-colors hover:bg-primary/5',
+          className
+        )}
+      >
+        <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+          <div className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-background border border-border/60 text-muted-foreground shadow-sm overflow-hidden transition-all duration-300 group-hover/routing:border-primary/40 group-hover/routing:text-primary group-hover/routing:shadow-[0_0_12px_rgba(59,130,246,0.15)] dark:group-hover/routing:shadow-[0_0_12px_rgba(59,130,246,0.1)]">
+            <div className="absolute inset-0 bg-primary/10 translate-y-full group-hover/routing:translate-y-0 transition-transform duration-300 ease-out" />
+            <ArrowRightLeft className="relative z-10 h-3.5 w-3.5 transition-transform duration-300 group-hover/routing:scale-110" />
+          </div>
+          <span className="tracking-tight transition-colors duration-300 group-hover/routing:text-primary group-hover/routing:font-semibold">
+            Routing
+          </span>
+          {isSaving && <RefreshCw className="ml-1 h-3 w-3 shrink-0 animate-spin text-primary" />}
         </div>
 
-        <div className="flex items-center rounded-md border border-border/50 bg-muted/40 p-0.5">
+        <div className="relative grid grid-cols-2 p-0.5 gap-0.5 rounded-lg border border-border/60 bg-muted/30 shadow-[inset_0_1px_2px_rgba(0,0,0,0.05)] dark:shadow-[inset_0_1px_3px_rgba(0,0,0,0.2)] transition-colors duration-300 group-hover/routing:border-primary/20 group-hover/routing:bg-primary/5">
+          <div
+            className={cn(
+              'absolute inset-y-0.5 left-0.5 w-[calc(50%-0.1875rem)] rounded bg-background shadow-[0_1px_3px_rgba(0,0,0,0.1),0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10 transition-all duration-300',
+              selected === 'fill-first' ? 'translate-x-[calc(100%+0.125rem)]' : 'translate-x-0',
+              'group-hover/routing:shadow-[0_0_8px_rgba(59,130,246,0.15)] dark:group-hover/routing:shadow-[0_0_8px_rgba(59,130,246,0.1)] group-hover/routing:ring-primary/30'
+            )}
+            style={{ transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}
+          />
           {(
             Object.entries(STRATEGY_COPY) as Array<
               [RoutingStrategy, { title: string; description: string }]
@@ -70,10 +88,10 @@ export function RoutingGuidanceCard({
                 key={strategy}
                 type="button"
                 className={cn(
-                  'relative z-10 rounded-[4px] px-2 py-0.5 text-[10px] font-medium transition-all duration-200',
+                  'relative z-10 flex items-center justify-center rounded px-2.5 py-0.5 text-[10px] font-medium whitespace-nowrap transition-colors duration-200',
                   active
-                    ? 'bg-background text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06)] ring-1 ring-black/5 dark:ring-white/10'
-                    : 'text-muted-foreground hover:bg-black/5 hover:text-foreground dark:hover:bg-white/5'
+                    ? 'text-foreground group-hover/routing:text-primary'
+                    : 'text-muted-foreground/70 hover:text-foreground/90 group-hover/routing:text-muted-foreground/90'
                 )}
                 onClick={() => handleApply(strategy)}
                 disabled={isLoading || isSaving || !!error}
