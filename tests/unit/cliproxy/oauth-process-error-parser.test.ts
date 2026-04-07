@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  analyzeSuccessfulAuthExit,
+  extractLikelyAuthFailureFromLogs,
   extractLikelyAuthFailureFromStderr,
   extractLikelyOAuthAuthorizationUrl,
   getExpectedLocalCallback,
@@ -37,6 +39,123 @@ describe('oauth-process stderr parsing', () => {
     const parsed = extractLikelyAuthFailureFromStderr('ghcp', stderr);
     expect(parsed).not.toBeNull();
     expect((parsed as string).length).toBe(240);
+  });
+
+  it('extracts kiro IDC failures from verbose stdout logs', () => {
+    const logData =
+      '[2026-04-07 11:01:21] [--------] [error] [kiro_login.go:236] Kiro IDC authentication failed: login failed: failed to register client: register client failed (status 400)';
+
+    expect(extractLikelyAuthFailureFromLogs('kiro', logData)).toBe(
+      'login failed: failed to register client: register client failed (status 400)'
+    );
+  });
+});
+
+describe('oauth-process successful exit analysis', () => {
+  it('treats unchanged existing kiro tokens as a failed add-account attempt', () => {
+    const result = analyzeSuccessfulAuthExit({
+      provider: 'kiro',
+      knownTokenFiles: [{ file: 'kiro-existing.json', mtimeMs: 100 }],
+      currentTokenFiles: [{ file: 'kiro-existing.json', mtimeMs: 100 }],
+      stdoutData:
+        '[error] Kiro IDC authentication failed: login failed: failed to register client: register client failed (status 400)',
+      stderrData: '',
+    });
+
+    expect(result.tokenSnapshot).toBeNull();
+    expect(result.failureReason).toBe(
+      'login failed: failed to register client: register client failed (status 400)'
+    );
+  });
+
+  it('treats a refreshed token file as success during reauth', () => {
+    const result = analyzeSuccessfulAuthExit({
+      provider: 'kiro',
+      knownTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 100,
+          accountId: 'kiro-existing',
+          fingerprint: 'before',
+        },
+      ],
+      currentTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 250,
+          accountId: 'kiro-existing',
+          fingerprint: 'after',
+        },
+      ],
+      expectedAccountId: 'kiro-existing.json',
+      stdoutData: '',
+      stderrData: '',
+    });
+
+    expect(result.tokenSnapshot?.file).toBe('kiro-existing.json');
+    expect(result.failureReason).toBeNull();
+  });
+
+  it('ignores unrelated new token files during reauth', () => {
+    const result = analyzeSuccessfulAuthExit({
+      provider: 'kiro',
+      knownTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 100,
+          accountId: 'kiro-existing',
+          fingerprint: 'before',
+        },
+      ],
+      currentTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 100,
+          accountId: 'kiro-existing',
+          fingerprint: 'before',
+        },
+        {
+          file: 'kiro-other.json',
+          mtimeMs: 150,
+          accountId: 'kiro-other',
+          fingerprint: 'other-after',
+        },
+      ],
+      expectedAccountId: 'kiro-existing',
+      stdoutData: '',
+      stderrData: '',
+    });
+
+    expect(result.tokenSnapshot).toBeNull();
+    expect(result.failureReason).toBeNull();
+  });
+
+  it('treats fingerprint changes as success even when mtime is unchanged', () => {
+    const result = analyzeSuccessfulAuthExit({
+      provider: 'kiro',
+      knownTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 100,
+          accountId: 'kiro-existing',
+          fingerprint: 'before',
+        },
+      ],
+      currentTokenFiles: [
+        {
+          file: 'kiro-existing.json',
+          mtimeMs: 100,
+          accountId: 'kiro-existing',
+          fingerprint: 'after',
+        },
+      ],
+      expectedAccountId: 'kiro-existing',
+      stdoutData: '',
+      stderrData: '',
+    });
+
+    expect(result.tokenSnapshot?.file).toBe('kiro-existing.json');
+    expect(result.failureReason).toBeNull();
   });
 });
 
