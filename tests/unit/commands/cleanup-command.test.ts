@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { handleCleanupCommand } from '../../../src/commands/cleanup-command';
 import { getCliproxyDir } from '../../../src/cliproxy/config-generator';
-import { getNativeLogsDir } from '../../../src/services/logging';
+import { getLogArchiveDir, getNativeLogsDir } from '../../../src/services/logging';
 
 describe('cleanup command', () => {
   let tempHome = '';
@@ -27,9 +27,9 @@ describe('cleanup command', () => {
     tempHome = '';
   });
 
-  it('reports only top-level log sizes in dry-run mode', async () => {
+  it('reports CCS archives alongside current logs in dry-run mode', async () => {
     const ccsLogsDir = getNativeLogsDir();
-    const archiveDir = path.join(ccsLogsDir, 'archive');
+    const archiveDir = getLogArchiveDir();
     const cliproxyLogsDir = path.join(getCliproxyDir(), 'logs');
 
     fs.mkdirSync(archiveDir, { recursive: true });
@@ -47,8 +47,8 @@ describe('cleanup command', () => {
         .join('\n');
 
       expect(output).toContain('CCS Logs: 1 files (100.00 B)');
-      expect(output).toContain('Would delete 1 files (100.00 B)');
-      expect(output).not.toContain('1.95 KB');
+      expect(output).toContain('CCS Log Archives: 1 files (1.95 KB)');
+      expect(output).toContain('Would delete 2 files (2.05 KB)');
     } finally {
       logSpy.mockRestore();
     }

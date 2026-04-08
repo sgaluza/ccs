@@ -9,7 +9,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { getCliproxyDir } from '../cliproxy/config-generator';
-import { getNativeLogsDir } from '../services/logging';
+import { getLogArchiveDir, getNativeLogsDir } from '../services/logging';
 import { info, ok, warn } from '../utils/ui';
 
 /** Default age in days for error log cleanup */
@@ -22,6 +22,10 @@ function getLogsDir(): string {
 
 function getCcsLogsDir(): string {
   return getNativeLogsDir();
+}
+
+function getCcsLogArchiveDir(): string {
+  return getLogArchiveDir();
 }
 
 /** Format bytes to human-readable size */
@@ -210,6 +214,7 @@ export async function handleCleanupCommand(args: string[]): Promise<void> {
   const cleanErrors = args.includes('--errors');
   const logsDir = getLogsDir();
   const ccsLogsDir = getCcsLogsDir();
+  const ccsArchiveDir = getCcsLogArchiveDir();
 
   // Parse --days=N option
   let maxAgeDays = DEFAULT_ERROR_LOG_AGE_DAYS;
@@ -227,7 +232,13 @@ export async function handleCleanupCommand(args: string[]): Promise<void> {
   if (cleanErrors) {
     await handleErrorLogCleanup(logsDir, maxAgeDays, dryRun, force);
   } else {
-    await handleMainLogCleanup({ cliproxyLogsDir: logsDir, ccsLogsDir, dryRun, force });
+    await handleMainLogCleanup({
+      cliproxyLogsDir: logsDir,
+      ccsLogsDir,
+      ccsArchiveDir,
+      dryRun,
+      force,
+    });
   }
 }
 
@@ -325,11 +336,13 @@ async function handleErrorLogCleanup(
 async function handleMainLogCleanup(options: {
   cliproxyLogsDir: string;
   ccsLogsDir: string;
+  ccsArchiveDir: string;
   dryRun: boolean;
   force: boolean;
 }): Promise<void> {
   const targets = [
     { label: 'CCS Logs', dir: options.ccsLogsDir },
+    { label: 'CCS Log Archives', dir: options.ccsArchiveDir },
     { label: 'CLIProxy Logs', dir: options.cliproxyLogsDir },
   ].map((target) => ({
     ...target,

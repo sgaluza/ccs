@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import {
+  ensureLoggingDirectories,
   getCurrentLogPath,
   getLogArchiveDir,
   getNativeLogsDir,
@@ -42,5 +43,15 @@ describe('logging path helpers', () => {
     expect(isPathInsideDirectory(path.join(logsDir, '..', '..', 'etc', 'passwd'), logsDir)).toBe(
       false
     );
+  });
+
+  it('creates log directories with restrictive permissions', () => {
+    ensureLoggingDirectories();
+
+    const logsMode = fs.statSync(getNativeLogsDir()).mode & 0o777;
+    const archiveMode = fs.statSync(getLogArchiveDir()).mode & 0o777;
+
+    expect(logsMode).toBe(0o700);
+    expect(archiveMode).toBe(0o700);
   });
 });

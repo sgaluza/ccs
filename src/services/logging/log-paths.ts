@@ -23,8 +23,8 @@ export function getLegacyCliproxyLogsDir(): string {
 }
 
 export function ensureLoggingDirectories(): void {
-  fs.mkdirSync(getNativeLogsDir(), { recursive: true });
-  fs.mkdirSync(getLogArchiveDir(), { recursive: true });
+  fs.mkdirSync(getNativeLogsDir(), { recursive: true, mode: 0o700 });
+  fs.mkdirSync(getLogArchiveDir(), { recursive: true, mode: 0o700 });
 }
 
 export function isPathInsideDirectory(candidatePath: string, rootDir: string): boolean {
