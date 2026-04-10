@@ -19,7 +19,7 @@ const resources = {
         home: 'Home',
         analytics: 'Analytics',
         identityAccess: 'Identity & Access',
-        apiProfiles: 'API Profiles',
+        apiProfiles: 'Profiles',
         cliproxyPlus: 'CLIProxy Plus',
         cliproxyOverview: 'Overview',
         controlPanel: 'Control Panel',
@@ -1017,7 +1017,7 @@ const resources = {
         tokensSubtitle: '{{value}} tokens',
       },
       apiProfiles: {
-        title: 'API Profiles',
+        title: 'Profiles',
         new: 'New',
         searchPlaceholder: 'Search profiles...',
         loadingProfiles: 'Loading profiles...',
