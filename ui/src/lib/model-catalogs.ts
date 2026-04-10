@@ -53,7 +53,9 @@ function stripCustomtoolsSuffix(modelId: string): string {
 }
 
 function getAgyGeminiProCompatibilityId(modelId: string): string | undefined {
-  return AGY_GEMINI_PRO_COMPATIBILITY_IDS[normalizeModelId(modelId)];
+  return AGY_GEMINI_PRO_COMPATIBILITY_IDS[
+    normalizeModelId(modelId) as keyof typeof AGY_GEMINI_PRO_COMPATIBILITY_IDS
+  ];
 }
 
 function parseGeminiPreviewModelId(modelId: string): GeminiPreviewModelInfo | null {
