@@ -37,6 +37,34 @@ export class CursorConnectFrameError extends Error {
   }
 }
 
+export function mapCursorConnectError(code?: string): { status: number; errorType: string } {
+  switch (code?.toLowerCase()) {
+    case 'resource_exhausted':
+      return { status: 429, errorType: 'rate_limit_error' };
+    case 'unauthenticated':
+      return { status: 401, errorType: 'authentication_error' };
+    case 'permission_denied':
+      return { status: 403, errorType: 'permission_error' };
+    case 'not_found':
+      return { status: 404, errorType: 'api_error' };
+    case 'already_exists':
+    case 'aborted':
+      return { status: 409, errorType: 'api_error' };
+    case 'deadline_exceeded':
+      return { status: 504, errorType: 'api_error' };
+    case 'unimplemented':
+      return { status: 501, errorType: 'api_error' };
+    case 'unavailable':
+      return { status: 503, errorType: 'api_error' };
+    case 'invalid_argument':
+    case 'failed_precondition':
+    case 'out_of_range':
+      return { status: 400, errorType: 'api_error' };
+    default:
+      return { status: 500, errorType: 'api_error' };
+  }
+}
+
 function formatConnectFrameFlags(flags: number): string {
   return `0x${flags.toString(16).padStart(2, '0')}`;
 }
@@ -57,6 +85,10 @@ function toFrameErrorResult(error: unknown): Extract<FrameResult, { type: 'error
     status: 502,
     errorType: 'server_error',
   };
+}
+
+function createTruncatedFrameError(): CursorConnectFrameError {
+  return new CursorConnectFrameError('Truncated Cursor ConnectRPC frame.', 502, 'server_error');
 }
 
 /**
@@ -151,12 +183,12 @@ export class StreamingFrameParser {
             json?.error?.message;
 
           if (msg) {
-            const isRateLimit = json?.error?.code === 'resource_exhausted';
+            const mappedError = mapCursorConnectError(json?.error?.code);
             results.push({
               type: 'error',
               message: msg,
-              status: isRateLimit ? 429 : 400,
-              errorType: isRateLimit ? 'rate_limit_error' : 'api_error',
+              status: mappedError.status,
+              errorType: mappedError.errorType,
             });
             return results;
           }
@@ -176,12 +208,12 @@ export class StreamingFrameParser {
             json?.error?.details?.[0]?.debug?.details?.detail ||
             json?.error?.message ||
             'API Error';
-          const isRateLimit = json?.error?.code === 'resource_exhausted';
+          const mappedError = mapCursorConnectError(json?.error?.code);
           results.push({
             type: 'error',
             message: msg,
-            status: isRateLimit ? 429 : 400,
-            errorType: isRateLimit ? 'rate_limit_error' : 'api_error',
+            status: mappedError.status,
+            errorType: mappedError.errorType,
           });
           return results;
         }
@@ -216,5 +248,14 @@ export class StreamingFrameParser {
 
   hasPartial(): boolean {
     return this.buffer.length > 0;
+  }
+
+  finish(): FrameResult[] {
+    if (this.buffer.length === 0) {
+      return [];
+    }
+
+    this.buffer = Buffer.alloc(0);
+    return [toFrameErrorResult(createTruncatedFrameError())];
   }
 }

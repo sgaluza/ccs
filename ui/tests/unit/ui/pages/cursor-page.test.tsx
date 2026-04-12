@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   runProbeAsync: vi.fn(),
   resetProbe: vi.fn(),
   refetchStatus: vi.fn(),
+  refetchConfig: vi.fn(),
   refetchRawSettings: vi.fn(),
   updateConfigAsync: vi.fn(),
   saveRawSettingsAsync: vi.fn(),
@@ -75,6 +76,7 @@ function buildUseCursorResult(overrides: Record<string, unknown> = {}) {
       sonnet_model: 'gpt-5.3-codex',
       haiku_model: 'gpt-5-mini',
     },
+    refetchConfig: mocks.refetchConfig,
     updateConfigAsync: mocks.updateConfigAsync,
     isUpdatingConfig: false,
     models: [{ id: 'gpt-5.3-codex', name: 'GPT-5.3 Codex', provider: 'openai' }],
@@ -110,6 +112,13 @@ describe('CursorPage', () => {
   beforeEach(() => {
     mocks.runProbeAsync.mockReset();
     mocks.resetProbe.mockReset();
+    mocks.refetchConfig.mockReset();
+    mocks.refetchConfig.mockResolvedValue({
+      status: 'success',
+      isError: false,
+      error: null,
+      data: buildUseCursorResult().config,
+    });
     mocks.runProbeAsync.mockResolvedValue(probeFailure);
     mocks.useCursor.mockReturnValue(buildUseCursorResult());
     toastMocks.error.mockReset();
@@ -153,5 +162,23 @@ describe('CursorPage', () => {
     expect(toastMocks.error).toHaveBeenCalledWith(
       'Save or discard Cursor changes before running the live probe'
     );
+  });
+
+  it('refreshes config state with accessible refresh controls', async () => {
+    render(<CursorPage />);
+
+    expect(screen.getByRole('button', { name: 'Refresh Cursor status' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Refresh Cursor configuration' })
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Settings' }));
+    await userEvent.clear(screen.getByLabelText('Port'));
+    await userEvent.type(screen.getByLabelText('Port'), '20130');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh Cursor configuration' }));
+
+    await waitFor(() => expect(mocks.refetchConfig).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText('Port')).toHaveValue(20129);
   });
 });

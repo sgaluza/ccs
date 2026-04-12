@@ -18,6 +18,7 @@ import {
   type FrameResult,
   StreamingFrameParser,
   decompressPayload,
+  mapCursorConnectError,
 } from './cursor-stream-parser.js';
 
 /** Executor parameters */
@@ -88,12 +89,12 @@ function toCursorErrorPayloadFromJson(jsonError: {
     jsonError?.error?.message ||
     'API Error';
 
-  const isRateLimit = jsonError?.error?.code === 'resource_exhausted';
+  const mappedError = mapCursorConnectError(jsonError?.error?.code);
 
   return {
     message: errorMsg,
-    status: isRateLimit ? 429 : 400,
-    errorType: isRateLimit ? 'rate_limit_error' : 'api_error',
+    status: mappedError.status,
+    errorType: mappedError.errorType,
     code: jsonError?.error?.details?.[0]?.debug?.error || 'unknown',
   };
 }
@@ -650,6 +651,12 @@ export class CursorExecutor {
 
         req.on('end', () => {
           if (streamClosed) return;
+          for (const frame of parser.finish()) {
+            if (frame.type === 'error') {
+              handleFrameError(frame);
+              return;
+            }
+          }
           resolveStreamingResponse();
           if (chunkCount === 0 && toolCallCount === 0) {
             emitSSE(buildChunk({ role: 'assistant', content: '' }, null));
@@ -757,14 +764,14 @@ export class CursorExecutor {
             json?.error?.message;
 
           if (msg) {
-            const isRateLimit = json?.error?.code === 'resource_exhausted';
+            const mappedError = mapCursorConnectError(json?.error?.code);
             yield {
               type: 'error',
               error: {
                 message: msg,
-                status: isRateLimit ? 429 : 400,
-                errorType: isRateLimit ? 'rate_limit_error' : 'api_error',
-                code: isRateLimit ? 'rate_limited' : 'cursor_error',
+                status: mappedError.status,
+                errorType: mappedError.errorType,
+                code: json?.error?.code || 'cursor_error',
               },
             };
             return;
@@ -820,6 +827,18 @@ export class CursorExecutor {
       if (result.thinking) {
         yield { type: 'thinking', text: result.thinking };
       }
+    }
+
+    if (offset !== buffer.length) {
+      yield {
+        type: 'error',
+        error: {
+          message: 'Truncated Cursor ConnectRPC frame.',
+          status: 502,
+          errorType: 'server_error',
+          code: 'cursor_protocol_error',
+        },
+      };
     }
   }
 

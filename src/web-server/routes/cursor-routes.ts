@@ -31,6 +31,19 @@ interface DaemonStartPreconditionError {
   error: string;
 }
 
+function getPublicAutoDetectError(result: ReturnType<typeof autoDetectTokens>): string {
+  switch (result.reason) {
+    case 'db_not_found':
+      return 'Cursor state database not found on this host.';
+    case 'sqlite_unavailable':
+      return 'Cursor state database was found, but sqlite3 is not available in PATH.';
+    case 'db_query_failed':
+      return 'Cursor state database was found, but CCS could not query it.';
+    default:
+      return result.error ?? 'Token not found';
+  }
+}
+
 export function getDaemonStartPreconditionError(
   input: DaemonStartPreconditionInput
 ): DaemonStartPreconditionError | null {
@@ -132,7 +145,7 @@ router.post('/auth/auto-detect', async (_req: Request, res: Response): Promise<v
             ? 500
             : 404;
       res.status(status).json({
-        error: result.error ?? 'Token not found',
+        error: getPublicAutoDetectError(result),
         reason: result.reason ?? null,
       });
       return;

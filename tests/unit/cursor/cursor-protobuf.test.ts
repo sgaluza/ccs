@@ -846,7 +846,7 @@ describe('Request Encoding', () => {
   });
 
   describe('Edge cases', () => {
-    it('should handle malformed frame gracefully', () => {
+    it('should reject malformed frame headers', async () => {
       const executor = new CursorExecutor();
 
       // Incomplete frame header (only 3 bytes instead of 5)
@@ -856,11 +856,13 @@ describe('Request Encoding', () => {
         messages: [],
       });
 
-      // Should return valid response even with malformed input
-      expect(result.status).toBe(200);
+      expect(result.status).toBe(502);
+      const body = JSON.parse(await result.text());
+      expect(body.error.type).toBe('server_error');
+      expect(body.error.message).toContain('Truncated Cursor ConnectRPC frame');
     });
 
-    it('should handle truncated payload', () => {
+    it('should reject truncated payloads', async () => {
       const executor = new CursorExecutor();
 
       // Frame header says payload is 100 bytes but only 5 bytes follow
@@ -872,8 +874,10 @@ describe('Request Encoding', () => {
         messages: [],
       });
 
-      // Should handle gracefully
-      expect(result.status).toBe(200);
+      expect(result.status).toBe(502);
+      const body = JSON.parse(await result.text());
+      expect(body.error.type).toBe('server_error');
+      expect(body.error.message).toContain('Truncated Cursor ConnectRPC frame');
     });
 
     it('should handle multi-frame buffer', () => {
@@ -1055,6 +1059,29 @@ describe('CursorExecutor', () => {
       const bodyText = await result.text();
       const body = JSON.parse(bodyText);
       expect(body.error.type).toBe('rate_limit_error');
+    });
+
+    it('should map unavailable end-stream errors to 503', async () => {
+      const unavailableFrame = buildFrame(
+        new TextEncoder().encode(
+          JSON.stringify({
+            error: {
+              code: 'unavailable',
+              message: 'upstream down',
+            },
+          })
+        ),
+        0x02
+      );
+
+      const result = executor.transformProtobufToJSON(unavailableFrame, 'gpt-4', {
+        messages: [],
+      });
+
+      expect(result.status).toBe(503);
+      const body = JSON.parse(await result.text());
+      expect(body.error.type).toBe('api_error');
+      expect(body.error.message).toContain('upstream down');
     });
 
     it('should surface reasoning_content when thinking payload is present', async () => {
@@ -1278,6 +1305,23 @@ describe('CursorExecutor', () => {
       expect(body).toContain('Before failure');
       expect(body).toContain('event: error');
       expect(body).toContain('"type":"server_error"');
+      expect(body).not.toContain('data: [DONE]');
+    });
+
+    it('emits an SSE error event when trailing bytes leave a truncated frame', async () => {
+      const executor = new CursorExecutor();
+      const combined = Buffer.concat([buildTextFrame('Partial success'), Buffer.from([0x00, 0x00, 0x00])]);
+
+      const result = executor.transformProtobufToSSE(combined, 'test-model', {
+        messages: [],
+        stream: true,
+      });
+
+      expect(result.status).toBe(200);
+      const body = await result.text();
+      expect(body).toContain('Partial success');
+      expect(body).toContain('event: error');
+      expect(body).toContain('Truncated Cursor ConnectRPC frame');
       expect(body).not.toContain('data: [DONE]');
     });
 
@@ -1510,6 +1554,30 @@ describe('StreamingFrameParser', () => {
     }
   });
 
+  it('should map unavailable end-stream errors to 503 in the parser', () => {
+    const parser = new StreamingFrameParser();
+    const endStreamError = buildFrame(
+      new TextEncoder().encode(
+        JSON.stringify({
+          error: {
+            code: 'unavailable',
+            message: 'upstream down',
+          },
+        })
+      ),
+      0x02
+    );
+
+    const results = parser.push(endStreamError);
+
+    expect(results.length).toBe(1);
+    expect(results[0].type).toBe('error');
+    if (results[0].type === 'error') {
+      expect(results[0].status).toBe(503);
+      expect(results[0].errorType).toBe('api_error');
+    }
+  });
+
   it('should parse thinking frames', () => {
     const parser = new StreamingFrameParser();
     const frame = buildThinkingFrame('Think step by step');
@@ -1600,6 +1668,20 @@ describe('StreamingFrameParser', () => {
     const parser2 = new StreamingFrameParser();
     parser2.push(emptyFrame);
     expect(parser2.hasPartial()).toBe(false);
+  });
+
+  it('should surface truncated trailing bytes when the stream finishes', () => {
+    const parser = new StreamingFrameParser();
+    parser.push(Buffer.from([0x00, 0x00, 0x00]));
+
+    const results = parser.finish();
+
+    expect(results.length).toBe(1);
+    expect(results[0].type).toBe('error');
+    if (results[0].type === 'error') {
+      expect(results[0].status).toBe(502);
+      expect(results[0].message).toContain('Truncated Cursor ConnectRPC frame');
+    }
   });
 });
 

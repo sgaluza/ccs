@@ -269,6 +269,7 @@ export function useCursor() {
 
       config: configQuery.data,
       configLoading: configQuery.isLoading,
+      refetchConfig: configQuery.refetch,
 
       models: modelsQuery.data?.models ?? [],
       currentModel: modelsQuery.data?.current ?? null,
@@ -317,6 +318,7 @@ export function useCursor() {
       statusQuery.refetch,
       configQuery.data,
       configQuery.isLoading,
+      configQuery.refetch,
       modelsQuery.data,
       modelsQuery.isLoading,
       rawSettingsQuery.data,

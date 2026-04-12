@@ -284,6 +284,7 @@ describe('Cursor Routes Logic', () => {
         expect(typeof json.error).toBe('string');
         expect(json.error?.length).toBeGreaterThan(0);
         expect(json.reason).toBe('db_not_found');
+        expect(json.error).not.toContain(isolatedHome);
       } finally {
         if (originalHome !== undefined) {
           process.env.HOME = originalHome;

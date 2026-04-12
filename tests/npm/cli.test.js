@@ -85,6 +85,20 @@ describe('npm CLI', () => {
         assert(!output.includes("Profile '--verbose' not found"), 'Should not treat flags as profiles');
       }
     });
+
+    it('routes cursor probe through the cursor command handler', function() {
+      try {
+        execSync(`bun "${srcCcsPath}" cursor probe`, {
+          stdio: 'pipe',
+          timeout: 3000,
+          env: { ...process.env, CCS_HOME: testCcsHome }
+        });
+      } catch (e) {
+        const output = e.stderr?.toString() || e.stdout?.toString() || '';
+        assert(!output.includes("Profile 'cursor' not found"), 'Should not fall through to profile lookup');
+        assert(output.includes('Cursor Live Probe'), 'Should render the cursor probe command output');
+      }
+    });
   });
 
   describe('Profile handling', () => {

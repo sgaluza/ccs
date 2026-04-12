@@ -144,6 +144,12 @@ export async function probeCursorRuntime(config: CursorConfig): Promise<CursorPr
     });
 
     if (!startResult.success) {
+      daemonRunning = await isDaemonRunning(config.port);
+    } else {
+      daemonRunning = true;
+    }
+
+    if (!daemonRunning) {
       return {
         ok: false,
         stage: 'daemon',
@@ -153,8 +159,6 @@ export async function probeCursorRuntime(config: CursorConfig): Promise<CursorPr
         error_type: 'daemon_start_failed',
       };
     }
-
-    daemonRunning = true;
   }
 
   if (!daemonRunning) {

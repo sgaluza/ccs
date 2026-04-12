@@ -1340,6 +1340,8 @@ const resources = {
         probeSucceeded: 'Probe succeeded',
         probeFailed: 'Probe failed',
         probeSaveFirst: 'Save or discard Cursor changes before running the live probe',
+        refreshStatus: 'Refresh Cursor status',
+        refreshConfiguration: 'Refresh Cursor configuration',
       },
       droidPage: {
         loadingDiagnostics: 'Loading Droid diagnostics...',
@@ -2688,6 +2690,8 @@ const resources = {
         probeSucceeded: '探测成功',
         probeFailed: '探测失败',
         probeSaveFirst: '请先保存或放弃 Cursor 更改，再运行实时探测',
+        refreshStatus: '刷新 Cursor 状态',
+        refreshConfiguration: '刷新 Cursor 配置',
       },
       droidPage: {
         loadingDiagnostics: '加载 Droid 诊断中...',
@@ -4130,6 +4134,8 @@ const resources = {
         probeSucceeded: 'Kiểm tra thành công',
         probeFailed: 'Kiểm tra thất bại',
         probeSaveFirst: 'Hãy lưu hoặc bỏ các thay đổi Cursor trước khi chạy kiểm tra trực tiếp',
+        refreshStatus: 'Làm mới trạng thái Cursor',
+        refreshConfiguration: 'Làm mới cấu hình Cursor',
       },
       droidPage: {
         loadingDiagnostics: 'Đang tải chẩn đoán Droid...',
@@ -5580,6 +5586,8 @@ const resources = {
         probeSucceeded: 'プローブ成功',
         probeFailed: 'プローブ失敗',
         probeSaveFirst: 'ライブプローブを実行する前に Cursor の変更を保存するか破棄してください',
+        refreshStatus: 'Cursor の状態を更新',
+        refreshConfiguration: 'Cursor の設定を更新',
       },
       droidPage: {
         loadingDiagnostics: 'Droid診断を読み込み中...',

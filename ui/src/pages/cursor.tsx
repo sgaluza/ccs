@@ -292,6 +292,7 @@ export function CursorPage() {
     statusLoading,
     refetchStatus,
     config,
+    refetchConfig,
     updateConfigAsync,
     isUpdatingConfig,
     models,
@@ -393,6 +394,11 @@ export function CursorPage() {
   const clearProbeState = () => {
     resetProbe();
     setProbeSnapshotKey(null);
+  };
+
+  const resetConfigDraft = (nextConfig = config) => {
+    setConfigDraft(buildConfigDraft(nextConfig));
+    setConfigDirty(false);
   };
 
   const canStart = Boolean(status?.enabled && status?.authenticated && !status?.token_expired);
@@ -699,11 +705,15 @@ export function CursorPage() {
     }
   };
 
-  const handleHeaderRefresh = () => {
+  const handleHeaderRefresh = async () => {
     setRawConfigDirty(false);
     clearProbeState();
-    refetchStatus();
-    refetchRawSettings();
+    const [, refreshedConfig] = await Promise.all([
+      refetchStatus(),
+      refetchConfig(),
+      refetchRawSettings(),
+    ]);
+    resetConfigDraft(refreshedConfig.data ?? config);
   };
 
   return (
@@ -733,6 +743,8 @@ export function CursorPage() {
                 className="h-8 w-8"
                 onClick={() => refetchStatus()}
                 disabled={statusLoading}
+                aria-label={t('cursorPage.refreshStatus')}
+                title={t('cursorPage.refreshStatus')}
               >
                 <RefreshCw className={cn('w-4 h-4', statusLoading && 'animate-spin')} />
               </Button>
@@ -794,11 +806,12 @@ export function CursorPage() {
                     </span>
                   </div>
                   <Badge
-                    variant={probeResult ? 'outline' : 'secondary'}
+                    variant={visibleProbeResult ? 'outline' : 'secondary'}
                     className={cn(
-                      probeResult?.ok && 'border-green-500/40 text-green-600 dark:text-green-300',
-                      probeResult &&
-                        !probeResult.ok &&
+                      visibleProbeResult?.ok &&
+                        'border-green-500/40 text-green-600 dark:text-green-300',
+                      visibleProbeResult &&
+                        !visibleProbeResult.ok &&
                         'border-red-500/40 text-red-600 dark:text-red-300'
                     )}
                   >
@@ -993,6 +1006,8 @@ export function CursorPage() {
                   size="sm"
                   onClick={handleHeaderRefresh}
                   disabled={statusLoading || rawSettingsLoading}
+                  aria-label={t('cursorPage.refreshConfiguration')}
+                  title={t('cursorPage.refreshConfiguration')}
                 >
                   <RefreshCw
                     className={cn(
