@@ -1,6 +1,7 @@
 export const CURSOR_SUBCOMMANDS = [
   'auth',
   'status',
+  'probe',
   'models',
   'start',
   'stop',
