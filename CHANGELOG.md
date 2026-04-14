@@ -1,3 +1,9 @@
+## [7.70.1](https://github.com/kaitranntt/ccs/compare/v7.70.0...v7.70.1) (2026-04-14)
+
+### Bug Fixes
+
+* **ci:** raise PR-Agent custom model budget ([c4ad2ca](https://github.com/kaitranntt/ccs/commit/c4ad2cae108acd691d70f5a0bf91d3d1464e5724))
+
 ## [7.70.0](https://github.com/kaitranntt/ccs/compare/v7.69.1...v7.70.0) (2026-04-14)
 
 ### Features
