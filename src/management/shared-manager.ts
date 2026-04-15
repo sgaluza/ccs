@@ -947,23 +947,20 @@ class SharedManager {
 
     const discoveredEntries = this.discoverMarketplaceEntries(targetConfigDir);
 
-    for (const [name, value] of Object.entries(discoveredEntries)) {
-      const existing = merged[name];
-      if (existing && typeof existing === 'object' && !Array.isArray(existing)) {
-        merged[name] = {
-          ...(existing as Record<string, unknown>),
-          installLocation: value.installLocation,
-        };
-        continue;
-      }
-
-      merged[name] = value;
-    }
-
+    // Keep only registry entries that have a physical directory, and update their
+    // installLocation. Entries only on disk (no registry record) are excluded —
+    // they lack required schema fields that Claude Code enforces.
     for (const name of Object.keys(merged)) {
+      const entry = merged[name];
       if (!(name in discoveredEntries)) {
         delete merged[name];
+      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        merged[name] = {
+          ...(entry as Record<string, unknown>),
+          installLocation: discoveredEntries[name].installLocation,
+        };
       }
+      // else: entry is in discoveredEntries but has a malformed value — preserve as-is
     }
 
     return JSON.stringify(merged, null, 2);
@@ -981,6 +978,11 @@ class SharedManager {
 
     for (const entry of fs.readdirSync(marketplacesDir, { withFileTypes: true })) {
       if (!entry.isDirectory()) {
+        continue;
+      }
+
+      // Skip hidden dirs and Claude Code's .staging rename-dance work trees.
+      if (entry.name.startsWith('.') || entry.name.endsWith('.staging')) {
         continue;
       }
 

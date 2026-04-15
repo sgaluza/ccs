@@ -360,6 +360,67 @@ describe('SharedManager', () => {
       expect(reconciled.stale).toBeUndefined();
     });
 
+    it('does not register .staging directories left behind by interrupted marketplace auto-updates', () => {
+      // Regression: CCS used to write bare { installLocation } entries for marketplace
+      // directories with no registry record. Claude Code requires source + lastUpdated,
+      // so those entries corrupted known_marketplaces.json and broke /plugin.
+      const manager = new SharedManager();
+      const instancePath = instanceDir('work');
+      fs.mkdirSync(instancePath, { recursive: true });
+      manager.linkSharedDirectories(instancePath);
+
+      // Simulate Claude Code leaving a .staging dir behind in both the global claude dir
+      // and the instance dir (discoverMarketplaceEntries scans each independently).
+      fs.mkdirSync(marketplacePath(claudeDir(), 'claude-plugins-official.staging'), {
+        recursive: true,
+      });
+      fs.mkdirSync(marketplacePath(instancePath, 'claude-plugins-official.staging'), {
+        recursive: true,
+      });
+
+      manager.normalizeMarketplaceRegistryPaths(instancePath);
+
+      const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      const global = readJson(globalRegistryPath) as Record<string, unknown>;
+      expect(global['claude-plugins-official.staging']).toBeUndefined();
+
+      const instanceRegistryPath = path.join(instancePath, 'plugins', 'known_marketplaces.json');
+      const instance = readJson(instanceRegistryPath) as Record<string, unknown>;
+      expect(instance['claude-plugins-official.staging']).toBeUndefined();
+    });
+
+    it('removes registry entries whose physical marketplace directory no longer exists', () => {
+      // Regression guard: buildMarketplaceRegistryContent merges JSON sources then
+      // cross-checks against discoveredEntries. Any name in the merged registry that
+      // has no matching directory on disk must be pruned so stale entries don't
+      // accumulate across marketplace uninstalls or renames.
+      const manager = new SharedManager();
+      const instancePath = instanceDir('work');
+      fs.mkdirSync(instancePath, { recursive: true });
+      manager.linkSharedDirectories(instancePath);
+
+      // Write a registry entry for a marketplace that has no physical directory.
+      const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      writeJson(globalRegistryPath, {
+        'vanished-marketplace': {
+          source: { type: 'github', repo: 'example/vanished' },
+          lastUpdated: '2024-01-01T00:00:00.000Z',
+          installLocation: marketplacePath(claudeDir(), 'vanished-marketplace'),
+        },
+      });
+      // Intentionally do NOT create the physical directory — simulate an uninstalled
+      // marketplace whose registry entry was not cleaned up.
+
+      manager.normalizeMarketplaceRegistryPaths(instancePath);
+
+      const global = readJson(globalRegistryPath) as Record<string, unknown>;
+      expect(global['vanished-marketplace']).toBeUndefined();
+
+      const instanceRegistryPath = path.join(instancePath, 'plugins', 'known_marketplaces.json');
+      const instance = readJson(instanceRegistryPath) as Record<string, unknown>;
+      expect(instance['vanished-marketplace']).toBeUndefined();
+    });
+
     it('warns and skips malformed marketplace registries while keeping valid sources', () => {
       const manager = new SharedManager();
       const instancePath = instanceDir('work');
