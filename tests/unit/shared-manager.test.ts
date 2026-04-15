@@ -360,7 +360,7 @@ describe('SharedManager', () => {
       expect(reconciled.stale).toBeUndefined();
     });
 
-    it('does not register .staging directories left behind by interrupted marketplace auto-updates', () => {
+    it('does not register transient marketplace directories left behind by interrupted auto-updates', () => {
       // Regression: CCS used to write bare { installLocation } entries for marketplace
       // directories with no registry record. Claude Code requires source + lastUpdated,
       // so those entries corrupted known_marketplaces.json and broke /plugin.
@@ -369,24 +369,29 @@ describe('SharedManager', () => {
       fs.mkdirSync(instancePath, { recursive: true });
       manager.linkSharedDirectories(instancePath);
 
-      // Simulate Claude Code leaving a .staging dir behind in both the global claude dir
-      // and the instance dir (discoverMarketplaceEntries scans each independently).
-      fs.mkdirSync(marketplacePath(claudeDir(), 'claude-plugins-official.staging'), {
-        recursive: true,
-      });
-      fs.mkdirSync(marketplacePath(instancePath, 'claude-plugins-official.staging'), {
-        recursive: true,
-      });
+      // Simulate Claude Code leaving rename-dance temp dirs behind in both the
+      // global claude dir and the instance dir (discoverMarketplaceEntries scans
+      // each independently).
+      for (const suffix of ['.staging', '.bak']) {
+        fs.mkdirSync(marketplacePath(claudeDir(), `claude-plugins-official${suffix}`), {
+          recursive: true,
+        });
+        fs.mkdirSync(marketplacePath(instancePath, `claude-plugins-official${suffix}`), {
+          recursive: true,
+        });
+      }
 
       manager.normalizeMarketplaceRegistryPaths(instancePath);
 
       const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
       const global = readJson(globalRegistryPath) as Record<string, unknown>;
       expect(global['claude-plugins-official.staging']).toBeUndefined();
+      expect(global['claude-plugins-official.bak']).toBeUndefined();
 
       const instanceRegistryPath = path.join(instancePath, 'plugins', 'known_marketplaces.json');
       const instance = readJson(instanceRegistryPath) as Record<string, unknown>;
       expect(instance['claude-plugins-official.staging']).toBeUndefined();
+      expect(instance['claude-plugins-official.bak']).toBeUndefined();
     });
 
     it('removes registry entries whose physical marketplace directory no longer exists', () => {
@@ -419,6 +424,29 @@ describe('SharedManager', () => {
       const instanceRegistryPath = path.join(instancePath, 'plugins', 'known_marketplaces.json');
       const instance = readJson(instanceRegistryPath) as Record<string, unknown>;
       expect(instance['vanished-marketplace']).toBeUndefined();
+    });
+
+    it('drops malformed marketplace entries even when the payload directory still exists', () => {
+      const manager = new SharedManager();
+      const instancePath = instanceDir('work');
+      fs.mkdirSync(instancePath, { recursive: true });
+      manager.linkSharedDirectories(instancePath);
+
+      fs.mkdirSync(marketplacePath(claudeDir(), 'claude-code-plugins'), { recursive: true });
+
+      const globalRegistryPath = path.join(claudeDir(), 'plugins', 'known_marketplaces.json');
+      writeJson(globalRegistryPath, {
+        'claude-code-plugins': 'bad-entry',
+      });
+
+      manager.normalizeMarketplaceRegistryPaths(instancePath);
+
+      const global = readJson(globalRegistryPath) as Record<string, unknown>;
+      expect(global['claude-code-plugins']).toBeUndefined();
+
+      const instanceRegistryPath = path.join(instancePath, 'plugins', 'known_marketplaces.json');
+      const instance = readJson(instanceRegistryPath) as Record<string, unknown>;
+      expect(instance['claude-code-plugins']).toBeUndefined();
     });
 
     it('warns and skips malformed marketplace registries while keeping valid sources', () => {

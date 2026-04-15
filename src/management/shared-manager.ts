@@ -936,6 +936,10 @@ class SharedManager {
         }
 
         for (const [name, value] of Object.entries(parsed as Record<string, unknown>)) {
+          if (!this.isMarketplaceRegistryEntry(value)) {
+            continue;
+          }
+
           merged[name] = normalizePluginMetadataValue(value, targetConfigDir).normalized;
         }
       } catch (err) {
@@ -954,13 +958,14 @@ class SharedManager {
       const entry = merged[name];
       if (!(name in discoveredEntries)) {
         delete merged[name];
-      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      } else if (this.isMarketplaceRegistryEntry(entry)) {
         merged[name] = {
-          ...(entry as Record<string, unknown>),
+          ...entry,
           installLocation: discoveredEntries[name].installLocation,
         };
+      } else {
+        delete merged[name];
       }
-      // else: entry is in discoveredEntries but has a malformed value — preserve as-is
     }
 
     return JSON.stringify(merged, null, 2);
@@ -981,8 +986,8 @@ class SharedManager {
         continue;
       }
 
-      // Skip hidden dirs and Claude Code's .staging rename-dance work trees.
-      if (entry.name.startsWith('.') || entry.name.endsWith('.staging')) {
+      // Skip hidden dirs and Claude Code rename-dance leftovers (.staging/.bak).
+      if (this.isTransientMarketplaceDirectory(entry.name)) {
         continue;
       }
 
@@ -992,6 +997,14 @@ class SharedManager {
     }
 
     return discovered;
+  }
+
+  private isTransientMarketplaceDirectory(name: string): boolean {
+    return name.startsWith('.') || name.endsWith('.staging') || name.endsWith('.bak');
+  }
+
+  private isMarketplaceRegistryEntry(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
   }
 
   private writePluginMetadataFile(
