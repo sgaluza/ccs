@@ -1283,7 +1283,7 @@ export function CursorPage() {
                               <span className="font-medium text-muted-foreground">
                                 {t('cursorPage.provider')}
                               </span>
-                              <span className="font-mono">Cursor IDE</span>
+                              <span className="font-mono">Cursor IDE (Legacy)</span>
                             </div>
                             <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-center">
                               <span className="font-medium text-muted-foreground">
@@ -1295,7 +1295,7 @@ export function CursorPage() {
                             </div>
                             {/* TODO i18n: missing key for model mapping env var info paragraph */}
                             <p className="text-xs text-muted-foreground">
-                              Model mapping writes `ANTHROPIC_MODEL`,
+                              Legacy bridge model mapping writes `ANTHROPIC_MODEL`,
                               `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, and
                               `ANTHROPIC_DEFAULT_HAIKU_MODEL` in `cursor.settings.json`.
                             </p>

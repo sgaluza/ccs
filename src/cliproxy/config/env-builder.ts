@@ -19,7 +19,7 @@ import {
   normalizeProtocol,
   CLIPROXY_DEFAULT_PORT,
 } from './port-manager';
-import { getProviderSettingsPath } from './path-resolver';
+import { migrateLegacyProviderSettingsIfNeeded } from './path-resolver';
 import {
   canonicalizeModelIdForProvider,
   MODEL_ENV_VAR_KEYS,
@@ -465,7 +465,7 @@ export function getEffectiveEnvVars(
   }
 
   // Priority 2: Default provider settings file
-  const settingsPath = getProviderSettingsPath(provider);
+  const settingsPath = migrateLegacyProviderSettingsIfNeeded(provider);
 
   // Check for user override file
   if (fs.existsSync(settingsPath)) {
@@ -505,7 +505,7 @@ export function getEffectiveEnvVars(
  * Called during installation/first run
  */
 export function ensureProviderSettings(provider: CLIProxyProvider): void {
-  const settingsPath = getProviderSettingsPath(provider);
+  const settingsPath = migrateLegacyProviderSettingsIfNeeded(provider);
   const defaultEnv = getClaudeEnvVars(provider);
 
   const writeSettings = (settings: Record<string, unknown>): void => {
@@ -663,7 +663,7 @@ export function getRemoteEnvVars(
 
   // Priority 2: Default provider settings file (~/.ccs/{provider}.settings.json)
   if (Object.keys(userEnvVars).length === 0) {
-    const settingsPath = getProviderSettingsPath(provider);
+    const settingsPath = migrateLegacyProviderSettingsIfNeeded(provider);
     if (fs.existsSync(settingsPath)) {
       try {
         const content = fs.readFileSync(settingsPath, 'utf-8');

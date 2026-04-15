@@ -4,6 +4,9 @@ import type { CursorConfig } from '../config/unified-config-types';
 import { getCcsDirDisplay } from '../utils/config-manager';
 import { color } from '../utils/ui';
 
+const LEGACY_CURSOR_COMMAND = 'ccs legacy cursor';
+const CLIPROXY_CURSOR_COMMAND = 'ccs cursor';
+
 function printLines(lines: string[]): void {
   for (const line of lines) {
     console.log(line);
@@ -14,11 +17,11 @@ export function renderCursorHelp(): number {
   printLines([
     'Legacy Cursor Compatibility',
     '',
-    'Deprecated: prefer CLIProxy-backed Cursor auth and account management.',
-    'Supported auth path: ccs cursor --auth',
+    'Deprecated: `ccs cursor` now belongs to the CLIProxy Cursor provider.',
+    `Supported auth path: ${CLIPROXY_CURSOR_COMMAND} --auth`,
     'Supported dashboard path: ccs config -> CLIProxy -> Cursor',
     '',
-    'Usage: ccs cursor <subcommand>',
+    `Usage: ${LEGACY_CURSOR_COMMAND} <subcommand>`,
     '',
     'Subcommands (deprecated compatibility for the local reverse-engineered bridge):',
     '  auth      Import Cursor IDE authentication token (deprecated)',
@@ -32,24 +35,24 @@ export function renderCursorHelp(): number {
     '  help      Show this help message',
     '',
     'Supported CLIProxy path:',
-    '  ccs cursor --auth                                # Authenticate Cursor via CLIProxy',
-    '  ccs cursor --accounts                            # Manage CLIProxy Cursor accounts',
-    '  ccs cursor --config                              # Open CLIProxy Cursor settings',
+    `  ${CLIPROXY_CURSOR_COMMAND} --auth                                # Authenticate Cursor via CLIProxy`,
+    `  ${CLIPROXY_CURSOR_COMMAND} --accounts                            # Manage CLIProxy Cursor accounts`,
+    `  ${CLIPROXY_CURSOR_COMMAND} --config                              # Open CLIProxy Cursor settings`,
     '',
     'Legacy runtime entry (deprecated compatibility):',
-    '  ccs cursor [claude args]                          # Run Claude via the local Cursor bridge',
+    `  ${LEGACY_CURSOR_COMMAND} [claude args]                          # Run Claude via the local Cursor bridge`,
     '',
     'Legacy auth options:',
-    '  ccs cursor auth                                    # Auto-detect from Cursor SQLite (deprecated)',
-    '  ccs cursor auth --manual --token <t> --machine-id <id>',
+    `  ${LEGACY_CURSOR_COMMAND} auth                                    # Auto-detect from Cursor SQLite (deprecated)`,
+    `  ${LEGACY_CURSOR_COMMAND} auth --manual --token <t> --machine-id <id>`,
     '',
     'Legacy bridge quick start:',
-    '  1. ccs cursor enable   # Deprecated compatibility: enable local bridge',
-    '  2. ccs cursor auth     # Deprecated compatibility: import Cursor IDE token',
-    '  3. ccs cursor start    # Start local daemon',
-    '  4. ccs cursor probe    # Verify live runtime health',
-    '  5. ccs cursor "task"   # Run Claude through the local bridge',
-    '  6. ccs cursor status   # Inspect auth/daemon wiring',
+    `  1. ${LEGACY_CURSOR_COMMAND} enable   # Deprecated compatibility: enable local bridge`,
+    `  2. ${LEGACY_CURSOR_COMMAND} auth     # Deprecated compatibility: import Cursor IDE token`,
+    `  3. ${LEGACY_CURSOR_COMMAND} start    # Start local daemon`,
+    `  4. ${LEGACY_CURSOR_COMMAND} probe    # Verify live runtime health`,
+    `  5. ${LEGACY_CURSOR_COMMAND} "task"   # Run Claude through the local bridge`,
+    `  6. ${LEGACY_CURSOR_COMMAND} status   # Inspect auth/daemon wiring`,
     '',
     'Web UI: ccs config -> Deprecated -> Cursor IDE',
     '',
@@ -109,11 +112,13 @@ export function renderCursorStatus(
   console.log('');
   console.log('Client setup:');
   console.log(`  Raw settings:    ${dirDisplay}/cursor.settings.json`);
-  console.log('  Runtime entry:   ccs cursor [claude args] (deprecated compatibility)');
-  console.log('  Supported auth:  ccs cursor --auth');
-  console.log('  Live probe:      ccs cursor probe');
-  console.log('  Status command:  ccs cursor status');
-  console.log('  Help command:    ccs cursor help');
+  console.log(
+    `  Runtime entry:   ${LEGACY_CURSOR_COMMAND} [claude args] (deprecated compatibility)`
+  );
+  console.log(`  Supported auth:  ${CLIPROXY_CURSOR_COMMAND} --auth`);
+  console.log(`  Live probe:      ${LEGACY_CURSOR_COMMAND} probe`);
+  console.log(`  Status command:  ${LEGACY_CURSOR_COMMAND} status`);
+  console.log(`  Help command:    ${LEGACY_CURSOR_COMMAND} help`);
 
   if (isReady) {
     return;
@@ -123,16 +128,16 @@ export function renderCursorStatus(
 
   console.log('Next steps:');
   if (!cursorConfig.enabled) {
-    console.log('  - Enable:      ccs cursor enable');
+    console.log(`  - Enable:      ${LEGACY_CURSOR_COMMAND} enable`);
   }
   if (!authStatus.authenticated || authStatus.expired) {
-    console.log('  - Supported:   ccs cursor --auth');
-    console.log('  - Legacy auth: ccs cursor auth');
+    console.log(`  - Supported:   ${CLIPROXY_CURSOR_COMMAND} --auth`);
+    console.log(`  - Legacy auth: ${LEGACY_CURSOR_COMMAND} auth`);
   }
   if (!daemonStatus.running) {
-    console.log('  - Start:       ccs cursor start');
+    console.log(`  - Start:       ${LEGACY_CURSOR_COMMAND} start`);
   }
-  console.log('  - Help:        ccs cursor help');
+  console.log(`  - Help:        ${LEGACY_CURSOR_COMMAND} help`);
 }
 
 export function renderCursorModels(models: CursorModel[], defaultModel: string): void {

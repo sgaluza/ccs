@@ -26,6 +26,7 @@ import { getCcsDir } from '../utils/config-manager';
 import { getProfileLookupCandidates, isLegacyProfileAlias } from '../utils/profile-compat';
 import type { CLIProxyProvider } from '../cliproxy/types';
 import { CLIPROXY_PROVIDER_IDS, isCLIProxyProvider } from '../cliproxy/provider-capabilities';
+import { LEGACY_CURSOR_PROFILE_NAME } from '../cursor/constants';
 import { normalizeCopilotModelId } from '../copilot/copilot-model-normalizer';
 import type { TargetType } from '../targets/target-adapter';
 import type { ProfileType } from '../types/profile';
@@ -296,20 +297,17 @@ class ProfileDetector {
       };
     }
 
-    // Priority 0.25: Check Cursor profile - local Cursor daemon runtime.
-    // This keeps bare `ccs cursor` and `ccs cursor <subcommand>` bound to the
-    // existing runtime/admin surface even though CLIProxy also exposes a
-    // distinct provider named "cursor".
-    if (profileName === 'cursor') {
+    // Priority 0.25: Check explicit legacy Cursor bridge profile.
+    if (profileName === LEGACY_CURSOR_PROFILE_NAME) {
       const cursorConfig = getCursorConfig();
 
       if (!cursorConfig?.enabled) {
         const error = new Error(
-          'Cursor profile is not enabled.\n\n' +
+          'Legacy Cursor profile is not enabled.\n\n' +
             'To enable Cursor integration:\n' +
-            '  1. Run: ccs cursor enable\n' +
-            '  2. Import auth: ccs cursor auth\n' +
-            '  3. Start daemon: ccs cursor start\n\n' +
+            '  1. Run: ccs legacy cursor enable\n' +
+            '  2. Import auth: ccs legacy cursor auth\n' +
+            '  3. Start daemon: ccs legacy cursor start\n\n' +
             'Or manually edit ~/.ccs/config.yaml:\n' +
             '  cursor:\n' +
             '    enabled: true'
@@ -322,7 +320,7 @@ class ProfileDetector {
 
       return {
         type: 'cursor',
-        name: 'cursor',
+        name: LEGACY_CURSOR_PROFILE_NAME,
         cursorConfig,
       };
     }

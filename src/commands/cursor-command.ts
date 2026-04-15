@@ -26,10 +26,13 @@ import {
 } from './cursor-command-display';
 import { ok, fail, info } from '../utils/ui';
 
+const LEGACY_CURSOR_COMMAND = 'ccs legacy cursor';
+const CLIPROXY_CURSOR_COMMAND = 'ccs cursor';
+
 function printLegacyCursorDeprecationNotice(): void {
   console.log(
     info(
-      'Deprecated compatibility path. Prefer CLIProxy-backed Cursor auth via `ccs cursor --auth` or the CLIProxy dashboard.'
+      `Deprecated compatibility path. \`${CLIPROXY_CURSOR_COMMAND}\` now belongs to the CLIProxy Cursor provider; use \`${LEGACY_CURSOR_COMMAND}\` for the old bridge.`
     )
   );
   console.log('');
@@ -135,7 +138,7 @@ async function handleAuth(args: string[]): Promise<number> {
     if (!accessToken || !machineId) {
       console.error(
         fail(
-          'Manual auth requires both token and machine ID.\n\nExample:\n  ccs cursor auth --manual --token <token> --machine-id <machine-id>'
+          `Manual auth requires both token and machine ID.\n\nExample:\n  ${LEGACY_CURSOR_COMMAND} auth --manual --token <token> --machine-id <machine-id>`
         )
       );
       return 1;
@@ -156,9 +159,9 @@ async function handleAuth(args: string[]): Promise<number> {
     console.log(ok('Cursor credentials imported (manual mode)'));
     console.log('');
     console.log('Next steps:');
-    console.log('  0. Preferred auth:     ccs cursor --auth');
-    console.log('  1. Enable integration: ccs cursor enable');
-    console.log('  2. Start daemon:       ccs cursor start');
+    console.log(`  0. Preferred auth:     ${CLIPROXY_CURSOR_COMMAND} --auth`);
+    console.log(`  1. Enable integration: ${LEGACY_CURSOR_COMMAND} enable`);
+    console.log(`  2. Start daemon:       ${LEGACY_CURSOR_COMMAND} start`);
     return 0;
   }
 
@@ -179,10 +182,10 @@ async function handleAuth(args: string[]): Promise<number> {
     console.log(ok('Auto-detected Cursor credentials'));
     console.log('');
     console.log('Next steps:');
-    console.log('  0. Preferred auth:     ccs cursor --auth');
-    console.log('  1. Enable integration: ccs cursor enable');
-    console.log('  2. Start daemon:       ccs cursor start');
-    console.log('  3. Check status:       ccs cursor status');
+    console.log(`  0. Preferred auth:     ${CLIPROXY_CURSOR_COMMAND} --auth`);
+    console.log(`  1. Enable integration: ${LEGACY_CURSOR_COMMAND} enable`);
+    console.log(`  2. Start daemon:       ${LEGACY_CURSOR_COMMAND} start`);
+    console.log(`  3. Check status:       ${LEGACY_CURSOR_COMMAND} status`);
     return 0;
   }
 
@@ -190,7 +193,7 @@ async function handleAuth(args: string[]): Promise<number> {
   printAutoDetectFailure(autoResult);
   console.log('');
   console.log('Manual fallback:');
-  console.log('  ccs cursor auth --manual --token <token> --machine-id <machine-id>');
+  console.log(`  ${LEGACY_CURSOR_COMMAND} auth --manual --token <token> --machine-id <machine-id>`);
   console.log('');
 
   return 1;
@@ -230,17 +233,17 @@ async function handleStart(): Promise<number> {
   const cursorConfig = getCursorConfig();
 
   if (!cursorConfig.enabled) {
-    console.error(fail('Cursor integration is disabled. Run: ccs cursor enable'));
+    console.error(fail(`Cursor integration is disabled. Run: ${LEGACY_CURSOR_COMMAND} enable`));
     return 1;
   }
 
   const authStatus = checkAuthStatus();
   if (!authStatus.authenticated) {
-    console.error(fail('Not authenticated. Run: ccs cursor auth'));
+    console.error(fail(`Not authenticated. Run: ${LEGACY_CURSOR_COMMAND} auth`));
     return 1;
   }
   if (authStatus.expired) {
-    console.error(fail('Credentials expired. Run: ccs cursor auth'));
+    console.error(fail(`Credentials expired. Run: ${LEGACY_CURSOR_COMMAND} auth`));
     return 1;
   }
 
@@ -294,10 +297,10 @@ async function handleEnable(): Promise<number> {
   console.log(ok('Cursor integration enabled'));
   console.log('');
   console.log('Next steps:');
-  console.log('  0. Preferred auth: ccs cursor --auth');
-  console.log('  1. Authenticate: ccs cursor auth');
-  console.log('  2. Start daemon: ccs cursor start');
-  console.log('  3. Check status: ccs cursor status');
+  console.log(`  0. Preferred auth: ${CLIPROXY_CURSOR_COMMAND} --auth`);
+  console.log(`  1. Authenticate: ${LEGACY_CURSOR_COMMAND} auth`);
+  console.log(`  2. Start daemon: ${LEGACY_CURSOR_COMMAND} start`);
+  console.log(`  3. Check status: ${LEGACY_CURSOR_COMMAND} status`);
 
   return 0;
 }

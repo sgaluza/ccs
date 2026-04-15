@@ -20,6 +20,8 @@ export const RESERVED_PROFILE_NAMES = [
   'copilot',
   // Cursor IDE (Cursor proxy daemon)
   'cursor',
+  'legacy-cursor',
+  'legacy',
   // CLI commands and special names
   'default',
   'config',

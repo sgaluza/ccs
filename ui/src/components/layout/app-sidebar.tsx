@@ -126,7 +126,11 @@ function buildNavGroups(t: (key: string) => string): SidebarGroupDef[] {
     {
       title: t('nav.deprecated'),
       items: [
-        { path: '/cursor', iconSrc: '/assets/sidebar/cursor.svg', label: t('nav.cursorIde') },
+        {
+          path: '/legacy/cursor',
+          iconSrc: '/assets/sidebar/cursor.svg',
+          label: `${t('nav.cursorIde')} (Legacy)`,
+        },
       ],
     },
     {

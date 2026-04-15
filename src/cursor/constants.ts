@@ -1,3 +1,5 @@
+export const LEGACY_CURSOR_PROFILE_NAME = 'legacy-cursor';
+
 export const CURSOR_SUBCOMMANDS = [
   'auth',
   'status',

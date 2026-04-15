@@ -344,8 +344,7 @@ export async function handleHelpRoute(
     cliproxy: async () => (await import('./cliproxy/help-subcommand')).showHelp(),
     copilot: async () =>
       process.exit(await (await import('./copilot-command')).handleCopilotCommand(['--help'])),
-    cursor: async () =>
-      process.exit(await (await import('./cursor-command')).handleCursorCommand(['--help'])),
+    cursor: async () => await showProviderShortcutHelp('cursor', writeLine),
     docker: async () => (await import('./docker/help-subcommand')).showHelp(),
     migrate: async () => (await import('./migrate-command')).printMigrateHelp(),
     setup: async () => (await import('./setup-command')).handleSetupCommand(['--help']),

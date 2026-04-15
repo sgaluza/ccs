@@ -140,6 +140,15 @@ describe('completion backend', () => {
     expect(suggestionValues(['cliproxy'])).toEqual(expect.arrayContaining(['remove', '--backend']));
   });
 
+  test('treats cursor as a provider shortcut in completion', () => {
+    const values = suggestionValues(['cursor']);
+    expect(values).toEqual(
+      expect.arrayContaining(['--auth', '--accounts', '--config', '--logout'])
+    );
+    expect(values).not.toContain('probe');
+    expect(values).not.toContain('start');
+  });
+
   test('filters suggestions by the current token prefix', () => {
     const values = suggestionValues([], 'do');
     expect(values).toEqual(expect.arrayContaining(['docker', 'doctor']));

@@ -87,17 +87,22 @@ describe('npm CLI', () => {
     });
 
     it('routes cursor probe through the cursor command handler', function() {
+      let output = '';
       try {
-        execSync(`bun "${srcCcsPath}" cursor probe`, {
+        output = execSync(`bun "${srcCcsPath}" cursor probe`, {
+          encoding: 'utf8',
           stdio: 'pipe',
           timeout: 3000,
           env: { ...process.env, CCS_HOME: testCcsHome }
         });
       } catch (e) {
-        const output = e.stderr?.toString() || e.stdout?.toString() || '';
-        assert(!output.includes("Profile 'cursor' not found"), 'Should not fall through to profile lookup');
-        assert(output.includes('Cursor Live Probe'), 'Should render the cursor probe command output');
+        output = e.stderr?.toString() || e.stdout?.toString() || '';
       }
+      assert(!output.includes("Profile 'cursor' not found"), 'Should not fall through to profile lookup');
+      assert(
+        output.includes('Cursor Live Probe') || output.includes('legacy cursor probe'),
+        'Should route through the legacy cursor compatibility handler'
+      );
     });
 
     it('routes gitlab --help to provider shortcut help instead of starting auth', function() {
