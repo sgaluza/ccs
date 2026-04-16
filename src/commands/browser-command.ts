@@ -1,13 +1,8 @@
 import { getBrowserStatus, type BrowserStatusPayload } from '../utils/browser';
+import { getNodePlatformKey } from '../utils/browser/platform';
 import { color, dim, header, initUI, subheader } from '../utils/ui';
 
 type HelpWriter = (line: string) => void;
-
-function currentPlatform(): 'darwin' | 'linux' | 'win32' {
-  if (process.platform === 'darwin') return 'darwin';
-  if (process.platform === 'win32') return 'win32';
-  return 'linux';
-}
 
 function summarizeBrowserHealth(status: BrowserStatusPayload): {
   label: 'ready' | 'partial' | 'action required';
@@ -63,9 +58,8 @@ function writeClaudeStatus(
   writeLine(`  Detail: ${status.detail}`);
   writeLine(`  Next step: ${status.nextStep}`);
   if (includeLaunchGuidance && status.enabled && status.state !== 'ready') {
-    writeLine(
-      `  Launch command (${currentPlatform()}): ${status.launchCommands[currentPlatform()]}`
-    );
+    const platform = getNodePlatformKey();
+    writeLine(`  Launch command (${platform}): ${status.launchCommands[platform]}`);
   }
   writeLine('');
 }

@@ -2,6 +2,7 @@ import { getBrowserConfig } from '../../config/unified-config-loader';
 import { getCodexBinaryInfo } from '../../targets/codex-detector';
 import { type BrowserRuntimeEnv, resolveBrowserRuntimeEnv } from './chrome-reuse';
 import { getBrowserMcpServerName, getBrowserMcpServerPath } from './mcp-installer';
+import { getNodePlatformKey } from './platform';
 import {
   getEffectiveClaudeBrowserAttachConfig,
   getRecommendedBrowserUserDataDir,
@@ -107,7 +108,7 @@ async function buildClaudeBrowserStatus(
         state: 'path_missing',
         title: 'Claude Browser Attach path is missing.',
         detail: message,
-        nextStep: `Create or choose a Chrome user-data directory, then launch Chrome with attach mode enabled. Example: ${launchCommands[platformKey()]}`,
+        nextStep: `Create or choose a Chrome user-data directory, then launch Chrome with attach mode enabled. Example: ${launchCommands[getNodePlatformKey()]}`,
       };
     }
 
@@ -117,7 +118,7 @@ async function buildClaudeBrowserStatus(
         state: 'browser_not_running',
         title: 'Claude Browser Attach could not find a running browser session.',
         detail: message,
-        nextStep: `Start Chrome with remote debugging and the configured user-data dir. Example: ${launchCommands[platformKey()]}`,
+        nextStep: `Start Chrome with remote debugging and the configured user-data dir. Example: ${launchCommands[getNodePlatformKey()]}`,
       };
     }
 
@@ -126,7 +127,7 @@ async function buildClaudeBrowserStatus(
       state: 'endpoint_unreachable',
       title: 'Claude Browser Attach could not reach the DevTools endpoint.',
       detail: message,
-      nextStep: `Restart the attach browser session or confirm the configured port. Example: ${launchCommands[platformKey()]}`,
+      nextStep: `Restart the attach browser session or confirm the configured port. Example: ${launchCommands[getNodePlatformKey()]}`,
     };
   }
 }
@@ -184,10 +185,4 @@ function buildLaunchCommands(userDataDir: string, devtoolsPort: number): Browser
     linux: `google-chrome --remote-debugging-port=${devtoolsPort} --user-data-dir=${quotedPath}`,
     win32: `chrome.exe --remote-debugging-port=${devtoolsPort} --user-data-dir=${quotedPath}`,
   };
-}
-
-function platformKey(): keyof BrowserLaunchCommands {
-  if (process.platform === 'darwin') return 'darwin';
-  if (process.platform === 'win32') return 'win32';
-  return 'linux';
 }

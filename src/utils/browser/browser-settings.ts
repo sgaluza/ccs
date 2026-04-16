@@ -74,6 +74,9 @@ export function getEffectiveClaudeBrowserAttachConfig(
     overrideActive: false,
     userDataDir: configUserDataDir,
     devtoolsPort: configPort,
+    // Config-backed browser attach always keeps an explicit port so launches
+    // stay aligned with Settings > Browser, even when the effective value is
+    // the default 9222.
     hasExplicitDevtoolsPort: true,
   };
 }

@@ -90,6 +90,16 @@ CCS still supports environment-variable overrides for backward compatibility.
 If an override is active, Browser status surfaces should report that the current session is being
 managed externally by environment variables.
 
+Override precedence is:
+
+1. `CCS_BROWSER_USER_DATA_DIR`
+2. `CCS_BROWSER_PROFILE_DIR`
+3. the persisted `browser.claude.user_data_dir` config value
+
+Config-backed Browser Attach always passes an explicit DevTools port to the runtime, even when the
+effective value is the default `9222`. Metadata-based port discovery is preserved only for the
+legacy `CCS_BROWSER_PROFILE_DIR` flow when `CCS_BROWSER_DEVTOOLS_PORT` is not set.
+
 ## Managed Runtime Files
 
 - `~/.claude.json` -> CCS manages `mcpServers.ccs-browser` for Claude Browser Attach

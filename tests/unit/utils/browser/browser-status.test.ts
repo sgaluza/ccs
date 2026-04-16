@@ -199,4 +199,45 @@ describe('browser status', () => {
       codexSpy.mockRestore();
     }
   });
+
+  it('always forwards an explicit port for config-backed browser attach sessions', async () => {
+    mutateUnifiedConfig((config) => {
+      config.browser = {
+        claude: {
+          enabled: true,
+          user_data_dir: '/tmp/config-browser',
+          devtools_port: 9222,
+        },
+        codex: {
+          enabled: true,
+        },
+      };
+    });
+
+    const runtimeSpy = spyOn(chromeReuse, 'resolveBrowserRuntimeEnv').mockResolvedValue({
+      CCS_BROWSER_USER_DATA_DIR: '/tmp/config-browser',
+      CCS_BROWSER_DEVTOOLS_HOST: '127.0.0.1',
+      CCS_BROWSER_DEVTOOLS_PORT: '9222',
+      CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9222',
+      CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/config',
+    });
+    const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
+      path: '/usr/local/bin/codex',
+      needsShell: false,
+      version: 'codex-cli 0.120.0',
+      features: ['config-overrides'],
+    });
+
+    try {
+      await getBrowserStatus();
+
+      expect(runtimeSpy.mock.calls[0]?.[0]).toEqual({
+        profileDir: '/tmp/config-browser',
+        devtoolsPort: '9222',
+      });
+    } finally {
+      runtimeSpy.mockRestore();
+      codexSpy.mockRestore();
+    }
+  });
 });
