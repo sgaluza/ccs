@@ -55,7 +55,7 @@ function runSessionTrackerScenario(
   const scriptPath = path.join(tempHome, `session-target-child-${Date.now()}.mjs`);
   fs.writeFileSync(scriptPath, script, 'utf8');
 
-  const result = spawnSync('/bin/bash', ['-lc', `bun ${JSON.stringify(scriptPath)}`], {
+  const result = spawnSync(process.execPath, [scriptPath], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
@@ -69,7 +69,7 @@ function runSessionTrackerScenario(
   if (result.status !== 0) {
     throw new Error(
       `child session-tracker scenario failed: ${JSON.stringify({
-        command: `bun ${scriptPath}`,
+        command: `${process.execPath} ${scriptPath}`,
         status: result.status,
         signal: result.signal,
         error: result.error?.message ?? null,

@@ -45,7 +45,7 @@ function runTokensCommandInChild(tempHome: string, args: string[]) {
   const scriptPath = path.join(tempHome, `tokens-child-${Date.now()}.mjs`);
   fs.writeFileSync(scriptPath, script, 'utf8');
 
-  const result = spawnSync('/bin/bash', ['-lc', `bun ${JSON.stringify(scriptPath)}`], {
+  const result = spawnSync(process.execPath, [scriptPath], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
@@ -60,7 +60,7 @@ function runTokensCommandInChild(tempHome: string, args: string[]) {
   if (result.status !== 0) {
     throw new Error(
       `child tokens command failed: ${JSON.stringify({
-        command: `bun ${scriptPath}`,
+        command: `${process.execPath} ${scriptPath}`,
         status: result.status,
         signal: result.signal,
         error: result.error?.message ?? null,
