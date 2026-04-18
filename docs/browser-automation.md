@@ -57,12 +57,15 @@ Phase 5 capability details:
 - existing tools still honor explicit `pageIndex`; when omitted, they resolve through the selected page
 - selected page state is session-local MCP runtime state and is not persisted across runtime restarts
 
-Phase 6A capability details:
+Phase 6 capability details:
 
 - interception rules are session-local and bind to the concrete page selected when the rule is created
-- Phase 6A supports minimal request matching by `urlIncludes` and `method`
+- Phase 6 supports minimal request matching by `urlIncludes` and `method`
 - Phase 6A actions are limited to `continue` and `fail`
+- Phase 6B adds `fulfill` mock responses on top of the existing session-local interception model
+- fulfill rules can return a custom status code, optional headers, and a UTF-8 response body
 - `browser_list_requests` returns recent request summaries, not full bodies
+- response bodies are applied only to the matched request and are not persisted beyond the current MCP session
 
 Minimal multi-tab workflow examples:
 
@@ -88,9 +91,12 @@ Minimal multi-tab workflow examples:
 {
   "name": "browser_add_intercept_rule",
   "arguments": {
-    "urlIncludes": "/api",
+    "urlIncludes": "/api/mock/users",
     "method": "GET",
-    "action": "fail"
+    "action": "fulfill",
+    "statusCode": 200,
+    "contentType": "application/json",
+    "body": "{\"users\":[1]}"
   }
 }
 ```
@@ -107,7 +113,7 @@ Scoped selector notes:
 
 - `browser_click`, `browser_hover`, `browser_query`, `browser_wait_for`, and `browser_take_element_screenshot` accept optional `frameSelector` for same-origin iframes whose `contentDocument` is accessible
 - the same selector-based tools accept optional `pierceShadow: true` for open shadow-root traversal
-- closed shadow roots, frame-index routing, response mocking, and download acceptance controls are still out of scope
+- closed shadow roots, frame-index routing, richer request matching, and download acceptance controls are still out of scope
 
 Example event wait:
 

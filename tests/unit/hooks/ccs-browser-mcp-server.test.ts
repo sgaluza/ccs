@@ -2199,6 +2199,155 @@ describe('ccs-browser MCP server', () => {
     expect(addText).toContain('statusCode: 204');
   });
 
+  it('rejects fulfill rules when statusCode is out of range', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 968,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              action: 'fulfill',
+              statusCode: 99,
+              body: 'x',
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 968);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: statusCode must be an integer between 100 and 599');
+  });
+
+  it('rejects fulfill rules when headers is not an array', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 969,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              action: 'fulfill',
+              headers: 'x',
+              body: 'x',
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 969);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: headers must be an array');
+  });
+
+  it('rejects fulfill rules when a header entry is missing name', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 970,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              action: 'fulfill',
+              headers: [{ value: 'x' }],
+              body: 'x',
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 970);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: headers.name is required');
+  });
+
+  it('rejects fulfill rules when body is not a string', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 971,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              action: 'fulfill',
+              body: 123,
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 971);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: body must be a string');
+  });
+
+  it('removes fulfill rules and request summaries after the bound page is closed', async () => {
+    const responses = await runMcpRequests(
+      [
+        { id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' },
+        {
+          id: 'page-2',
+          title: 'Mocked',
+          currentUrl: 'https://example.com/mocked',
+          intercept: {
+            pausedRequests: [
+              { requestId: 'req-fulfill-close', url: 'https://example.com/api/mock/close', method: 'GET' },
+            ],
+          },
+        },
+      ],
+      [
+        { jsonrpc: '2.0', id: 972, method: 'tools/call', params: { name: 'browser_select_page', arguments: { pageIndex: 1 } } },
+        {
+          jsonrpc: '2.0',
+          id: 973,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock/close',
+              action: 'fulfill',
+              statusCode: 200,
+              body: 'done',
+            },
+          },
+        },
+        { jsonrpc: '2.0', id: 974, method: 'tools/call', params: { name: 'browser_list_requests', arguments: {} } },
+        { jsonrpc: '2.0', id: 975, method: 'tools/call', params: { name: 'browser_close_page', arguments: { pageId: 'page-2' } } },
+        { jsonrpc: '2.0', id: 976, method: 'tools/call', params: { name: 'browser_list_intercept_rules', arguments: {} } },
+        { jsonrpc: '2.0', id: 977, method: 'tools/call', params: { name: 'browser_list_requests', arguments: {} } },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 974))).toContain('requestId: req-fulfill-close');
+    expect(getResponseText(responses.find((message) => message.id === 976))).not.toContain('pageId: page-2');
+    expect(getResponseText(responses.find((message) => message.id === 977))).not.toContain('requestId: req-fulfill-close');
+  });
+
   it('returns only the requested number of recent requests', async () => {
     const responses = await runMcpRequests(
       [
