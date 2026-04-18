@@ -20,13 +20,14 @@ that already has useful authenticated state.
 Claude Browser Attach requires a browser launched in attach mode with remote debugging
 enabled. A recent Chrome update alone is not sufficient.
 
-The managed `ccs-browser` runtime currently exposes five tool groups:
+The managed `ccs-browser` runtime currently exposes six tool groups:
 
 - **Session inspection**: `browser_get_session_info`, `browser_get_url_and_title`, `browser_get_visible_text`, `browser_get_dom_snapshot`
 - **Navigation and interaction**: `browser_navigate`, `browser_click`, `browser_type`, `browser_press_key`, `browser_scroll`, `browser_select_page`, `browser_open_page`, `browser_close_page`, `browser_take_screenshot`
 - **Hover diagnostics**: `browser_hover`, `browser_query`, `browser_take_element_screenshot`
 - **Readiness and page evaluation**: `browser_wait_for`, `browser_eval`
 - **Event observation**: `browser_wait_for_event`
+- **Network interception**: `browser_add_intercept_rule`, `browser_remove_intercept_rule`, `browser_list_intercept_rules`, `browser_list_requests`
 
 Notable Phase 1 capability details:
 
@@ -56,6 +57,13 @@ Phase 5 capability details:
 - existing tools still honor explicit `pageIndex`; when omitted, they resolve through the selected page
 - selected page state is session-local MCP runtime state and is not persisted across runtime restarts
 
+Phase 6A capability details:
+
+- interception rules are session-local and bind to the concrete page selected when the rule is created
+- Phase 6A supports minimal request matching by `urlIncludes` and `method`
+- Phase 6A actions are limited to `continue` and `fail`
+- `browser_list_requests` returns recent request summaries, not full bodies
+
 Minimal multi-tab workflow examples:
 
 ```json
@@ -76,6 +84,17 @@ Minimal multi-tab workflow examples:
 }
 ```
 
+```json
+{
+  "name": "browser_add_intercept_rule",
+  "arguments": {
+    "urlIncludes": "/api",
+    "method": "GET",
+    "action": "fail"
+  }
+}
+```
+
 A common hover-debug workflow is:
 
 1. call `browser_hover` to move the browser pointer onto the card or trigger
@@ -88,7 +107,7 @@ Scoped selector notes:
 
 - `browser_click`, `browser_hover`, `browser_query`, `browser_wait_for`, and `browser_take_element_screenshot` accept optional `frameSelector` for same-origin iframes whose `contentDocument` is accessible
 - the same selector-based tools accept optional `pierceShadow: true` for open shadow-root traversal
-- closed shadow roots, frame-index routing, request interception, and download acceptance controls are still out of scope
+- closed shadow roots, frame-index routing, response mocking, and download acceptance controls are still out of scope
 
 Example event wait:
 

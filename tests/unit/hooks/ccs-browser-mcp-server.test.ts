@@ -112,6 +112,8 @@ type MockInterceptState = {
   continuedRequestIds?: string[];
   failedRequests?: Array<{ requestId: string; errorReason?: string }>;
   fetchEnabledPatterns?: unknown[];
+  enableError?: string;
+  pauseDispatchDelayMs?: number;
 };
 
 type MockPageState = {
@@ -687,7 +689,12 @@ function createMockBrowser(pagesInput: MockPageState[]) {
           page.intercept.fetchEnabledPatterns = Array.isArray(message.params?.patterns)
             ? (message.params?.patterns as unknown[])
             : [];
+          if (page.intercept.enableError) {
+            socket.send(JSON.stringify({ id: message.id, error: { message: page.intercept.enableError } }));
+            return;
+          }
           reply({});
+          const pauseDispatchDelayMs = page.intercept.pauseDispatchDelayMs ?? 10;
           for (const [index, paused] of (page.intercept.pausedRequests || []).entries()) {
             setTimeout(() => {
               socket.send(
@@ -703,7 +710,7 @@ function createMockBrowser(pagesInput: MockPageState[]) {
                   },
                 })
               );
-            }, 10 + index * 10);
+            }, pauseDispatchDelayMs + index * 10);
           }
           return;
         }
@@ -754,6 +761,11 @@ function createMockBrowser(pagesInput: MockPageState[]) {
               result: { result: { type: 'object', value: evalPlan.result } },
             })
           );
+          return;
+        }
+
+        if (expression === '0') {
+          reply({ result: { type: 'number', value: 0 } });
           return;
         }
 
@@ -1856,11 +1868,18 @@ describe('ccs-browser MCP server', () => {
     expect(listText).toContain('action: continue');
   });
 
-  it('removes rules bound to a page after that page is closed', async () => {
+  it('removes rules and recent requests bound to a page after that page is closed', async () => {
     const responses = await runMcpRequests(
       [
         { id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' },
-        { id: 'page-2', title: 'Docs', currentUrl: 'https://example.com/docs' },
+        {
+          id: 'page-2',
+          title: 'Docs',
+          currentUrl: 'https://example.com/docs',
+          intercept: {
+            pausedRequests: [{ requestId: 'req-closed', url: 'https://example.com/api/docs', method: 'GET' }],
+          },
+        },
       ],
       [
         {
@@ -1882,19 +1901,175 @@ describe('ccs-browser MCP server', () => {
           jsonrpc: '2.0',
           id: 943,
           method: 'tools/call',
-          params: { name: 'browser_close_page', arguments: { pageId: 'page-2' } },
+          params: { name: 'browser_list_requests', arguments: {} },
         },
         {
           jsonrpc: '2.0',
           id: 944,
           method: 'tools/call',
+          params: { name: 'browser_close_page', arguments: { pageId: 'page-2' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 945,
+          method: 'tools/call',
           params: { name: 'browser_list_intercept_rules', arguments: {} },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 946,
+          method: 'tools/call',
+          params: { name: 'browser_list_requests', arguments: {} },
+        },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    const preCloseRequestsText = getResponseText(responses.find((message) => message.id === 943));
+    expect(preCloseRequestsText).toContain('requestId: req-closed');
+
+    const listRulesText = getResponseText(responses.find((message) => message.id === 945));
+    expect(listRulesText).not.toContain('pageId: page-2');
+
+    const postCloseRequestsText = getResponseText(responses.find((message) => message.id === 946));
+    expect(postCloseRequestsText).not.toContain('requestId: req-closed');
+    expect(postCloseRequestsText).not.toContain('pageId: page-2');
+  });
+
+  it('rejects browser_add_intercept_rule when pageIndex and pageId are both provided', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 951,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              pageIndex: 0,
+              pageId: 'page-1',
+              urlIncludes: '/api',
+              action: 'continue',
+            },
+          },
         },
       ]
     );
 
-    const listText = getResponseText(responses.find((message) => message.id === 944));
-    expect(listText).not.toContain('pageId: page-2');
+    const response = responses.find((message) => message.id === 951);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: pageIndex and pageId cannot be used together');
+  });
+
+  it('rejects browser_add_intercept_rule when action is invalid', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 952,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api',
+              action: 'fulfill',
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 952);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain('Browser MCP failed: action must be one of: continue, fail');
+  });
+
+  it('returns only the requested number of recent requests', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Home',
+          currentUrl: 'https://example.com/',
+          intercept: {
+            pausedRequests: [
+              { requestId: 'req-1', url: 'https://example.com/api/one', method: 'GET', resourceType: 'XHR' },
+              { requestId: 'req-2', url: 'https://example.com/api/two', method: 'GET', resourceType: 'XHR' },
+            ],
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 953,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: { urlIncludes: '/api', method: 'GET', action: 'continue' },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 954,
+          method: 'tools/call',
+          params: { name: 'browser_list_requests', arguments: { limit: 1 } },
+        },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    const listText = getResponseText(responses.find((message) => message.id === 954));
+    expect(listText).toContain('requestId: req-2');
+    expect(listText).not.toContain('requestId: req-1');
+  });
+
+  it('fails browser_add_intercept_rule when Fetch.enable fails', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Home',
+          currentUrl: 'https://example.com/',
+          intercept: {
+            enableError: 'Fetch.enable blocked',
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 955,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: { urlIncludes: '/api', action: 'continue' },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 956,
+          method: 'tools/call',
+          params: { name: 'browser_list_intercept_rules', arguments: {} },
+        },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    const addResponse = responses.find((message) => message.id === 955);
+    expect((addResponse?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(addResponse)).toContain('Browser MCP failed: Fetch.enable blocked');
+
+    const listText = getResponseText(responses.find((message) => message.id === 956));
+    expect(listText).toBe('status: empty');
   });
 
   it('works from an installed copy when global WebSocket is unavailable and NODE_PATH supplies package dependencies', async () => {
