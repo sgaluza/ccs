@@ -1,5 +1,3 @@
-import { normalizeSchemaForOpenAI } from '../../utils/schema-sanitizer';
-
 interface AnthropicThinking {
   type?: 'enabled' | 'disabled' | 'adaptive' | string;
   budget_tokens?: number;
@@ -50,6 +48,12 @@ interface AnthropicOutputConfig {
   effort?: 'low' | 'medium' | 'high' | 'max' | string;
 }
 
+interface AnthropicToolChoice {
+  type?: 'auto' | 'any' | 'tool' | 'none' | string;
+  name?: string;
+  disable_parallel_tool_use?: boolean;
+}
+
 interface AnthropicProxyRequestShape {
   model?: unknown;
   system?: unknown;
@@ -60,6 +64,7 @@ interface AnthropicProxyRequestShape {
   stop_sequences?: unknown;
   metadata?: unknown;
   tools?: unknown;
+  tool_choice?: AnthropicToolChoice;
   stream?: unknown;
   thinking?: AnthropicThinking;
   output_config?: AnthropicOutputConfig;
@@ -109,6 +114,17 @@ export interface ProxyOpenAIRequest {
       parameters: Record<string, unknown>;
     };
   }>;
+  tool_choice?:
+    | 'auto'
+    | 'none'
+    | 'required'
+    | {
+        type: 'function';
+        function: {
+          name: string;
+        };
+      };
+  parallel_tool_calls?: boolean;
   messages: OpenAIMessage[];
   max_tokens?: number;
   temperature?: number;
@@ -181,10 +197,7 @@ function flattenTextContent(content: unknown, label: string): string {
  * Handles strings, arrays with text/image blocks, and error prefixing.
  * Ported from openclaude's convertToolResultContent.
  */
-function convertToolResultContent(
-  content: unknown,
-  isError: boolean
-): string | OpenAIContentPart[] {
+function convertToolResultContent(content: unknown, isError: boolean, label: string): string {
   if (content === undefined) {
     return '';
   }
@@ -196,43 +209,32 @@ function convertToolResultContent(
     return isError ? `Error: ${text}` : text;
   }
 
-  const parts: OpenAIContentPart[] = [];
-  for (const block of content) {
-    if (block?.type === 'text' && typeof block.text === 'string') {
-      parts.push({ type: 'text', text: block.text });
+  const parts: string[] = [];
+  for (const [index, block] of content.entries()) {
+    const parsed = assertObject(block, `${label}[${index}]`);
+
+    if (parsed.type === 'text' && typeof parsed.text === 'string') {
+      parts.push(parsed.text);
       continue;
     }
 
-    if (block?.type === 'image') {
-      const source = block.source;
-      if (source?.type === 'url' && source.url) {
-        parts.push({ type: 'image_url', image_url: { url: source.url } });
-      } else if (source?.type === 'base64' && source.media_type && source.data) {
-        parts.push({
-          type: 'image_url',
-          image_url: { url: `data:${source.media_type};base64,${source.data}` },
-        });
-      }
+    if (parsed.type === 'image') {
+      throw new Error(`${label}[${index}].type "image" is not supported in tool_result content`);
+    }
+
+    if (typeof parsed.text === 'string') {
+      parts.push(parsed.text);
       continue;
     }
 
-    if (typeof block?.text === 'string') {
-      parts.push({ type: 'text', text: block.text });
-    }
+    throw new Error(`${label}[${index}].type "${String(parsed.type)}" is not supported`);
   }
 
-  if (parts.length === 0) return '';
-  if (parts.length === 1 && parts[0].type === 'text') {
-    const text = (parts[0] as OpenAITextPart).text;
-    return isError ? `Error: ${text}` : text;
+  const text = parts.join('\n');
+  if (!text) {
+    return isError ? 'Error:' : '';
   }
-  if (isError && parts[0]?.type === 'text') {
-    parts[0] = { ...parts[0], text: `Error: ${(parts[0] as OpenAITextPart).text}` };
-  } else if (isError) {
-    parts.unshift({ type: 'text', text: 'Error:' });
-  }
-
-  return parts;
+  return isError ? `Error: ${text}` : text;
 }
 
 function createFallbackToolId(messageIndex: number, blockIndex: number): string {
@@ -310,12 +312,51 @@ function transformTools(value: unknown): ProxyOpenAIRequest['tools'] {
         function: {
           name: typeof entry.name === 'string' ? entry.name : 'tool',
           ...(typeof entry.description === 'string' ? { description: entry.description } : {}),
-          parameters: normalizeSchemaForOpenAI(rawSchema),
+          parameters: rawSchema,
         },
       };
     });
 
   return tools.length > 0 ? tools : undefined;
+}
+
+function transformToolChoice(
+  value: AnthropicToolChoice | undefined,
+  hasTools: boolean
+): Pick<ProxyOpenAIRequest, 'tool_choice' | 'parallel_tool_calls'> {
+  if (!value) {
+    return hasTools ? { tool_choice: 'auto' } : {};
+  }
+
+  if (!hasTools) {
+    throw new Error('tool_choice requires tools');
+  }
+
+  const parallelToolCalls =
+    value.disable_parallel_tool_use === true ? { parallel_tool_calls: false } : {};
+
+  switch (value.type) {
+    case undefined:
+    case 'auto':
+      return { tool_choice: 'auto', ...parallelToolCalls };
+    case 'none':
+      return { tool_choice: 'none' };
+    case 'any':
+      return { tool_choice: 'required', ...parallelToolCalls };
+    case 'tool':
+      if (typeof value.name !== 'string' || value.name.trim().length === 0) {
+        throw new Error('tool_choice.name must be a non-empty string when type is "tool"');
+      }
+      return {
+        tool_choice: {
+          type: 'function',
+          function: { name: value.name.trim() },
+        },
+        ...parallelToolCalls,
+      };
+    default:
+      throw new Error('tool_choice.type must be "auto", "any", "tool", or "none"');
+  }
 }
 
 function mapThinkingToReasoning(
@@ -384,6 +425,8 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
   }
 
   const translatedMessages: OpenAIMessage[] = [];
+  let pendingToolUseIds: Set<string> | null = null;
+  let hasPendingToolUseIds = false;
 
   messagesValue.forEach((message, messageIndex) => {
     const parsedMessage = assertObject(message, `messages[${messageIndex}]`) as AnthropicMessage;
@@ -392,8 +435,19 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
       throw new Error(`messages[${messageIndex}].role must be "user" or "assistant"`);
     }
 
+    if (pendingToolUseIds && pendingToolUseIds.size > 0 && role !== 'user') {
+      throw new Error(
+        `messages[${messageIndex}].role must be "user" with tool_result blocks after assistant tool_use`
+      );
+    }
+
     const content = parsedMessage.content;
     if (typeof content === 'string') {
+      if (pendingToolUseIds && pendingToolUseIds.size > 0) {
+        throw new Error(
+          `messages[${messageIndex}].content must start with tool_result blocks for pending tool_use ids`
+        );
+      }
       translatedMessages.push({ role, content });
       return;
     }
@@ -405,6 +459,7 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
     if (role === 'user') {
       const userParts: OpenAIContentPart[] = [];
       let sawToolResult = false;
+      const resolvedToolUseIds = new Set<string>();
 
       content.forEach((block, blockIndex) => {
         const parsed = assertObject(
@@ -417,28 +472,62 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
         }
 
         if (parsed.type === 'text') {
+          if (sawToolResult) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}] text is not allowed after tool_result blocks`
+            );
+          }
           const text = typeof parsed.text === 'string' ? parsed.text : '';
           userParts.push({ type: 'text', text });
           return;
         }
 
         if (isImageBlock(parsed)) {
+          if (sawToolResult) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}] image is not allowed after tool_result blocks`
+            );
+          }
           userParts.push(toImagePart(parsed, `messages[${messageIndex}].content[${blockIndex}]`));
           return;
         }
 
         if (isToolResultBlock(parsed)) {
+          if (!pendingToolUseIds || pendingToolUseIds.size === 0) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}] tool_result requires a preceding assistant tool_use`
+            );
+          }
+          if (userParts.length > 0) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}] tool_result blocks must come before other user content`
+            );
+          }
           if (typeof parsed.tool_use_id !== 'string' || parsed.tool_use_id.trim().length === 0) {
             throw new Error(
               `messages[${messageIndex}].content[${blockIndex}].tool_use_id must be a non-empty string`
             );
           }
+          if (!pendingToolUseIds.has(parsed.tool_use_id)) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}].tool_use_id "${parsed.tool_use_id}" does not match a pending tool_use`
+            );
+          }
+          if (resolvedToolUseIds.has(parsed.tool_use_id)) {
+            throw new Error(
+              `messages[${messageIndex}].content[${blockIndex}].tool_use_id "${parsed.tool_use_id}" is duplicated`
+            );
+          }
           sawToolResult = true;
-          flushUserContent(translatedMessages, userParts);
+          resolvedToolUseIds.add(parsed.tool_use_id);
           translatedMessages.push({
             role: 'tool',
             tool_call_id: parsed.tool_use_id,
-            content: convertToolResultContent(parsed.content, parsed.is_error === true),
+            content: convertToolResultContent(
+              parsed.content,
+              parsed.is_error === true,
+              `messages[${messageIndex}].content[${blockIndex}].content`
+            ),
           });
           return;
         }
@@ -454,7 +543,24 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
         );
       });
 
-      if (userParts.length > 0 || !sawToolResult) {
+      if (sawToolResult) {
+        if (resolvedToolUseIds.size !== pendingToolUseIds?.size) {
+          throw new Error(
+            `messages[${messageIndex}].content must provide tool_result blocks for all pending tool_use ids`
+          );
+        }
+        pendingToolUseIds = null;
+        hasPendingToolUseIds = false;
+        return;
+      }
+
+      if (pendingToolUseIds && pendingToolUseIds.size > 0) {
+        throw new Error(
+          `messages[${messageIndex}].content must start with tool_result blocks for pending tool_use ids`
+        );
+      }
+
+      if (userParts.length > 0) {
         flushUserContent(translatedMessages, userParts);
       }
       return;
@@ -506,11 +612,19 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
           `messages[${messageIndex}].content[${blockIndex}] tool_result requires user role`
         );
       }
+
+      throw new Error(
+        `messages[${messageIndex}].content[${blockIndex}].type "${String(parsed.type)}" is not supported`
+      );
     });
 
     if (assistantTextParts.length === 0 && toolCalls.length === 0) {
       return;
     }
+
+    pendingToolUseIds =
+      toolCalls.length > 0 ? new Set(toolCalls.map((toolCall) => toolCall.id)) : null;
+    hasPendingToolUseIds = toolCalls.length > 0;
 
     translatedMessages.push({
       role: 'assistant',
@@ -518,6 +632,10 @@ function transformMessages(messagesValue: unknown): OpenAIMessage[] {
       tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
     });
   });
+
+  if (hasPendingToolUseIds) {
+    throw new Error('messages must provide tool_result blocks for the latest assistant tool_use');
+  }
 
   return translatedMessages;
 }
@@ -565,6 +683,7 @@ function coalesceMessages(messages: OpenAIMessage[]): OpenAIMessage[] {
 export class ProxyRequestTransformer {
   transform(raw: unknown): ProxyOpenAIRequest {
     const source = assertObject(raw || {}, 'request') as AnthropicProxyRequestShape;
+    const tools = transformTools(source.tools);
     const messages = transformMessages(source.messages);
     const system = source.system;
     const allMessages =
@@ -587,7 +706,8 @@ export class ProxyRequestTransformer {
       top_p: asNumber(source.top_p),
       stop: asStringArray(source.stop_sequences),
       metadata: asMetadata(source.metadata),
-      tools: transformTools(source.tools),
+      tools,
+      ...transformToolChoice(source.tool_choice, tools !== undefined),
       ...mapThinkingToReasoning(source.thinking, source.output_config),
     };
   }
