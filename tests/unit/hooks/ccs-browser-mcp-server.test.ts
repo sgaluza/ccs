@@ -105,6 +105,7 @@ type MockInterceptRuleMatch = {
   method: string;
   resourceType?: string;
   requestId?: string;
+  requestHeaders?: Record<string, string>;
 };
 
 type MockFulfilledRequest = {
@@ -714,6 +715,7 @@ function createMockBrowser(pagesInput: MockPageState[]) {
                     request: {
                       url: paused.url,
                       method: paused.method,
+                      headers: paused.requestHeaders || {},
                     },
                   },
                 })
