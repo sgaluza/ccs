@@ -1432,6 +1432,10 @@ describe('ccs-browser MCP server', () => {
     expect(addRuleTool?.inputSchema?.properties?.urlIncludes).toMatchObject({ type: 'string' });
     expect(addRuleTool?.inputSchema?.properties?.method).toMatchObject({ type: 'string' });
     expect(addRuleTool?.inputSchema?.properties?.action).toMatchObject({ type: 'string' });
+    expect(addRuleTool?.inputSchema?.properties?.statusCode).toMatchObject({ type: 'integer' });
+    expect(addRuleTool?.inputSchema?.properties?.headers).toMatchObject({ type: 'array' });
+    expect(addRuleTool?.inputSchema?.properties?.body).toMatchObject({ type: 'string' });
+    expect(addRuleTool?.inputSchema?.properties?.contentType).toMatchObject({ type: 'string' });
 
     const removeRuleTool = tools.find((tool) => tool.name === 'browser_remove_intercept_rule');
     expect(removeRuleTool?.inputSchema?.properties?.ruleId).toMatchObject({ type: 'string' });
@@ -2000,7 +2004,7 @@ describe('ccs-browser MCP server', () => {
             name: 'browser_add_intercept_rule',
             arguments: {
               urlIncludes: '/api',
-              action: 'fulfill',
+              action: 'mock',
             },
           },
         },
@@ -2010,6 +2014,189 @@ describe('ccs-browser MCP server', () => {
     const response = responses.find((message) => message.id === 952);
     expect((response?.result as { isError?: boolean }).isError).toBe(true);
     expect(getResponseText(response)).toContain('Browser MCP failed: action must be one of: continue, fail');
+  });
+
+  it('adds a fulfill interception rule and lists its response summary', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 961,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              method: 'GET',
+              action: 'fulfill',
+              statusCode: 202,
+              contentType: 'application/json',
+              body: '{"ok":true}',
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 962,
+          method: 'tools/call',
+          params: { name: 'browser_list_intercept_rules', arguments: {} },
+        },
+      ]
+    );
+
+    const listText = getResponseText(responses.find((message) => message.id === 962));
+    expect(listText).toContain('action: fulfill');
+    expect(listText).toContain('statusCode: 202');
+    expect(listText).toContain('contentType: application/json');
+  });
+
+  it('fulfills a paused request with the configured mock response', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Home',
+        currentUrl: 'https://example.com/',
+        intercept: {
+          pausedRequests: [
+            {
+              requestId: 'req-fulfill-1',
+              url: 'https://example.com/api/mock/users',
+              method: 'GET',
+              resourceType: 'XHR',
+            },
+          ],
+        },
+      },
+    ];
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 963,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock',
+              method: 'GET',
+              action: 'fulfill',
+              statusCode: 200,
+              contentType: 'application/json',
+              body: '{"users":[1]}',
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 964,
+          method: 'tools/call',
+          params: { name: 'browser_list_requests', arguments: {} },
+        },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    const listText = getResponseText(responses.find((message) => message.id === 964));
+    expect(listText).toContain('requestId: req-fulfill-1');
+    expect(listText).toContain('matchedRuleId: rule-1');
+    expect(listText).toContain('action: fulfill');
+    expect(pages[0]?.intercept?.fulfilledRequests).toEqual([
+      expect.objectContaining({
+        requestId: 'req-fulfill-1',
+        responseCode: 200,
+      }),
+    ]);
+  });
+
+  it('passes custom response headers to Fetch.fulfillRequest', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Home',
+        currentUrl: 'https://example.com/',
+        intercept: {
+          pausedRequests: [
+            {
+              requestId: 'req-fulfill-2',
+              url: 'https://example.com/api/mock/headers',
+              method: 'GET',
+            },
+          ],
+        },
+      },
+    ];
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 965,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/mock/headers',
+              action: 'fulfill',
+              statusCode: 201,
+              headers: [
+                { name: 'Cache-Control', value: 'no-store' },
+                { name: 'X-Mocked-By', value: 'ccs-browser' },
+              ],
+              body: 'ok',
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 966,
+          method: 'tools/call',
+          params: { name: 'browser_list_requests', arguments: {} },
+        },
+      ],
+      {
+        responseTimeoutMs: 12000,
+      }
+    );
+
+    const listText = getResponseText(responses.find((message) => message.id === 966));
+    expect(listText).toContain('action: fulfill');
+    expect(pages[0]?.intercept?.fulfilledRequests?.[0]?.responseHeaders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Cache-Control', value: 'no-store' }),
+        expect.objectContaining({ name: 'X-Mocked-By', value: 'ccs-browser' }),
+      ])
+    );
+  });
+
+  it('allows fulfill rules with an empty response body', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Home', currentUrl: 'https://example.com/' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 967,
+          method: 'tools/call',
+          params: {
+            name: 'browser_add_intercept_rule',
+            arguments: {
+              urlIncludes: '/api/empty',
+              action: 'fulfill',
+              statusCode: 204,
+              contentType: 'text/plain',
+              body: '',
+            },
+          },
+        },
+      ]
+    );
+
+    const addText = getResponseText(responses.find((message) => message.id === 967));
+    expect(addText).toContain('action: fulfill');
+    expect(addText).toContain('statusCode: 204');
   });
 
   it('returns only the requested number of recent requests', async () => {
