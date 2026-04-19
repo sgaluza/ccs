@@ -1,6 +1,6 @@
 # Browser Automation
 
-Last Updated: 2026-04-18
+Last Updated: 2026-04-19
 
 CCS provides browser automation through two separate runtime paths:
 
@@ -20,7 +20,7 @@ that already has useful authenticated state.
 Claude Browser Attach requires a browser launched in attach mode with remote debugging
 enabled. A recent Chrome update alone is not sufficient.
 
-The managed `ccs-browser` runtime currently exposes six tool groups:
+The managed `ccs-browser` runtime currently exposes seven tool groups:
 
 - **Session inspection**: `browser_get_session_info`, `browser_get_url_and_title`, `browser_get_visible_text`, `browser_get_dom_snapshot`
 - **Navigation and interaction**: `browser_navigate`, `browser_click`, `browser_type`, `browser_press_key`, `browser_scroll`, `browser_select_page`, `browser_open_page`, `browser_close_page`, `browser_take_screenshot`
@@ -28,6 +28,7 @@ The managed `ccs-browser` runtime currently exposes six tool groups:
 - **Readiness and page evaluation**: `browser_wait_for`, `browser_eval`
 - **Event observation**: `browser_wait_for_event`
 - **Network interception**: `browser_add_intercept_rule`, `browser_remove_intercept_rule`, `browser_list_intercept_rules`, `browser_list_requests`
+- **File transfer**: `browser_set_download_behavior`, `browser_list_downloads`, `browser_cancel_download`, `browser_set_file_input`
 
 Notable Phase 1 capability details:
 
@@ -73,6 +74,15 @@ Phase 7 capability details:
 - richer matching rules remain page-bound and session-local; creating a rule still binds it to the concrete page selected at creation time
 - higher `priority` rules win before lower-priority rules, while equal-priority rules continue to follow creation order
 - `headerMatchers` are request-matching conditions; `responseHeaders` on `fulfill` rules remain response headers
+
+Phase 8 capability details:
+
+- `browser_set_download_behavior` configures browser-scoped download acceptance for the current attach session; `behavior: "accept"` can use an explicit `downloadPath` or a session-local default directory
+- `browser_list_downloads` returns recent download summaries only; it does not read or return downloaded file contents
+- `browser_cancel_download` cancels an in-progress download by `downloadId` or `guid`
+- `browser_set_file_input` sets one or more local files on a matched `<input type="file">` using the existing selected-page, `pageIndex`, `pageId`, `frameSelector`, `nth`, and `pierceShadow` routing semantics
+- download controls are browser-scoped because they map to Chrome's Browser domain; file input uploads remain page-scoped selector actions
+- download behavior and recent download summaries are session-local runtime state and are not persisted across runtime restarts
 
 Minimal multi-tab workflow examples:
 
@@ -123,7 +133,7 @@ Scoped selector notes:
 
 - `browser_click`, `browser_hover`, `browser_query`, `browser_wait_for`, and `browser_take_element_screenshot` accept optional `frameSelector` for same-origin iframes whose `contentDocument` is accessible
 - the same selector-based tools accept optional `pierceShadow: true` for open shadow-root traversal
-- closed shadow roots, frame-index routing, cross-page shared rules, request body matching, advanced boolean matcher groups, and download acceptance controls are still out of scope
+- closed shadow roots, frame-index routing, cross-page shared rules, request body matching, and advanced boolean matcher groups are still out of scope
 
 Example event wait:
 

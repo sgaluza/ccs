@@ -73,22 +73,55 @@ type MockWaitPlan = {
   pageTextSequence?: string[];
 };
 
+type MockDownloadProgressState = {
+  receivedBytes: number;
+  totalBytes: number;
+  state: 'inProgress' | 'completed' | 'canceled';
+  filePath?: string;
+};
+
+type MockDownloadState = {
+  guid?: string;
+  url: string;
+  suggestedFilename: string;
+  progress?: MockDownloadProgressState[];
+};
+
+type MockBrowserState = {
+  setDownloadBehaviorCalls?: Array<{
+    behavior: string;
+    downloadPath?: string;
+    eventsEnabled?: boolean;
+  }>;
+  canceledDownloadGuids?: string[];
+};
+
 type MockPageEventPlan = {
   dialogs?: Array<{ type: string; message: string }>;
   navigations?: Array<{ url: string; parentId?: string }>;
   requests?: Array<{ url: string; method: string }>;
-  downloads?: Array<{ url: string; suggestedFilename: string }>;
+  downloads?: MockDownloadState[];
 };
+
+type MockFileInputState = {
+  kind: 'file' | 'nonfile';
+  multiple?: boolean;
+  assignedFiles?: string[];
+};
+
+type MockFileInputPlan = MockFileInputState | MockFileInputState[];
 
 type MockFrameState = {
   selector: string;
   query?: Record<string, MockQueryPlan>;
   visibleText?: string;
+  fileInputs?: Record<string, MockFileInputPlan>;
 };
 
 type MockShadowRootState = {
   hostSelector: string;
   query?: Record<string, MockQueryPlan>;
+  fileInputs?: Record<string, MockFileInputPlan>;
 };
 
 type MockEvalPlan = Record<
@@ -129,6 +162,8 @@ type MockPageState = {
   id: string;
   title: string;
   currentUrl: string;
+  fileInputs?: Record<string, MockFileInputPlan>;
+  browser?: MockBrowserState;
   readyStateSequence?: string[];
   visibleText?: string;
   domSnapshot?: string;
@@ -508,22 +543,73 @@ function createMockBrowser(pagesInput: MockPageState[]) {
     wsServer = new WebSocketServer({ server: httpServer as http.Server });
     wsServer.on('connection', (socket, request) => {
       if ((request.url || '') === browserSocketPath) {
-        const downloadPage = pagesInput.find(
-          (candidate) => (candidate.events?.downloads?.length || 0) > 0
-        );
-        if (downloadPage?.events?.downloads?.[0]) {
-          const download = downloadPage.events.downloads[0];
-          setTimeout(() => {
-            socket.send(
-              JSON.stringify({
-                method: 'Browser.downloadWillBegin',
-                params: {
-                  url: download.url,
-                  suggestedFilename: download.suggestedFilename,
-                },
-              })
-            );
-          }, 10);
+        const browserState = pagesInput[0]?.browser || (pagesInput[0] ? (pagesInput[0].browser = {}) : {});
+
+        socket.on('message', (raw) => {
+          const message = JSON.parse(raw.toString()) as {
+            id: number;
+            method: string;
+            params?: Record<string, unknown>;
+          };
+
+          function reply(result: unknown): void {
+            socket.send(JSON.stringify({ id: message.id, result }));
+          }
+
+          if (message.method === 'Browser.setDownloadBehavior') {
+            browserState.setDownloadBehaviorCalls = browserState.setDownloadBehaviorCalls || [];
+            browserState.setDownloadBehaviorCalls.push({
+              behavior: typeof message.params?.behavior === 'string' ? message.params.behavior : '',
+              downloadPath:
+                typeof message.params?.downloadPath === 'string' ? message.params.downloadPath : undefined,
+              eventsEnabled:
+                typeof message.params?.eventsEnabled === 'boolean' ? message.params.eventsEnabled : undefined,
+            });
+            reply({});
+            return;
+          }
+
+          if (message.method === 'Browser.cancelDownload') {
+            browserState.canceledDownloadGuids = browserState.canceledDownloadGuids || [];
+            browserState.canceledDownloadGuids.push(String(message.params?.guid || ''));
+            reply({});
+          }
+        });
+
+        for (const page of pagesInput) {
+          for (const [index, download] of (page.events?.downloads || []).entries()) {
+            const guid = download.guid || `${page.id}-download-${index + 1}`;
+            setTimeout(() => {
+              socket.send(
+                JSON.stringify({
+                  method: 'Browser.downloadWillBegin',
+                  params: {
+                    frameId: `frame-${page.id}`,
+                    guid,
+                    url: download.url,
+                    suggestedFilename: download.suggestedFilename,
+                  },
+                })
+              );
+            }, 10 + index * 40);
+
+            for (const [progressIndex, progress] of (download.progress || []).entries()) {
+              setTimeout(() => {
+                socket.send(
+                  JSON.stringify({
+                    method: 'Browser.downloadProgress',
+                    params: {
+                      guid,
+                      totalBytes: progress.totalBytes,
+                      receivedBytes: progress.receivedBytes,
+                      state: progress.state,
+                      filePath: progress.filePath,
+                    },
+                  })
+                );
+              }, 20 + index * 40 + progressIndex * 20);
+            }
+          }
         }
         return;
       }
@@ -533,6 +619,8 @@ function createMockBrowser(pagesInput: MockPageState[]) {
         socket.close();
         return;
       }
+
+      const remoteObjects = new Map<string, MockFileInputState>();
 
       socket.on('message', (raw) => {
         const message = JSON.parse(raw.toString()) as {
@@ -760,6 +848,20 @@ function createMockBrowser(pagesInput: MockPageState[]) {
           return;
         }
 
+        if (message.method === 'DOM.setFileInputFiles') {
+          const objectId = typeof message.params?.objectId === 'string' ? message.params.objectId : '';
+          const target = remoteObjects.get(objectId);
+          if (!target) {
+            socket.send(JSON.stringify({ id: message.id, error: { message: 'file input handle not found' } }));
+            return;
+          }
+          target.assignedFiles = Array.isArray(message.params?.files)
+            ? (message.params.files as unknown[]).map((entry) => String(entry))
+            : [];
+          reply({});
+          return;
+        }
+
         if (message.method !== 'Runtime.evaluate') {
           return;
         }
@@ -792,6 +894,46 @@ function createMockBrowser(pagesInput: MockPageState[]) {
 
         if (expression === '0') {
           reply({ result: { type: 'number', value: 0 } });
+          return;
+        }
+
+        if (expression.includes('element is not a file input for selector:')) {
+          const selector = parseJsonArgument(expression, 'selector') || '';
+          const nth = parseNumberArgument(expression, 'nth') ?? 0;
+          const frameSelector = parseJsonArgument(expression, 'frameSelector') || '';
+          const pierceShadow = expression.includes('const pierceShadow = true');
+
+          const fileInputPlan = frameSelector
+            ? getMockFrame(page, frameSelector)?.fileInputs?.[selector]
+            : pierceShadow
+              ? getMockShadowRoot(page)?.fileInputs?.[selector]
+              : page.fileInputs?.[selector];
+
+          const { count, target } = pickMockMatch(fileInputPlan, nth);
+          if (!target || count <= nth) {
+            replyError(`element not found for selector: ${selector}`);
+            return;
+          }
+          if (target.kind !== 'file') {
+            replyError(`element is not a file input for selector: ${selector}`);
+            return;
+          }
+
+          const objectId = `file-input:${page.id}:${selector}:${nth}:${frameSelector || 'root'}:${pierceShadow ? 'shadow' : 'light'}`;
+          remoteObjects.set(objectId, target);
+          socket.send(
+            JSON.stringify({
+              id: message.id,
+              result: {
+                result: {
+                  type: 'object',
+                  subtype: 'node',
+                  className: 'HTMLInputElement',
+                  objectId,
+                },
+              },
+            })
+          );
           return;
         }
 
@@ -1389,6 +1531,10 @@ describe('ccs-browser MCP server', () => {
       'browser_remove_intercept_rule',
       'browser_list_intercept_rules',
       'browser_list_requests',
+      'browser_set_download_behavior',
+      'browser_list_downloads',
+      'browser_cancel_download',
+      'browser_set_file_input',
       'browser_take_screenshot',
       'browser_wait_for',
       'browser_eval',
@@ -1455,6 +1601,28 @@ describe('ccs-browser MCP server', () => {
     expect(listRequestsTool?.inputSchema?.properties?.pageIndex).toMatchObject({ type: 'integer' });
     expect(listRequestsTool?.inputSchema?.properties?.pageId).toMatchObject({ type: 'string' });
     expect(listRequestsTool?.inputSchema?.properties?.limit).toMatchObject({ type: 'integer' });
+
+    const setDownloadTool = tools.find((tool) => tool.name === 'browser_set_download_behavior');
+    expect(setDownloadTool?.inputSchema?.properties?.behavior).toMatchObject({ type: 'string' });
+    expect(setDownloadTool?.inputSchema?.properties?.downloadPath).toMatchObject({ type: 'string' });
+    expect(setDownloadTool?.inputSchema?.properties?.eventsEnabled).toMatchObject({ type: 'boolean' });
+
+    const listDownloadsTool = tools.find((tool) => tool.name === 'browser_list_downloads');
+    expect(listDownloadsTool?.inputSchema?.properties?.limit).toMatchObject({ type: 'integer' });
+    expect(listDownloadsTool?.inputSchema?.properties?.pageId).toBeUndefined();
+
+    const cancelDownloadTool = tools.find((tool) => tool.name === 'browser_cancel_download');
+    expect(cancelDownloadTool?.inputSchema?.properties?.downloadId).toMatchObject({ type: 'string' });
+    expect(cancelDownloadTool?.inputSchema?.properties?.guid).toMatchObject({ type: 'string' });
+
+    const uploadTool = tools.find((tool) => tool.name === 'browser_set_file_input');
+    expect(uploadTool?.inputSchema?.properties?.selector).toMatchObject({ type: 'string' });
+    expect(uploadTool?.inputSchema?.properties?.files).toMatchObject({ type: 'array' });
+    expect(uploadTool?.inputSchema?.properties?.pageIndex).toMatchObject({ type: 'integer' });
+    expect(uploadTool?.inputSchema?.properties?.pageId).toMatchObject({ type: 'string' });
+    expect(uploadTool?.inputSchema?.properties?.nth).toMatchObject({ type: 'integer' });
+    expect(uploadTool?.inputSchema?.properties?.frameSelector).toMatchObject({ type: 'string' });
+    expect(uploadTool?.inputSchema?.properties?.pierceShadow).toMatchObject({ type: 'boolean' });
 
     const queryTool = tools.find((tool) => tool.name === 'browser_query');
     expect(queryTool?.inputSchema?.properties?.fields).toMatchObject({
@@ -4702,6 +4870,413 @@ describe('ccs-browser MCP server', () => {
     );
   });
 
+  it('applies browser-scoped download behavior, records download summaries, and cancels an in-progress download', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Reports',
+        currentUrl: 'https://example.com/reports',
+        browser: {},
+        events: {
+          downloads: [
+            {
+              guid: 'download-guid-1',
+              url: 'https://example.com/files/report.csv',
+              suggestedFilename: 'report.csv',
+              progress: [{ receivedBytes: 5, totalBytes: 10, state: 'inProgress' }],
+            },
+          ],
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 57,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_download_behavior',
+            arguments: { behavior: 'accept', eventsEnabled: true },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 58,
+          method: 'tools/call',
+          params: { name: 'browser_list_downloads', arguments: {} },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 59,
+          method: 'tools/call',
+          params: {
+            name: 'browser_cancel_download',
+            arguments: { guid: 'download-guid-1' },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 60,
+          method: 'tools/call',
+          params: { name: 'browser_list_downloads', arguments: {} },
+        },
+      ],
+      { responseTimeoutMs: 12000 }
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 57))).toContain('scope: browser');
+    expect(getResponseText(responses.find((message) => message.id === 58))).toContain('suggestedFilename: report.csv');
+    expect(getResponseText(responses.find((message) => message.id === 60))).toContain('status: canceled');
+    expect(pages[0]?.browser?.setDownloadBehaviorCalls?.[0]?.behavior).toBe('allow');
+    expect(pages[0]?.browser?.canceledDownloadGuids).toContain('download-guid-1');
+  });
+
+  it('rejects browser_set_download_behavior when behavior is deny and downloadPath is provided', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Reports', currentUrl: 'https://example.com/reports' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 61,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_download_behavior',
+            arguments: {
+              behavior: 'deny',
+              downloadPath: '/tmp/blocked-downloads',
+            },
+          },
+        },
+      ]
+    );
+
+    const response = responses.find((message) => message.id === 61);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain(
+      'Browser MCP failed: downloadPath is only allowed when behavior=accept'
+    );
+  });
+
+  it('rejects browser_cancel_download for completed downloads', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Reports',
+        currentUrl: 'https://example.com/reports',
+        browser: {},
+        events: {
+          downloads: [
+            {
+              guid: 'download-guid-complete',
+              url: 'https://example.com/files/report.csv',
+              suggestedFilename: 'report.csv',
+              progress: [{ receivedBytes: 10, totalBytes: 10, state: 'completed' }],
+            },
+          ],
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 610,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_download_behavior',
+            arguments: { behavior: 'accept', eventsEnabled: true },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 611,
+          method: 'tools/call',
+          params: { name: 'browser_list_downloads', arguments: {} },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 612,
+          method: 'tools/call',
+          params: {
+            name: 'browser_cancel_download',
+            arguments: { guid: 'download-guid-complete' },
+          },
+        },
+      ],
+      { responseTimeoutMs: 12000 }
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 611))).toContain('status: completed');
+    const response = responses.find((message) => message.id === 612);
+    expect((response?.result as { isError?: boolean }).isError).toBe(true);
+    expect(getResponseText(response)).toContain(
+      'Browser MCP failed: download is not cancelable in status: completed'
+    );
+    expect(pages[0]?.browser?.canceledDownloadGuids).toBeUndefined();
+  });
+
+  it('waits for a matching download event with browser_wait_for_event after Phase 8 changes', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Event Page',
+          currentUrl: 'https://example.com/',
+          events: {
+            downloads: [
+              {
+                guid: 'download-guid-2',
+                url: 'https://example.com/files/export.zip',
+                suggestedFilename: 'export.zip',
+              },
+            ],
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 62,
+          method: 'tools/call',
+          params: {
+            name: 'browser_wait_for_event',
+            arguments: {
+              timeoutMs: 1000,
+              event: { kind: 'download', suggestedFilenameIncludes: 'export.zip' },
+            },
+          },
+        },
+      ],
+      { responseTimeoutMs: 12000 }
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 62))).toContain('status: observed');
+  });
+
+  it('sets files on selected-page, frameSelector, and pierceShadow file inputs', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-upload-'));
+    const invoicePath = join(tempDir, 'invoice.pdf');
+    const receiptPath = join(tempDir, 'receipt.png');
+    writeFileSync(invoicePath, 'invoice');
+    writeFileSync(receiptPath, 'receipt');
+
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Root Uploads',
+        currentUrl: 'https://example.com/root',
+        fileInputs: {
+          '#root-upload': { kind: 'file', multiple: true },
+        },
+        frames: [
+          {
+            selector: '#upload-frame',
+            fileInputs: {
+              '#frame-upload': { kind: 'file', multiple: true },
+            },
+          },
+        ],
+        shadowRoots: [
+          {
+            hostSelector: 'upload-panel',
+            fileInputs: {
+              '#shadow-upload': { kind: 'file' },
+            },
+          },
+        ],
+      },
+      {
+        id: 'page-2',
+        title: 'Selected Uploads',
+        currentUrl: 'https://example.com/selected',
+        fileInputs: {
+          '#selected-upload': { kind: 'file', multiple: true },
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 63,
+          method: 'tools/call',
+          params: { name: 'browser_select_page', arguments: { pageIndex: 1 } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 64,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: { selector: '#selected-upload', files: [invoicePath, receiptPath] },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 65,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: {
+              pageIndex: 0,
+              selector: '#frame-upload',
+              files: [invoicePath],
+              frameSelector: '#upload-frame',
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 66,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: {
+              pageIndex: 0,
+              selector: '#shadow-upload',
+              files: [receiptPath],
+              pierceShadow: true,
+            },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 64))).toContain('pageIndex: 1');
+    expect(getResponseText(responses.find((message) => message.id === 65))).toContain('frameSelector: #upload-frame');
+    expect(getResponseText(responses.find((message) => message.id === 66))).toContain('pierceShadow: true');
+
+    expect((pages[1]?.fileInputs?.['#selected-upload'] as MockFileInputState).assignedFiles).toEqual([
+      invoicePath,
+      receiptPath,
+    ]);
+    expect(
+      (pages[0]?.frames?.[0]?.fileInputs?.['#frame-upload'] as MockFileInputState).assignedFiles
+    ).toEqual([invoicePath]);
+    expect(
+      (pages[0]?.shadowRoots?.[0]?.fileInputs?.['#shadow-upload'] as MockFileInputState).assignedFiles
+    ).toEqual([receiptPath]);
+  });
+
+  it('uses pageId for browser_set_file_input when provided', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-upload-'));
+    const assetPath = join(tempDir, 'asset.txt');
+    writeFileSync(assetPath, 'asset');
+
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Selected Uploads',
+        currentUrl: 'https://example.com/selected',
+        fileInputs: {
+          '#selected-upload': { kind: 'file' },
+        },
+      },
+      {
+        id: 'page-2',
+        title: 'Explicit Uploads',
+        currentUrl: 'https://example.com/explicit',
+        fileInputs: {
+          '#pageid-upload': { kind: 'file' },
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(
+      pages,
+      [
+        {
+          jsonrpc: '2.0',
+          id: 67,
+          method: 'tools/call',
+          params: { name: 'browser_select_page', arguments: { pageId: 'page-1' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 68,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: { pageId: 'page-2', selector: '#pageid-upload', files: [assetPath] },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 68))).toContain('pageIndex: 1');
+    expect((pages[1]?.fileInputs?.['#pageid-upload'] as MockFileInputState).assignedFiles).toEqual([
+      assetPath,
+    ]);
+    expect((pages[0]?.fileInputs?.['#selected-upload'] as MockFileInputState).assignedFiles).toBeUndefined();
+  });
+
+  it('rejects browser_set_file_input when target is not a file input, local file is missing, or page selectors conflict', async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-upload-'));
+    const okPath = join(tempDir, 'ok.txt');
+    const missingPath = join(tempDir, 'missing.txt');
+    writeFileSync(okPath, 'ok');
+
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Upload Errors',
+          currentUrl: 'https://example.com/',
+          fileInputs: {
+            '#real-file-input': { kind: 'file' },
+            '#not-file-input': { kind: 'nonfile' },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 69,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: { selector: '#not-file-input', files: [okPath] },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 70,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: { selector: '#real-file-input', files: [missingPath] },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 71,
+          method: 'tools/call',
+          params: {
+            name: 'browser_set_file_input',
+            arguments: { pageIndex: 0, pageId: 'page-1', selector: '#real-file-input', files: [okPath] },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 69))).toContain(
+      'element is not a file input for selector: #not-file-input'
+    );
+    expect(getResponseText(responses.find((message) => message.id === 70))).toContain(
+      `file does not exist: ${missingPath}`
+    );
+    expect(getResponseText(responses.find((message) => message.id === 71))).toContain(
+      'pageIndex and pageId cannot be used together'
+    );
+  });
+
   it('waits for a matching navigation event with browser_wait_for_event', async () => {
     const responses = await runMcpRequests(
       [
@@ -4717,7 +5292,7 @@ describe('ccs-browser MCP server', () => {
       [
         {
           jsonrpc: '2.0',
-          id: 57,
+          id: 69,
           method: 'tools/call',
           params: {
             name: 'browser_wait_for_event',
@@ -4730,7 +5305,7 @@ describe('ccs-browser MCP server', () => {
       ]
     );
 
-    expect(getResponseText(responses.find((message) => message.id === 57))).toContain(
+    expect(getResponseText(responses.find((message) => message.id === 69))).toContain(
       'status: observed'
     );
   });
