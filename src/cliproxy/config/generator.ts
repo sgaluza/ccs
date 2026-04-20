@@ -40,10 +40,8 @@ export const CCS_CONTROL_PANEL_SECRET = 'ccs';
  * v15: Prune stale generated Antigravity Gemini preview aliases during regeneration
  * v16: Narrow stale Gemini alias cleanup to broad multi-version guessed ranges
  * v17: Persist routing.strategy from CCS unified config
- * v18: Added Claude Opus 4.7 Thinking alias and promoted to default AGY model
- * v19: Added Claude Opus 4.7 non-thinking alias for symmetry with Sonnet
  */
-export const CLIPROXY_CONFIG_VERSION = 19;
+export const CLIPROXY_CONFIG_VERSION = 17;
 
 interface RegenerateConfigOptions {
   configPath?: string;
@@ -88,8 +86,6 @@ const DEFAULT_ANTIGRAVITY_ALIASES: OAuthModelAliasEntry[] = [
   // Backward compatibility: legacy sonnet thinking alias now routes to canonical model ID.
   { name: 'claude-sonnet-4-6-thinking', alias: 'claude-sonnet-4-6', fork: true },
   { name: 'claude-opus-4-6-thinking', alias: 'claude-opus-4-6-thinking', fork: true },
-  { name: 'claude-opus-4-7-thinking', alias: 'claude-opus-4-7-thinking', fork: true },
-  { name: 'claude-opus-4-7', alias: 'claude-opus-4-7', fork: true },
 ];
 
 const BUILT_IN_GEMINI_ALIAS_NAMES = new Set(

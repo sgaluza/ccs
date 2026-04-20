@@ -10,7 +10,7 @@ export const DEFAULT_CURSOR_MODEL = 'gpt-5.3-codex';
 /**
  * Default models available through Cursor IDE.
  * Used as fallback when daemon is not reachable.
- * Source: Cursor docs model catalog (Feb 2026)
+ * Source: Cursor docs / official announcements (Apr 2026)
  */
 export const DEFAULT_CURSOR_MODELS: CursorModel[] = [
   // Anthropic Models

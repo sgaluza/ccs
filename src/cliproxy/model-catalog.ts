@@ -87,42 +87,12 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
   agy: {
     provider: 'agy',
     displayName: 'Antigravity',
-    defaultModel: 'claude-opus-4-7-thinking',
+    defaultModel: 'claude-opus-4-6-thinking',
     models: [
-      {
-        id: 'claude-opus-4-7-thinking',
-        name: 'Claude Opus 4.7 Thinking',
-        description: 'Latest flagship, extended thinking',
-        nativeImageInput: true,
-        thinking: {
-          type: 'budget',
-          min: 1024,
-          max: 128000,
-          zeroAllowed: true,
-          dynamicAllowed: true,
-        },
-        // TODO: Re-enable when Antigravity backend supports 1M context (currently 256k)
-        // extendedContext: true,
-        extendedContext: false,
-      },
-      {
-        id: 'claude-opus-4-7',
-        name: 'Claude Opus 4.7',
-        description: 'Latest flagship model',
-        nativeImageInput: true,
-        thinking: {
-          type: 'budget',
-          min: 1024,
-          max: 128000,
-          zeroAllowed: true,
-          dynamicAllowed: true,
-        },
-        extendedContext: false,
-      },
       {
         id: 'claude-opus-4-6-thinking',
         name: 'Claude Opus 4.6 Thinking',
-        description: 'Previous flagship, extended thinking',
+        description: 'Latest flagship, extended thinking',
         nativeImageInput: true,
         thinking: {
           type: 'budget',
