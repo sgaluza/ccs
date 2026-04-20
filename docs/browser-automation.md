@@ -139,6 +139,14 @@ Phase 11C capability details:
 - final results now include a lightweight `failures[]` summary and failed counts
 - 11C intentionally stops short of retry, timeout override, severity, and other larger policy systems
 
+Phase 11D capability details:
+
+- `browser_export_artifact`, `browser_import_artifact`, `browser_list_artifacts`, and `browser_delete_artifact` add a local JSON persistence workflow
+- supported artifact kinds are `recording`, `replay`, and `orchestration`
+- imported artifacts restore session-local state only and are not executed automatically
+- artifact files carry `kind`, `version`, `name`, and `payload`
+- cloud sync, sharing, and complex template management remain out of scope
+
 Minimal multi-tab workflow examples:
 
 ```json
