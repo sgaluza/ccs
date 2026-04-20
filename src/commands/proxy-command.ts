@@ -28,7 +28,8 @@ function hasHelpFlag(args: string[]): boolean {
 
 export function findPositionalArg(
   args: string[],
-  optionsWithValues: string[] = []
+  optionsWithValues: string[] = [],
+  flagOptions: string[] = []
 ): string | undefined {
   for (let i = 0; i < args.length; i += 1) {
     const arg = args[i];
@@ -36,6 +37,9 @@ export function findPositionalArg(
       return i + 1 < args.length ? args[i + 1] : undefined;
     }
     if (arg.startsWith('-')) {
+      if (flagOptions.includes(arg)) {
+        continue;
+      }
       if (optionsWithValues.includes(arg)) {
         i += 1;
       }
@@ -90,7 +94,7 @@ async function handleStart(args: string[]): Promise<number> {
   if (hasHelpFlag(args)) {
     return showHelp();
   }
-  const profileName = findPositionalArg(args, ['--port', '--host']);
+  const profileName = findPositionalArg(args, ['--port', '--host'], ['--insecure']);
   if (!profileName) {
     console.error(
       fail('Usage: ccs proxy start <profile> [--port <n>] [--host <addr>] [--insecure]')
