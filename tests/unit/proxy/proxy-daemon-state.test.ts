@@ -34,4 +34,12 @@ describe('listOpenAICompatProxyProfileNames', () => {
 
     expect(listOpenAICompatProxyProfileNames()).toEqual(['ccg']);
   });
+
+  it('skips malformed percent-encoded profile keys', () => {
+    fs.mkdirSync(path.dirname(getLegacyOpenAICompatProxySessionPath()), { recursive: true });
+    fs.writeFileSync(path.join(path.dirname(getLegacyOpenAICompatProxySessionPath()), '%E0%A4%.session.json'), '{}\n', 'utf8');
+    fs.writeFileSync(getOpenAICompatProxySessionPath('ccg'), '{}\n', 'utf8');
+
+    expect(listOpenAICompatProxyProfileNames()).toEqual(['ccg']);
+  });
 });

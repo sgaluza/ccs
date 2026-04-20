@@ -121,7 +121,13 @@ export function listOpenAICompatProxyProfileNames(): string[] {
       }
       profileKeys.add(profileKey);
     }
-    return [...profileKeys].map((profileKey) => decodeURIComponent(profileKey));
+    return [...profileKeys].flatMap((profileKey) => {
+      try {
+        return [decodeURIComponent(profileKey)];
+      } catch {
+        return [];
+      }
+    });
   } catch {
     return [];
   }
