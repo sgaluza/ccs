@@ -291,9 +291,23 @@ export const MODEL_CATALOG: Partial<Record<CLIProxyProvider, ProviderCatalog>> =
     defaultModel: 'claude-sonnet-4-6',
     models: [
       {
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        description: 'Latest flagship model',
+        nativeImageInput: true,
+        thinking: {
+          type: 'budget',
+          min: 1024,
+          max: 128000,
+          zeroAllowed: false,
+          dynamicAllowed: true,
+        },
+        extendedContext: true,
+      },
+      {
         id: 'claude-opus-4-6',
         name: 'Claude Opus 4.6',
-        description: 'Latest flagship model',
+        description: 'Previous flagship model',
         nativeImageInput: true,
         thinking: {
           type: 'budget',
