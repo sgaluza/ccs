@@ -6410,6 +6410,270 @@ describe('ccs-browser MCP server', () => {
     expect(text).toContain('failedBlockIndex: 0');
   });
 
+  it('passes assert_query with multiple structured assertions', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Assert Query Page',
+          currentUrl: 'https://example.com/assert-query',
+          query: {
+            '#status': {
+              exists: true,
+              connected: true,
+              innerText: 'ready state',
+              textContent: 'ready state',
+              display: 'block',
+              visibility: 'visible',
+              opacity: '0.95',
+              rect: {
+                x: 20,
+                y: 30,
+                width: 100,
+                height: 40,
+                top: 30,
+                right: 120,
+                bottom: 70,
+                left: 20,
+              },
+            },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1301,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['exists', 'innerText', 'opacity'] },
+                    assertions: [
+                      { field: 'exists', op: 'equals', value: true },
+                      { field: 'innerText', op: 'contains', value: 'ready' },
+                      { field: 'opacity', op: 'gte', value: 0.9 },
+                    ],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1301))).toContain('status: completed');
+  });
+
+  it('returns failedAssertionIndex, expected, and actual when assert_query fails', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Assert Failure Page',
+          currentUrl: 'https://example.com/assert-failure',
+          query: {
+            '#status': {
+              exists: true,
+              connected: true,
+              innerText: 'loading',
+              textContent: 'loading',
+              display: 'block',
+              visibility: 'visible',
+              opacity: '0.42',
+              rect: {
+                x: 20,
+                y: 30,
+                width: 100,
+                height: 40,
+                top: 30,
+                right: 120,
+                bottom: 70,
+                left: 20,
+              },
+            },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1302,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['innerText', 'opacity'] },
+                    assertions: [
+                      { field: 'innerText', op: 'contains', value: 'ready' },
+                      { field: 'opacity', op: 'gte', value: 0.9 },
+                    ],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1303,
+          method: 'tools/call',
+          params: { name: 'browser_get_orchestration', arguments: {} },
+        },
+      ]
+    );
+
+    const text = getResponseText(responses.find((message) => message.id === 1303));
+    expect(text).toContain('status: failed');
+    expect(text).toContain('failedBlockIndex: 0');
+    expect(text).toContain('failedAssertionIndex: 0');
+    expect(text).toContain('field: innerText');
+    expect(text).toContain('expected: "ready"');
+    expect(text).toContain('actual: "loading"');
+  });
+
+  it('fails when numeric comparison is used on a non-number-like field or when op is unsupported', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Assert Type Error Page',
+          currentUrl: 'https://example.com/assert-type-error',
+          query: {
+            '#status': {
+              exists: true,
+              connected: true,
+              innerText: 'loading',
+              textContent: 'loading',
+              opacity: '0.42',
+              display: 'block',
+              visibility: 'visible',
+              rect: {
+                x: 20,
+                y: 30,
+                width: 100,
+                height: 40,
+                top: 30,
+                right: 120,
+                bottom: 70,
+                left: 20,
+              },
+            },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1304,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['innerText'] },
+                    assertions: [{ field: 'innerText', op: 'gte', value: 1 }],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1305,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['opacity'] },
+                    assertions: [{ field: 'opacity', op: 'matches', value: '.*' }],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1304))).toContain('numeric comparison expects a number-like field: innerText');
+    expect(getResponseText(responses.find((message) => message.id === 1305))).toContain('unsupported assertion operator');
+  });
+
+  it('passes numeric gte and lt assertions', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Numeric Assertion Page',
+          currentUrl: 'https://example.com/assert-numeric',
+          query: {
+            '#status': {
+              exists: true,
+              connected: true,
+              opacity: '0.95',
+              display: 'block',
+              visibility: 'visible',
+              rect: {
+                x: 20,
+                y: 30,
+                width: 100,
+                height: 40,
+                top: 30,
+                right: 120,
+                bottom: 70,
+                left: 20,
+              },
+            },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1306,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['opacity'] },
+                    assertions: [
+                      { field: 'opacity', op: 'gte', value: 0.9 },
+                      { field: 'opacity', op: 'lt', value: 1.0 },
+                    ],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1306))).toContain('status: completed');
+  });
+
   it('drags local files onto normal, frame, and shadow dropzones', async () => {
     const tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-drag-files-'));
     const invoicePath = join(tempDir, 'invoice.pdf');
