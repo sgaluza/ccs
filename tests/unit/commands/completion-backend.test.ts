@@ -144,11 +144,9 @@ describe('completion backend', () => {
     expect(suggestionValues(['browser'])).toEqual(
       expect.arrayContaining(['setup', 'status', 'doctor'])
     );
-    expect(suggestionValues(['browser', 'setup'])).toEqual(
-      expect.arrayContaining(['--no-launch', '--help', '-h'])
-    );
+    expect(suggestionValues(['browser', 'setup'])).toEqual(expect.arrayContaining(['--help', '-h']));
     expect(suggestionValues(['browser', 'doctor'])).toEqual(
-      expect.arrayContaining(['--fix', '-f', '--no-launch'])
+      expect.arrayContaining(['--help', '-h'])
     );
   });
 

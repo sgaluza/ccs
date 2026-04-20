@@ -192,11 +192,8 @@ function getSuggestionsForCommand(tokensBeforeCurrent: string[]): CompletionSugg
       if (!subcommand || subcommand.startsWith('-')) {
         return completeSubcommands(['setup', 'status', 'doctor'], ['--help', '-h']);
       }
-      if (subcommand === 'setup') {
-        return completeSubcommands([], ['--no-launch', '--help', '-h']);
-      }
-      if (subcommand === 'doctor') {
-        return completeSubcommands([], ['--fix', '-f', '--help', '-h', '--no-launch']);
+      if (subcommand === 'setup' || subcommand === 'doctor') {
+        return completeSubcommands([], ['--help', '-h']);
       }
       return completeSubcommands([], ['--help', '-h']);
     case 'cursor':

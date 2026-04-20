@@ -53,7 +53,6 @@ ccs help browser
 ccs browser setup
 ccs browser status
 ccs browser doctor
-ccs browser doctor --fix
 ```
 
 Use `ccs browser setup` for the primary one-command setup path. Use `ccs browser status` for
@@ -124,20 +123,8 @@ That flow:
 1. enables Claude Browser Attach in the saved CCS browser config
 2. keeps the configured DevTools port normalized
 3. creates the configured browser user-data directory if needed
-4. tries to start a managed Chrome/Chromium attach session
+4. prints the exact browser launch command for the current platform
 5. re-checks readiness and reports the next step if Chrome still needs manual attention
-
-If you want the same remediation flow from the diagnostic command, use:
-
-```bash
-ccs browser doctor --fix
-```
-
-If you only want to save config and browser-directory state without launching Chrome:
-
-```bash
-ccs browser setup --no-launch
-```
 
 ## Launching Chrome For Claude Attach
 

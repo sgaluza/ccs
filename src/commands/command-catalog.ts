@@ -320,7 +320,7 @@ export const COMMAND_FLAG_SUGGESTIONS: Readonly<Record<string, readonly string[]
   config: ['--help', '-h', '--port', '-p', '--host', '-H', '--dev'],
   cursor: ['--help', '-h'],
   doctor: ['--fix', '-f', '--help', '-h'],
-  browser: ['setup', 'status', 'doctor', '--fix', '-f', '--no-launch', '--help', '-h'],
+  browser: ['setup', 'status', 'doctor', '--help', '-h'],
   docker: ['--help', '-h', '--host'],
   env: ['--format', '--shell', '--ide', '--help', '-h'],
   migrate: MIGRATE_FLAGS,

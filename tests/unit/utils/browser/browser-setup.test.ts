@@ -104,9 +104,10 @@ describe('browser setup', () => {
     }
   });
 
-  it('enables Claude browser attach and returns ready without launching when runtime already resolves', async () => {
+  it('enables Claude browser attach and prepares the managed default path', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-setup-'));
     const config = createUnifiedConfig(join(tempDir, 'browser-profile'));
+    config.browser.claude.user_data_dir = '';
 
     const deps: BrowserSetupDeps = {
       getBrowserConfig: () => config.browser,
@@ -115,13 +116,6 @@ describe('browser setup', () => {
         return config;
       },
       ensureBrowserMcp: () => true,
-      resolveBrowserRuntimeEnv: async () => ({
-        CCS_BROWSER_USER_DATA_DIR: config.browser.claude.user_data_dir,
-        CCS_BROWSER_DEVTOOLS_HOST: '127.0.0.1',
-        CCS_BROWSER_DEVTOOLS_PORT: '9222',
-        CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9222',
-        CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/test',
-      }),
       getBrowserStatus: async () =>
         ({
           claude: {
@@ -154,26 +148,21 @@ describe('browser setup', () => {
             binaryPath: '/usr/local/bin/codex',
           },
         }) as Awaited<ReturnType<BrowserSetupDeps['getBrowserStatus']>>,
-      launchBrowserSession: async () => ({
-        launchCommand: 'open -na "Google Chrome" --args --remote-debugging-port=9222',
-        started: false,
-      }),
-      sleep: async () => undefined,
     };
 
-    const result = await runBrowserSetup({ launch: false }, deps);
+    const result = await runBrowserSetup(deps);
 
     expect(result.configUpdated).toBe(true);
     expect(result.createdUserDataDir).toBe(true);
-    expect(result.launchAttempted).toBe(false);
     expect(result.ready).toBe(true);
     expect(config.browser.claude.enabled).toBe(true);
+    expect(config.browser.claude.user_data_dir).not.toBe('');
   });
 
-  it('launches the browser session when runtime is not ready initially', async () => {
+  it('does not create a custom override path during setup', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'ccs-browser-setup-'));
     const config = createUnifiedConfig(join(tempDir, 'browser-profile'));
-    let resolveCalls = 0;
+    config.browser.claude.enabled = true;
 
     const deps: BrowserSetupDeps = {
       getBrowserConfig: () => config.browser,
@@ -182,30 +171,16 @@ describe('browser setup', () => {
         return config;
       },
       ensureBrowserMcp: () => true,
-      resolveBrowserRuntimeEnv: async () => {
-        resolveCalls += 1;
-        if (resolveCalls < 2) {
-          throw new Error('Chrome reuse metadata not found');
-        }
-
-        return {
-          CCS_BROWSER_USER_DATA_DIR: config.browser.claude.user_data_dir,
-          CCS_BROWSER_DEVTOOLS_HOST: '127.0.0.1',
-          CCS_BROWSER_DEVTOOLS_PORT: '9222',
-          CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9222',
-          CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/test',
-        };
-      },
       getBrowserStatus: async () =>
         ({
           claude: {
             enabled: true,
-            source: 'config',
-            overrideActive: false,
-            state: 'ready',
-            title: 'Claude Browser Attach is ready.',
-            detail: 'ready',
-            nextStep: 'Launch Claude.',
+            source: 'CCS_BROWSER_USER_DATA_DIR',
+            overrideActive: true,
+            state: 'browser_not_running',
+            title: 'Claude Browser Attach could not find a running browser session.',
+            detail: 'override active',
+            nextStep: 'Run `ccs browser setup` to configure and start the managed browser session.',
             effectiveUserDataDir: config.browser.claude.user_data_dir,
             recommendedUserDataDir: config.browser.claude.user_data_dir,
             devtoolsPort: 9222,
@@ -228,18 +203,13 @@ describe('browser setup', () => {
             binaryPath: '/usr/local/bin/codex',
           },
         }) as Awaited<ReturnType<BrowserSetupDeps['getBrowserStatus']>>,
-      launchBrowserSession: async () => ({
-        launchCommand: 'open -na "Google Chrome" --args --remote-debugging-port=9222',
-        started: true,
-      }),
-      sleep: async () => undefined,
     };
 
-    const result = await runBrowserSetup({}, deps);
+    const result = await runBrowserSetup(deps);
 
-    expect(result.launchAttempted).toBe(true);
-    expect(result.launchStarted).toBe(true);
-    expect(result.ready).toBe(true);
-    expect(resolveCalls).toBeGreaterThanOrEqual(2);
+    expect(result.createdUserDataDir).toBe(false);
+    expect(result.overrideActive).toBe(false);
+    expect(result.ready).toBe(false);
+    expect(result.notes[0]).toContain('did not create the current browser user-data dir');
   });
 });

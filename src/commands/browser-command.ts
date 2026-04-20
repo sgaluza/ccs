@@ -24,16 +24,13 @@ function summarizeBrowserHealth(status: browserUtils.BrowserStatusPayload): {
 function writeCommandTable(writeLine: HelpWriter): void {
   writeLine(subheader('Commands'));
   writeLine(
-    `  ${color('ccs browser setup', 'command')}   Configure Claude Browser Attach and try to start the managed browser session`
+    `  ${color('ccs browser setup', 'command')}   Configure Claude Browser Attach and print the manual launch command`
   );
   writeLine(
     `  ${color('ccs browser status', 'command')}  Show Claude attach and Codex browser readiness`
   );
   writeLine(
     `  ${color('ccs browser doctor', 'command')}  Explain what is missing and how to fix it`
-  );
-  writeLine(
-    `  ${color('ccs browser doctor --fix', 'command')}  ${dim('# Alias for browser setup')}`
   );
   writeLine('');
 }
@@ -105,10 +102,6 @@ function writeSetupSummary(
   writeLine(`  Config updated: ${result.configUpdated ? 'yes' : 'no'}`);
   writeLine(`  Created user-data dir: ${result.createdUserDataDir ? 'yes' : 'no'}`);
   writeLine(`  Browser MCP ready: ${result.mcpReady ? 'yes' : 'no'}`);
-  if (result.launchAttempted) {
-    writeLine(`  Browser launch: ${result.launchStarted ? 'started' : 'failed'}`);
-  }
-  writeLine(`  Launch command: ${result.launchCommand}`);
   if (result.notes.length > 0) {
     for (const note of result.notes) {
       writeLine(`  Note: ${note}`);
@@ -133,16 +126,10 @@ export async function showBrowserHelp(writeLine: HelpWriter = console.log): Prom
   writeLine('');
   writeLine(subheader('Examples'));
   writeLine(
-    `  ${color('ccs browser setup', 'command')}   ${dim('# Configure and start the managed browser session')}`
-  );
-  writeLine(
-    `  ${color('ccs browser setup --no-launch', 'command')}  ${dim('# Save setup only, do not start Chrome')}`
+    `  ${color('ccs browser setup', 'command')}   ${dim('# Configure browser attach and print the manual launch command')}`
   );
   writeLine(
     `  ${color('ccs browser doctor', 'command')}  ${dim('# Detailed troubleshooting output')}`
-  );
-  writeLine(
-    `  ${color('ccs browser doctor --fix', 'command')}  ${dim('# Run the setup flow from doctor')}`
   );
   writeLine(
     `  ${color('ccs config', 'command')}          ${dim('# Open Settings > Browser in the dashboard')}`
@@ -151,7 +138,7 @@ export async function showBrowserHelp(writeLine: HelpWriter = console.log): Prom
 }
 
 function isHelpRequest(args: string[]): boolean {
-  return args.length === 0 || args.includes('--help') || args.includes('-h');
+  return args.length === 0 || args[0] === 'help' || args.includes('--help') || args.includes('-h');
 }
 
 export async function handleBrowserCommand(
@@ -164,13 +151,20 @@ export async function handleBrowserCommand(
   }
 
   const subcommand = args[0];
-  if (subcommand === 'setup' || (subcommand === 'doctor' && args.includes('--fix'))) {
-    await initUI();
-    const result = await browserUtils.runBrowserSetup({
-      launch: !args.includes('--no-launch'),
-    });
+  if (subcommand === 'setup') {
+    if (args.includes('--no-launch')) {
+      await initUI();
+      writeLine(color('`ccs browser setup` no longer supports `--no-launch`.', 'error'));
+      writeLine(`  ${dim('Setup is config-only and already prints the manual launch command.')}`);
+      writeLine('');
+      process.exitCode = 1;
+      return;
+    }
 
-    const label = subcommand === 'setup' ? 'ccs browser setup' : 'ccs browser doctor --fix';
+    await initUI();
+    const result = await browserUtils.runBrowserSetup();
+
+    const label = 'ccs browser setup';
     writeLine(header(label));
     writeLine('');
     writeIntro(writeLine);
@@ -178,6 +172,15 @@ export async function handleBrowserCommand(
     writeClaudeStatus(result.status.claude, writeLine, !result.ready);
     writeCodexStatus(result.status.codex, writeLine);
     process.exitCode = result.ready ? 0 : 1;
+    return;
+  }
+
+  if (subcommand === 'doctor' && (args.includes('--fix') || args.includes('-f'))) {
+    await initUI();
+    writeLine(color('`ccs browser doctor` is read-only.', 'error'));
+    writeLine(`  ${dim('Run `ccs browser setup` for the browser remediation flow.')}`);
+    writeLine('');
+    process.exitCode = 1;
     return;
   }
 

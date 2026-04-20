@@ -187,19 +187,10 @@ describe('browser command', () => {
     const setupSpy = spyOn(browserUtils, 'runBrowserSetup').mockResolvedValue({
       configUpdated: true,
       createdUserDataDir: true,
-      launchAttempted: true,
-      launchStarted: true,
-      launchCommand: 'open -na "Google Chrome" --args --remote-debugging-port=9222',
       mcpReady: true,
       overrideActive: false,
       ready: true,
-      runtimeEnv: {
-        CCS_BROWSER_USER_DATA_DIR: '/tmp/browser-profile',
-        CCS_BROWSER_DEVTOOLS_HOST: '127.0.0.1',
-        CCS_BROWSER_DEVTOOLS_PORT: '9222',
-        CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9222',
-        CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/test',
-      },
+      launchCommand: 'open -na "Google Chrome" --args --remote-debugging-port=9222',
       status: {
         claude: {
           enabled: true,
@@ -248,67 +239,26 @@ describe('browser command', () => {
       expect(rendered.includes('ccs browser setup')).toBe(true);
       expect(rendered.includes('Result: ready')).toBe(true);
       expect(rendered.includes('Config updated: yes')).toBe(true);
-      expect(rendered.includes('Browser launch: started')).toBe(true);
-      expect(rendered.includes('Launch command: open -na "Google Chrome"')).toBe(true);
       expect(process.exitCode).toBe(0);
     } finally {
       setupSpy.mockRestore();
     }
   });
 
-  test('doctor --fix reuses the browser setup flow', async () => {
-    const setupSpy = spyOn(browserUtils, 'runBrowserSetup').mockResolvedValue({
-      configUpdated: false,
-      createdUserDataDir: false,
-      launchAttempted: false,
-      launchStarted: false,
-      launchCommand: 'open -na "Google Chrome" --args --remote-debugging-port=9222',
-      mcpReady: false,
-      overrideActive: false,
-      ready: false,
-      status: {
-        claude: {
-          enabled: true,
-          source: 'config',
-          overrideActive: false,
-          state: 'browser_not_running',
-          title: 'Claude Browser Attach is not ready yet.',
-          detail: 'No running attach-mode Chrome session is using the managed browser profile yet.',
-          nextStep: 'Run `ccs browser setup` to configure and start the managed browser session.',
-          effectiveUserDataDir: '/tmp/browser-profile',
-          recommendedUserDataDir: '/tmp/browser-profile',
-          devtoolsPort: 9222,
-          managedMcpServerName: 'ccs-browser',
-          managedMcpServerPath: '/tmp/ccs-browser-server.cjs',
-          launchCommands: {
-            darwin: 'open -na "Google Chrome" --args',
-            linux: 'google-chrome --remote-debugging-port=9222',
-            win32: 'chrome.exe --remote-debugging-port=9222',
-          },
-        },
-        codex: {
-          enabled: true,
-          state: 'enabled',
-          title: 'Codex Browser Tools are enabled.',
-          detail: 'CCS can inject the managed Playwright MCP overrides.',
-          nextStep: 'Use a Codex-target launch.',
-          serverName: 'ccs_browser',
-          supportsConfigOverrides: true,
-          binaryPath: '/usr/local/bin/codex',
-        },
-      },
-      notes: ['CCS could not fully prepare the local browser MCP runtime.'],
-    });
+  test('doctor rejects --fix and points users to setup', async () => {
+    const rendered = await renderLines(['doctor', '--fix']);
 
-    try {
-      const rendered = await renderLines(['doctor', '--fix', '--no-launch']);
+    expect(rendered.includes('`ccs browser doctor` is read-only.')).toBe(true);
+    expect(rendered.includes('Run `ccs browser setup` for the browser remediation flow.')).toBe(
+      true
+    );
+    expect(process.exitCode).toBe(1);
+  });
 
-      expect(rendered.includes('ccs browser doctor --fix')).toBe(true);
-      expect(rendered.includes('Result: action required')).toBe(true);
-      expect(rendered.includes('Note: CCS could not fully prepare the local browser MCP runtime.')).toBe(true);
-      expect(process.exitCode).toBe(1);
-    } finally {
-      setupSpy.mockRestore();
-    }
+  test('literal browser help still renders the help page', async () => {
+    const rendered = await renderLines(['help']);
+
+    expect(rendered.includes('CCS Browser Help')).toBe(true);
+    expect(rendered.includes('ccs browser setup')).toBe(true);
   });
 });

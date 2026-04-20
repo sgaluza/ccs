@@ -51,4 +51,4 @@ export type {
 } from './browser-status';
 
 export { runBrowserSetup } from './browser-setup';
-export type { BrowserSetupOptions, BrowserSetupResult } from './browser-setup';
+export type { BrowserSetupResult } from './browser-setup';
