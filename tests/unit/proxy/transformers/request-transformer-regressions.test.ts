@@ -135,7 +135,7 @@ describe('ProxyRequestTransformer regressions', () => {
           },
         ],
       })
-    ).toThrow('must include tool_result blocks for pending tool_use ids');
+    ).toThrow('must start with tool_result blocks for pending tool_use ids');
   });
 
   it('rejects tool_result content that cannot be represented as OpenAI tool text', () => {
