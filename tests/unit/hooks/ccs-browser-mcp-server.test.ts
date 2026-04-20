@@ -6410,6 +6410,341 @@ describe('ccs-browser MCP server', () => {
     expect(text).toContain('failedBlockIndex: 0');
   });
 
+  it('runs a single-layer sequence with two successful blocks', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Sequence Page',
+        currentUrl: 'https://example.com/sequence',
+        click: {
+          '#menu': {},
+        },
+        wait: {
+          selectorSnapshots: {
+            '#menu': [
+              [
+                {
+                  exists: true,
+                  rect: {
+                    x: 20,
+                    y: 30,
+                    width: 100,
+                    height: 40,
+                    top: 30,
+                    right: 120,
+                    bottom: 70,
+                    left: 20,
+                  },
+                  display: 'block',
+                  visibility: 'visible',
+                  opacity: '1',
+                },
+              ],
+            ],
+          },
+        },
+        query: {
+          '#menu': {
+            exists: true,
+            connected: true,
+            rect: {
+              x: 20,
+              y: 30,
+              width: 100,
+              height: 40,
+              top: 30,
+              right: 120,
+              bottom: 70,
+              left: 20,
+            },
+            display: 'block',
+            visibility: 'visible',
+            opacity: '1',
+          },
+          '#status': {
+            exists: true,
+            connected: true,
+            innerText: 'ready state',
+            textContent: 'ready state',
+            display: 'block',
+            visibility: 'visible',
+            opacity: '1',
+            rect: {
+              x: 20,
+              y: 80,
+              width: 100,
+              height: 40,
+              top: 80,
+              right: 120,
+              bottom: 120,
+              left: 20,
+            },
+          },
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(pages, [
+      {
+        jsonrpc: '2.0',
+        id: 1401,
+        method: 'tools/call',
+        params: {
+          name: 'browser_start_orchestration',
+          arguments: {
+            blocks: [
+              createOrchestrationBlock({
+                type: 'sequence',
+                args: {
+                  steps: [
+                    createOrchestrationBlock({
+                      type: 'wait_for_then_click',
+                      args: {
+                        wait: { selector: '#menu', condition: { kind: 'visibility' }, timeoutMs: 1000 },
+                        click: { selector: '#menu' },
+                      },
+                    }),
+                    createOrchestrationBlock({
+                      type: 'assert_query',
+                      args: {
+                        query: { selector: '#status', fields: ['innerText'] },
+                        assertions: [{ field: 'innerText', op: 'contains', value: 'ready' }],
+                      },
+                    }),
+                  ],
+                },
+              }),
+            ],
+          },
+        },
+      },
+    ]);
+
+    expect(getResponseText(responses.find((message) => message.id === 1401))).toContain('status: completed');
+    expect(getResponseText(responses.find((message) => message.id === 1401))).toContain('completedBlocks: 1');
+  });
+
+  it('reports failedSequenceStepIndex when a sequence step fails', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Sequence Failure Page',
+        currentUrl: 'https://example.com/sequence-failure',
+        click: {
+          '#menu': {},
+        },
+        wait: {
+          selectorSnapshots: {
+            '#menu': [
+              [
+                {
+                  exists: true,
+                  rect: {
+                    x: 20,
+                    y: 30,
+                    width: 100,
+                    height: 40,
+                    top: 30,
+                    right: 120,
+                    bottom: 70,
+                    left: 20,
+                  },
+                  display: 'block',
+                  visibility: 'visible',
+                  opacity: '1',
+                },
+              ],
+            ],
+          },
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(pages, [
+      {
+        jsonrpc: '2.0',
+        id: 1402,
+        method: 'tools/call',
+        params: {
+          name: 'browser_start_orchestration',
+          arguments: {
+            blocks: [
+              createOrchestrationBlock({
+                type: 'sequence',
+                args: {
+                  steps: [
+                    createOrchestrationBlock({
+                      type: 'wait_for_then_click',
+                      args: {
+                        wait: { selector: '#menu', condition: { kind: 'visibility' }, timeoutMs: 1000 },
+                        click: { selector: '#menu' },
+                      },
+                    }),
+                    createOrchestrationBlock({
+                      type: 'assert_query',
+                      args: {
+                        query: { selector: '#missing', fields: ['exists'] },
+                        assertions: [{ field: 'exists', op: 'equals', value: true }],
+                      },
+                    }),
+                  ],
+                },
+              }),
+            ],
+          },
+        },
+      },
+      {
+        jsonrpc: '2.0',
+        id: 1403,
+        method: 'tools/call',
+        params: { name: 'browser_get_orchestration', arguments: {} },
+      },
+    ]);
+
+    const text = getResponseText(responses.find((message) => message.id === 1403));
+    expect(text).toContain('status: failed');
+    expect(text).toContain('failedBlockIndex: 0');
+    expect(text).toContain('failedSequenceStepIndex: 1');
+  });
+
+  it('rejects empty sequence steps and nested sequence blocks', async () => {
+    const responses = await runMcpRequests(
+      [{ id: 'page-1', title: 'Sequence Validation Page', currentUrl: 'https://example.com/sequence-validation' }],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1404,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [createOrchestrationBlock({ type: 'sequence', args: { steps: [] } })],
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1405,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'sequence',
+                  args: {
+                    steps: [createOrchestrationBlock({ type: 'sequence', args: { steps: [] } })],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1404))).toContain('sequence steps must be a non-empty array');
+    expect(getResponseText(responses.find((message) => message.id === 1405))).toContain('sequence does not support nested sequence blocks');
+  });
+
+  it('runs a top-level block followed by a sequence in order', async () => {
+    const pages: MockPageState[] = [
+      {
+        id: 'page-1',
+        title: 'Mixed Sequence Page',
+        currentUrl: 'https://example.com/mixed-sequence',
+        click: {
+          '#menu': {},
+        },
+        wait: {
+          selectorSnapshots: {
+            '#menu': [
+              [
+                {
+                  exists: true,
+                  rect: {
+                    x: 20,
+                    y: 30,
+                    width: 100,
+                    height: 40,
+                    top: 30,
+                    right: 120,
+                    bottom: 70,
+                    left: 20,
+                  },
+                  display: 'block',
+                  visibility: 'visible',
+                  opacity: '1',
+                },
+              ],
+            ],
+          },
+        },
+        query: {
+          '#status': {
+            exists: true,
+            connected: true,
+            innerText: 'ready state',
+            textContent: 'ready state',
+            display: 'block',
+            visibility: 'visible',
+            opacity: '1',
+            rect: {
+              x: 20,
+              y: 80,
+              width: 100,
+              height: 40,
+              top: 80,
+              right: 120,
+              bottom: 120,
+              left: 20,
+            },
+          },
+        },
+      },
+    ];
+
+    const responses = await runMcpRequests(pages, [
+      {
+        jsonrpc: '2.0',
+        id: 1406,
+        method: 'tools/call',
+        params: {
+          name: 'browser_start_orchestration',
+          arguments: {
+            blocks: [
+              createOrchestrationBlock({
+                type: 'assert_query',
+                args: {
+                  query: { selector: '#status', fields: ['innerText'] },
+                  assertions: [{ field: 'innerText', op: 'contains', value: 'ready' }],
+                },
+              }),
+              createOrchestrationBlock({
+                type: 'sequence',
+                args: {
+                  steps: [
+                    createOrchestrationBlock({
+                      type: 'wait_for_then_click',
+                      args: {
+                        wait: { selector: '#menu', condition: { kind: 'visibility' }, timeoutMs: 1000 },
+                        click: { selector: '#menu' },
+                      },
+                    }),
+                  ],
+                },
+              }),
+            ],
+          },
+        },
+      },
+    ]);
+
+    expect(getResponseText(responses.find((message) => message.id === 1406))).toContain('status: completed');
+    expect(getResponseText(responses.find((message) => message.id === 1406))).toContain('completedBlocks: 2');
+  });
+
   it('passes assert_query with multiple structured assertions', async () => {
     const responses = await runMcpRequests(
       [
