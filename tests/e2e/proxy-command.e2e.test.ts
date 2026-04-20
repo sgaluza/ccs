@@ -22,6 +22,10 @@ function runCli(args: string[], extraEnv: Record<string, string> = {}) {
 }
 
 beforeAll(() => {
+  if (process.env.CCS_E2E_SKIP_BUILD === '1') {
+    expect(fs.existsSync(DIST_ENTRY)).toBe(true);
+    return;
+  }
   const result = spawnSync(process.execPath, ['run', 'build'], {
     encoding: 'utf8',
     env: process.env,

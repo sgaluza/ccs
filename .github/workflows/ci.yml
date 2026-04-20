@@ -139,3 +139,8 @@ jobs:
 
       - name: Test
         run: bun run test:all
+
+      - name: Test CLI e2e
+        env:
+          CCS_E2E_SKIP_BUILD: '1'
+        run: bun run test:e2e
