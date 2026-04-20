@@ -124,6 +124,14 @@ Phase 11A capability details:
 - assertion failures now include clearer diagnostics such as failed assertion index, field, expected value, and actual value
 - Phase 11A continues to reuse `browser_query` as the data source rather than introducing a new diagnostics runtime
 
+Phase 11B capability details:
+
+- `sequence` adds a single-layer grouping container on top of fixed orchestration blocks
+- sequence steps reuse existing block semantics rather than introducing a DSL
+- sequence runs steps sequentially and stops on the first failure
+- nested sequence blocks remain out of scope
+- sequence failures can report both top-level block failure and sequence-local step failure
+
 Minimal multi-tab workflow examples:
 
 ```json
