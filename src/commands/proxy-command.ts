@@ -136,7 +136,7 @@ async function handleStatus(args: string[] = []): Promise<number> {
   const printStatus = (status: Awaited<ReturnType<typeof getOpenAICompatProxyStatus>>) => {
     console.log(
       status.running
-        ? ok(`Proxy running on port ${status.port}`)
+        ? ok(`Proxy running on port ${status.port ?? 'unknown'}`)
         : info(`Proxy is not running${status.port ? ` (last known port ${status.port})` : ''}`)
     );
     if (status.host && status.port) {
