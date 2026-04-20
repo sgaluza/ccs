@@ -1843,6 +1843,10 @@ describe('ccs-browser MCP server', () => {
       'browser_start_orchestration',
       'browser_get_orchestration',
       'browser_cancel_orchestration',
+      'browser_export_artifact',
+      'browser_import_artifact',
+      'browser_list_artifacts',
+      'browser_delete_artifact',
       'browser_take_screenshot',
       'browser_wait_for',
       'browser_eval',
@@ -1985,6 +1989,19 @@ describe('ccs-browser MCP server', () => {
 
     const cancelOrchestrationTool = tools.find((tool) => tool.name === 'browser_cancel_orchestration');
     expect(cancelOrchestrationTool?.inputSchema).toMatchObject({ type: 'object' });
+
+    const exportArtifactTool = tools.find((tool) => tool.name === 'browser_export_artifact');
+    expect(exportArtifactTool?.inputSchema?.properties?.kind).toMatchObject({ type: 'string' });
+    expect(exportArtifactTool?.inputSchema?.properties?.name).toMatchObject({ type: 'string' });
+
+    const importArtifactTool = tools.find((tool) => tool.name === 'browser_import_artifact');
+    expect(importArtifactTool?.inputSchema?.properties?.path).toMatchObject({ type: 'string' });
+
+    const listArtifactsTool = tools.find((tool) => tool.name === 'browser_list_artifacts');
+    expect(listArtifactsTool?.inputSchema).toMatchObject({ type: 'object' });
+
+    const deleteArtifactTool = tools.find((tool) => tool.name === 'browser_delete_artifact');
+    expect(deleteArtifactTool?.inputSchema?.properties?.name).toMatchObject({ type: 'string' });
 
     const queryTool = tools.find((tool) => tool.name === 'browser_query');
     expect(queryTool?.inputSchema?.properties?.fields).toMatchObject({
@@ -7276,6 +7293,222 @@ describe('ccs-browser MCP server', () => {
     expect(text).toContain('completedBlocks: 2');
     expect(text).toContain('failedCount: 1');
     expect(text).toContain('failure[0].sequenceStepIndex: 0');
+  });
+
+  it('exports recording and replay artifacts and lists them', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Artifact Page',
+          currentUrl: 'https://example.com/artifact',
+          recording: {
+            events: [
+              {
+                kind: 'click',
+                selector: '#submit',
+                timestamp: 1710000000000,
+              },
+            ],
+          },
+          click: {
+            '#submit': {},
+          },
+          query: {
+            '#submit': {
+              exists: true,
+              connected: true,
+              rect: {
+                x: 20,
+                y: 30,
+                width: 100,
+                height: 40,
+                top: 30,
+                right: 120,
+                bottom: 70,
+                left: 20,
+              },
+              display: 'block',
+              visibility: 'visible',
+              opacity: '1',
+            },
+          },
+        },
+      ],
+      [
+        { jsonrpc: '2.0', id: 1601, method: 'tools/call', params: { name: 'browser_start_recording', arguments: {} } },
+        { jsonrpc: '2.0', id: 1602, method: 'tools/call', params: { name: 'browser_stop_recording', arguments: {} } },
+        {
+          jsonrpc: '2.0',
+          id: 1603,
+          method: 'tools/call',
+          params: { name: 'browser_export_artifact', arguments: { kind: 'recording', name: 'rec-smoke' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1604,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_replay',
+            arguments: {
+              steps: [createReplayStep({ type: 'click', pageId: 'page-1', selector: '#submit', args: {} })],
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1605,
+          method: 'tools/call',
+          params: { name: 'browser_export_artifact', arguments: { kind: 'replay', name: 'replay-smoke' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1606,
+          method: 'tools/call',
+          params: { name: 'browser_list_artifacts', arguments: {} },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1603))).toContain('status: exported');
+    expect(getResponseText(responses.find((message) => message.id === 1605))).toContain('status: exported');
+    const listText = getResponseText(responses.find((message) => message.id === 1606));
+    expect(listText).toContain('name: rec-smoke');
+    expect(listText).toContain('name: replay-smoke');
+  });
+
+  it('imports and deletes orchestration artifacts', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Artifact Page',
+          currentUrl: 'https://example.com/artifact',
+          click: { '#submit': {} },
+          wait: {
+            selectorSnapshots: {
+              '#submit': [
+                [
+                  {
+                    exists: true,
+                    rect: {
+                      x: 20,
+                      y: 30,
+                      width: 100,
+                      height: 40,
+                      top: 30,
+                      right: 120,
+                      bottom: 70,
+                      left: 20,
+                    },
+                    display: 'block',
+                    visibility: 'visible',
+                    opacity: '1',
+                  },
+                ],
+              ],
+            },
+          },
+          query: {
+            '#status': {
+              exists: true,
+              connected: true,
+              innerText: 'ready state',
+              textContent: 'ready state',
+              display: 'block',
+              visibility: 'visible',
+              opacity: '1',
+              rect: {
+                x: 20,
+                y: 80,
+                width: 100,
+                height: 40,
+                top: 80,
+                right: 120,
+                bottom: 120,
+                left: 20,
+              },
+            },
+          },
+        },
+      ],
+      [
+        {
+          jsonrpc: '2.0',
+          id: 1607,
+          method: 'tools/call',
+          params: {
+            name: 'browser_start_orchestration',
+            arguments: {
+              blocks: [
+                createOrchestrationBlock({
+                  type: 'assert_query',
+                  args: {
+                    query: { selector: '#status', fields: ['innerText'] },
+                    assertions: [{ field: 'innerText', op: 'contains', value: 'ready' }],
+                  },
+                }),
+              ],
+            },
+          },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1608,
+          method: 'tools/call',
+          params: { name: 'browser_export_artifact', arguments: { kind: 'orchestration', name: 'orc-smoke' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1609,
+          method: 'tools/call',
+          params: { name: 'browser_list_artifacts', arguments: {} },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1610,
+          method: 'tools/call',
+          params: { name: 'browser_import_artifact', arguments: { path: 'artifact:orc-smoke' } },
+        },
+        {
+          jsonrpc: '2.0',
+          id: 1611,
+          method: 'tools/call',
+          params: { name: 'browser_delete_artifact', arguments: { name: 'orc-smoke' } },
+        },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1608))).toContain('status: exported');
+    expect(getResponseText(responses.find((message) => message.id === 1610))).toContain('status: imported');
+    expect(getResponseText(responses.find((message) => message.id === 1611))).toContain('status: deleted');
+  });
+
+  it('rejects duplicate export, invalid import payload, and missing artifact delete target', async () => {
+    const responses = await runMcpRequests(
+      [
+        {
+          id: 'page-1',
+          title: 'Artifact Failure Page',
+          currentUrl: 'https://example.com/artifact-failure',
+          recording: {
+            events: [{ kind: 'click', selector: '#submit', timestamp: 1710000000000 }],
+          },
+        },
+      ],
+      [
+        { jsonrpc: '2.0', id: 1612, method: 'tools/call', params: { name: 'browser_start_recording', arguments: {} } },
+        { jsonrpc: '2.0', id: 1613, method: 'tools/call', params: { name: 'browser_stop_recording', arguments: {} } },
+        { jsonrpc: '2.0', id: 1614, method: 'tools/call', params: { name: 'browser_export_artifact', arguments: { kind: 'recording', name: 'dup-artifact' } } },
+        { jsonrpc: '2.0', id: 1615, method: 'tools/call', params: { name: 'browser_export_artifact', arguments: { kind: 'recording', name: 'dup-artifact' } } },
+        { jsonrpc: '2.0', id: 1616, method: 'tools/call', params: { name: 'browser_import_artifact', arguments: { path: 'artifact:invalid-json' } } },
+        { jsonrpc: '2.0', id: 1617, method: 'tools/call', params: { name: 'browser_delete_artifact', arguments: { name: 'missing-artifact' } } },
+      ]
+    );
+
+    expect(getResponseText(responses.find((message) => message.id === 1615))).toContain('artifact already exists');
+    expect(getResponseText(responses.find((message) => message.id === 1616))).toContain('artifact file not found');
+    expect(getResponseText(responses.find((message) => message.id === 1617))).toContain('artifact not found');
   });
 
   it('drags local files onto normal, frame, and shadow dropzones', async () => {
