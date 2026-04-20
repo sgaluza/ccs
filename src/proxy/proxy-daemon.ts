@@ -13,7 +13,9 @@ import {
 } from './proxy-daemon-paths';
 import {
   getOpenAICompatProxyPid,
+  listOpenAICompatProxyProfileNames,
   readOpenAICompatProxySession,
+  cleanupLegacyOpenAICompatProxyState,
   removeOpenAICompatProxyPid,
   removeOpenAICompatProxySession,
   resolveOpenAICompatProxyEntrypointCandidates,
@@ -21,6 +23,7 @@ import {
   writeOpenAICompatProxyPid,
   writeOpenAICompatProxySession,
 } from './proxy-daemon-state';
+import { resolveOpenAICompatProxyPreferredPort } from './proxy-port-resolver';
 
 export interface OpenAICompatProxyStatus extends Partial<OpenAICompatProxySession> {
   running: boolean;
@@ -101,6 +104,13 @@ async function findOpenAICompatProxyPort(): Promise<number> {
   return 0;
 }
 
+async function findOpenAICompatProxyPortNear(preferredPort: number): Promise<number> {
+  if (!(await isPortOccupied(preferredPort))) {
+    return preferredPort;
+  }
+  return findOpenAICompatProxyPort();
+}
+
 async function resolveDaemonEntrypoint(): Promise<string | null> {
   for (const candidate of resolveOpenAICompatProxyEntrypointCandidates()) {
     try {
@@ -144,21 +154,52 @@ export async function isOpenAICompatProxyRunning(port: number): Promise<boolean>
   });
 }
 
-export async function getOpenAICompatProxyStatus(): Promise<OpenAICompatProxyStatus> {
-  const session = readOpenAICompatProxySession();
+async function getOpenAICompatProxyStatusForProfile(
+  profileName: string
+): Promise<OpenAICompatProxyStatus> {
+  const session = readOpenAICompatProxySession(profileName);
   const port = session?.port ?? OPENAI_COMPAT_PROXY_DEFAULT_PORT;
   const running = await isOpenAICompatProxyRunning(port);
   return {
     running,
-    pid: running ? getOpenAICompatProxyPid() || undefined : undefined,
+    pid: running ? getOpenAICompatProxyPid(profileName) || undefined : undefined,
     ...session,
   };
 }
 
-async function stopOpenAICompatProxyUnlocked(): Promise<{ success: boolean; error?: string }> {
-  const pid = getOpenAICompatProxyPid();
+export async function listOpenAICompatProxyStatuses(): Promise<OpenAICompatProxyStatus[]> {
+  const profileNames = listOpenAICompatProxyProfileNames();
+  const statuses = await Promise.all(
+    profileNames.map((profileName) => getOpenAICompatProxyStatusForProfile(profileName))
+  );
+  return statuses.filter((status) => status.profileName);
+}
+
+export async function getOpenAICompatProxyStatus(
+  profileName?: string
+): Promise<OpenAICompatProxyStatus> {
+  if (profileName) {
+    return getOpenAICompatProxyStatusForProfile(profileName);
+  }
+
+  const statuses = await listOpenAICompatProxyStatuses();
+  const running = statuses.filter((status) => status.running);
+  if (running.length === 1) {
+    return running[0] || { running: false };
+  }
+  if (running.length > 1) {
+    return { running: true };
+  }
+  const latestKnown = statuses[0];
+  return latestKnown ?? { running: false };
+}
+
+async function stopOpenAICompatProxyUnlocked(
+  profileName: string
+): Promise<{ success: boolean; error?: string }> {
+  const pid = getOpenAICompatProxyPid(profileName);
   if (!pid) {
-    removeOpenAICompatProxySession();
+    removeOpenAICompatProxySession(profileName);
     return { success: true };
   }
 
@@ -170,7 +211,8 @@ async function stopOpenAICompatProxyUnlocked(): Promise<{ success: boolean; erro
   );
 
   if (ownership === 'not-owned') {
-    removeOpenAICompatProxyPid();
+    removeOpenAICompatProxyPid(profileName);
+    removeOpenAICompatProxySession(profileName);
     return { success: true };
   }
 
@@ -182,8 +224,8 @@ async function stopOpenAICompatProxyUnlocked(): Promise<{ success: boolean; erro
   }
 
   if (ownership === 'not-running') {
-    removeOpenAICompatProxyPid();
-    removeOpenAICompatProxySession();
+    removeOpenAICompatProxyPid(profileName);
+    removeOpenAICompatProxySession(profileName);
     return { success: true };
   }
 
@@ -214,13 +256,32 @@ async function stopOpenAICompatProxyUnlocked(): Promise<{ success: boolean; erro
     }
   }
 
-  removeOpenAICompatProxyPid();
-  removeOpenAICompatProxySession();
+  removeOpenAICompatProxyPid(profileName);
+  removeOpenAICompatProxySession(profileName);
   return { success: true };
 }
 
-export async function stopOpenAICompatProxy(): Promise<{ success: boolean; error?: string }> {
-  return withOpenAICompatProxyLock(() => stopOpenAICompatProxyUnlocked());
+export async function stopOpenAICompatProxy(
+  profileName?: string
+): Promise<{ success: boolean; error?: string }> {
+  return withOpenAICompatProxyLock(async () => {
+    cleanupLegacyOpenAICompatProxyState();
+    if (profileName) {
+      return stopOpenAICompatProxyUnlocked(profileName);
+    }
+
+    const statuses = await listOpenAICompatProxyStatuses();
+    for (const status of statuses) {
+      if (!status.profileName) {
+        continue;
+      }
+      const stopped = await stopOpenAICompatProxyUnlocked(status.profileName);
+      if (!stopped.success) {
+        return stopped;
+      }
+    }
+    return { success: true };
+  });
 }
 
 export async function startOpenAICompatProxy(
@@ -228,30 +289,28 @@ export async function startOpenAICompatProxy(
   options: { port?: number; host?: string; insecure?: boolean } = {}
 ): Promise<StartOpenAICompatProxyResult> {
   return withOpenAICompatProxyLock(async () => {
-    const status = await getOpenAICompatProxyStatus();
+    cleanupLegacyOpenAICompatProxyState();
+    const status = await getOpenAICompatProxyStatus(profile.profileName);
     const host = options.host?.trim() || status.host || '127.0.0.1';
-    const port =
+    const preferredPort =
       typeof options.port === 'number'
         ? options.port
-        : status.running && status.profileName === profile.profileName && status.port
-          ? status.port
-          : await findOpenAICompatProxyPort();
+        : status.port || resolveOpenAICompatProxyPreferredPort(profile.profileName);
+    const port =
+      status.running && status.port && (status.host || '127.0.0.1') === host
+        ? status.port
+        : await findOpenAICompatProxyPortNear(preferredPort);
     if (port === 0) {
       return {
         success: false,
-        port: OPENAI_COMPAT_PROXY_DEFAULT_PORT,
+        port: preferredPort,
         error: `No free proxy port found in range ${OPENAI_COMPAT_PROXY_DEFAULT_PORT}-${OPENAI_COMPAT_PROXY_DEFAULT_PORT + 10}`,
       };
     }
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       return { success: false, port, error: `Invalid port: ${port}` };
     }
-    if (
-      status.running &&
-      status.profileName === profile.profileName &&
-      status.port === port &&
-      (status.host || '127.0.0.1') === host
-    ) {
+    if (status.running && status.port === port && (status.host || '127.0.0.1') === host) {
       return {
         success: true,
         alreadyRunning: true,
@@ -261,15 +320,7 @@ export async function startOpenAICompatProxy(
       };
     }
     if (status.running) {
-      if (status.profileName !== profile.profileName) {
-        return {
-          success: false,
-          port,
-          error: `Proxy already running for profile "${status.profileName}" on port ${status.port}. Stop it before starting a different profile.`,
-        };
-      }
-
-      const stopped = await stopOpenAICompatProxyUnlocked();
+      const stopped = await stopOpenAICompatProxyUnlocked(profile.profileName);
       if (!stopped.success) {
         return {
           success: false,
@@ -298,8 +349,8 @@ export async function startOpenAICompatProxy(
         resolved = true;
         if (timeout) clearTimeout(timeout);
         if (!result.success) {
-          removeOpenAICompatProxyPid();
-          removeOpenAICompatProxySession();
+          removeOpenAICompatProxyPid(profile.profileName);
+          removeOpenAICompatProxySession(profile.profileName);
         }
         resolve(result);
       };
@@ -326,7 +377,7 @@ export async function startOpenAICompatProxy(
 
       proc.unref();
       if (proc.pid) {
-        writeOpenAICompatProxyPid(proc.pid);
+        writeOpenAICompatProxyPid(profile.profileName, proc.pid);
       }
       writeOpenAICompatProxySession({
         profileName: profile.profileName,
