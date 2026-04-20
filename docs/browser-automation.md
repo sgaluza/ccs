@@ -132,6 +132,13 @@ Phase 11B capability details:
 - nested sequence blocks remain out of scope
 - sequence failures can report both top-level block failure and sequence-local step failure
 
+Phase 11C capability details:
+
+- blocks and sequence steps can opt into `continueOnError: true`
+- orchestration can continue after selected failures instead of always failing fast
+- final results now include a lightweight `failures[]` summary and failed counts
+- 11C intentionally stops short of retry, timeout override, severity, and other larger policy systems
+
 Minimal multi-tab workflow examples:
 
 ```json
