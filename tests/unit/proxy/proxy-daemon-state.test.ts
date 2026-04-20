@@ -4,6 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import {
   getLegacyOpenAICompatProxySessionPath,
+  getOpenAICompatProxyPidPath,
   getOpenAICompatProxySessionPath,
 } from '../../../src/proxy/proxy-daemon-paths';
 import { listOpenAICompatProxyProfileNames } from '../../../src/proxy/proxy-daemon-state';
@@ -39,6 +40,13 @@ describe('listOpenAICompatProxyProfileNames', () => {
     fs.mkdirSync(path.dirname(getLegacyOpenAICompatProxySessionPath()), { recursive: true });
     fs.writeFileSync(path.join(path.dirname(getLegacyOpenAICompatProxySessionPath()), '%E0%A4%.session.json'), '{}\n', 'utf8');
     fs.writeFileSync(getOpenAICompatProxySessionPath('ccg'), '{}\n', 'utf8');
+
+    expect(listOpenAICompatProxyProfileNames()).toEqual(['ccg']);
+  });
+
+  it('includes pid-only profile state in the discovered profile list', () => {
+    fs.mkdirSync(path.dirname(getLegacyOpenAICompatProxySessionPath()), { recursive: true });
+    fs.writeFileSync(getOpenAICompatProxyPidPath('ccg'), '123\n', 'utf8');
 
     expect(listOpenAICompatProxyProfileNames()).toEqual(['ccg']);
   });

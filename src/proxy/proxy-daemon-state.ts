@@ -103,34 +103,41 @@ export function removeLegacyOpenAICompatProxySession(): void {
   }
 }
 
-export function listOpenAICompatProxyProfileNames(): string[] {
+function decodeProfileKey(profileKey: string): string[] {
+  try {
+    return [decodeURIComponent(profileKey)];
+  } catch {
+    return [];
+  }
+}
+
+function listProfileNamesForSuffix(suffix: string, legacyName?: string): string[] {
   try {
     const entries = fs.readdirSync(getOpenAICompatProxyDir(), { withFileTypes: true });
     const profileKeys = new Set<string>();
     for (const entry of entries) {
-      if (
-        !entry.isFile() ||
-        entry.name === 'session.json' ||
-        !entry.name.endsWith('.session.json')
-      ) {
+      if (!entry.isFile() || entry.name === legacyName || !entry.name.endsWith(suffix)) {
         continue;
       }
-      const profileKey = entry.name.slice(0, -'.session.json'.length);
+      const profileKey = entry.name.slice(0, -suffix.length);
       if (!profileKey) {
         continue;
       }
       profileKeys.add(profileKey);
     }
-    return [...profileKeys].flatMap((profileKey) => {
-      try {
-        return [decodeURIComponent(profileKey)];
-      } catch {
-        return [];
-      }
-    });
+    return [...profileKeys].flatMap(decodeProfileKey);
   } catch {
     return [];
   }
+}
+
+export function listOpenAICompatProxyProfileNames(): string[] {
+  return [
+    ...new Set([
+      ...listProfileNamesForSuffix('.session.json', 'session.json'),
+      ...listProfileNamesForSuffix('.daemon.pid', 'daemon.pid'),
+    ]),
+  ];
 }
 
 export function resolveOpenAICompatProxyEntrypointCandidates(): string[] {

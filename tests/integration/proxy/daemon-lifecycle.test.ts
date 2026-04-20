@@ -13,6 +13,7 @@ import { resolveOpenAICompatProfileConfig } from '../../../src/proxy/profile-rou
 import {
   getLegacyOpenAICompatProxyPidPath,
   getLegacyOpenAICompatProxySessionPath,
+  getOpenAICompatProxyPidPath,
   getOpenAICompatProxySessionPath,
 } from '../../../src/proxy/proxy-daemon-paths';
 import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
@@ -469,5 +470,182 @@ describe('openai proxy daemon lifecycle', () => {
     const status = await getOpenAICompatProxyStatus('never-started');
     expect(status.running).toBe(false);
     expect(status.profileName).toBe('never-started');
+  });
+
+  it('does not treat another profile on the same port as already running', async () => {
+    const sharedPort = await getPort();
+    const firstSettingsPath = path.join(tempDir, 'profile-b.settings.json');
+    fs.writeFileSync(
+      firstSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-profile-b',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+
+    const firstProfile = resolveOpenAICompatProfileConfig('profile-b', firstSettingsPath, {
+      ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+      ANTHROPIC_AUTH_TOKEN: 'sk-profile-b',
+      ANTHROPIC_MODEL: 'gpt-4.1',
+    });
+    if (!firstProfile) {
+      throw new Error('Expected first OpenAI-compatible profile');
+    }
+
+    const firstStart = await startOpenAICompatProxy(firstProfile, { port: sharedPort });
+    expect(firstStart.success).toBe(true);
+
+    const secondSettingsPath = path.join(tempDir, 'profile-a.settings.json');
+    fs.writeFileSync(
+      secondSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-profile-a',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+
+    const secondProfile = resolveOpenAICompatProfileConfig('profile-a', secondSettingsPath, {
+      ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+      ANTHROPIC_AUTH_TOKEN: 'sk-profile-a',
+      ANTHROPIC_MODEL: 'gpt-4.1',
+    });
+    if (!secondProfile) {
+      throw new Error('Expected second OpenAI-compatible profile');
+    }
+
+    fs.writeFileSync(
+      getOpenAICompatProxySessionPath('profile-a'),
+      JSON.stringify(
+        {
+          profileName: 'profile-a',
+          settingsPath: secondProfile.settingsPath,
+          host: '127.0.0.1',
+          port: sharedPort,
+          baseUrl: secondProfile.baseUrl,
+          authToken: 'stale-token-a',
+          model: secondProfile.model,
+        },
+        null,
+        2
+      ) + '\n',
+      'utf8'
+    );
+
+    const secondStart = await startOpenAICompatProxy(secondProfile);
+    expect(secondStart.success).toBe(true);
+    expect(secondStart.alreadyRunning).not.toBe(true);
+    expect(secondStart.authToken).not.toBe('stale-token-a');
+  });
+
+  it('replaces pid-only proxy state before starting a new daemon', async () => {
+    const firstPort = await getPort();
+    const replacementPort = await getPort();
+    const settingsPath = path.join(tempDir, 'pid-only.settings.json');
+    fs.writeFileSync(
+      settingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-pid-only',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+
+    const profile = resolveOpenAICompatProfileConfig('pid-only', settingsPath, {
+      ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+      ANTHROPIC_AUTH_TOKEN: 'sk-pid-only',
+      ANTHROPIC_MODEL: 'gpt-4.1',
+    });
+    if (!profile) {
+      throw new Error('Expected pid-only OpenAI-compatible profile');
+    }
+
+    const firstStart = await startOpenAICompatProxy(profile, { port: firstPort });
+    expect(firstStart.success).toBe(true);
+    expect(firstStart.pid).toBeDefined();
+
+    fs.unlinkSync(getOpenAICompatProxySessionPath('pid-only'));
+
+    const replacement = await startOpenAICompatProxy(profile, { port: replacementPort });
+    expect(replacement.success).toBe(true);
+    expect(replacement.port).toBe(replacementPort);
+    expect(replacement.pid).toBeDefined();
+    expect(replacement.pid).not.toBe(firstStart.pid);
+
+    const stalePidPath = getOpenAICompatProxyPidPath('pid-only');
+    expect(fs.readFileSync(stalePidPath, 'utf8').trim()).toBe(String(replacement.pid));
+    expect((await fetch(`http://127.0.0.1:${replacementPort}/health`)).status).toBe(200);
+  });
+
+  it('does not stop another profile when a stale pid file points at its daemon', async () => {
+    const firstPort = await getPort();
+    const secondPort = await getPort();
+    const firstSettingsPath = path.join(tempDir, 'profile-b-stale-pid.settings.json');
+    fs.writeFileSync(
+      firstSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-profile-b-stale-pid',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+    const firstProfile = resolveOpenAICompatProfileConfig('profile-b-stale-pid', firstSettingsPath, {
+      ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+      ANTHROPIC_AUTH_TOKEN: 'sk-profile-b-stale-pid',
+      ANTHROPIC_MODEL: 'gpt-4.1',
+    });
+    if (!firstProfile) {
+      throw new Error('Expected first OpenAI-compatible profile');
+    }
+
+    const firstStart = await startOpenAICompatProxy(firstProfile, { port: firstPort });
+    expect(firstStart.success).toBe(true);
+    expect(firstStart.pid).toBeDefined();
+
+    const secondSettingsPath = path.join(tempDir, 'profile-a-stale-pid.settings.json');
+    fs.writeFileSync(
+      secondSettingsPath,
+      JSON.stringify({
+        env: {
+          ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+          ANTHROPIC_AUTH_TOKEN: 'sk-profile-a-stale-pid',
+          ANTHROPIC_MODEL: 'gpt-4.1',
+        },
+      }),
+      'utf8'
+    );
+    const secondProfile = resolveOpenAICompatProfileConfig('profile-a-stale-pid', secondSettingsPath, {
+      ANTHROPIC_BASE_URL: 'https://api.openai.com/v1',
+      ANTHROPIC_AUTH_TOKEN: 'sk-profile-a-stale-pid',
+      ANTHROPIC_MODEL: 'gpt-4.1',
+    });
+    if (!secondProfile) {
+      throw new Error('Expected second OpenAI-compatible profile');
+    }
+
+    fs.writeFileSync(
+      getOpenAICompatProxyPidPath('profile-a-stale-pid'),
+      String(firstStart.pid),
+      'utf8'
+    );
+
+    const secondStart = await startOpenAICompatProxy(secondProfile, { port: secondPort });
+    expect(secondStart.success).toBe(true);
+    expect(secondStart.port).toBe(secondPort);
+    expect((await fetch(`http://127.0.0.1:${firstPort}/health`)).status).toBe(200);
+    expect((await fetch(`http://127.0.0.1:${secondPort}/health`)).status).toBe(200);
   });
 });

@@ -47,6 +47,31 @@ interface OpenAICompatProxyLaunchResult extends StartOpenAICompatProxyResult {
   bindConflict?: boolean;
 }
 
+interface OpenAICompatProxyHealthPayload {
+  service?: string;
+  profile?: string;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function verifyProxyProcessOwnership(
+  pid: number,
+  profileName?: string
+): ReturnType<typeof verifyProcessOwnership> {
+  const profilePattern = profileName
+    ? new RegExp(`(^|\\s)--profile(?:\\s+|=)${escapeRegExp(profileName)}(?=\\s|$)`)
+    : null;
+  return verifyProcessOwnership(
+    pid,
+    (commandLine) =>
+      commandLine.includes('--ccs-openai-proxy-daemon') &&
+      commandLine.includes('proxy-daemon-entry') &&
+      (!profilePattern || profilePattern.test(commandLine))
+  );
+}
+
 function generateProxyAuthToken(): string {
   return crypto.randomBytes(24).toString('hex');
 }
@@ -162,7 +187,10 @@ async function resolveDaemonEntrypoint(): Promise<string | null> {
   return null;
 }
 
-export async function isOpenAICompatProxyRunning(port: number): Promise<boolean> {
+export async function isOpenAICompatProxyRunning(
+  port: number,
+  expectedProfileName?: string
+): Promise<boolean> {
   return new Promise((resolve) => {
     const req = http.request(
       { hostname: '127.0.0.1', port, path: '/health', method: 'GET', timeout: 3000 },
@@ -176,8 +204,11 @@ export async function isOpenAICompatProxyRunning(port: number): Promise<boolean>
             return;
           }
           try {
-            const payload = JSON.parse(body) as { service?: string };
-            resolve(payload.service === OPENAI_COMPAT_PROXY_SERVICE_NAME);
+            const payload = JSON.parse(body) as OpenAICompatProxyHealthPayload;
+            resolve(
+              payload.service === OPENAI_COMPAT_PROXY_SERVICE_NAME &&
+                (!expectedProfileName || payload.profile === expectedProfileName)
+            );
           } catch {
             resolve(false);
           }
@@ -199,11 +230,11 @@ async function getOpenAICompatProxyStatusForProfile(
   const state = getOpenAICompatProxyStateForProfile(profileName);
   const session = state.session;
   if (!session) {
-    return { running: false, profileName };
+    return { running: false, profileName, pid: state.pid || undefined };
   }
 
   const port = session.port;
-  const running = await isOpenAICompatProxyRunning(port);
+  const running = await isOpenAICompatProxyRunning(port, profileName);
   return {
     running,
     pid: running ? state.pid || undefined : undefined,
@@ -219,7 +250,8 @@ async function getLegacyOpenAICompatProxyStatus(): Promise<OpenAICompatProxyStat
   }
 
   const port = session?.port;
-  const running = typeof port === 'number' ? await isOpenAICompatProxyRunning(port) : false;
+  const running =
+    typeof port === 'number' ? await isOpenAICompatProxyRunning(port, session?.profileName) : false;
   return {
     running,
     pid: running ? pid || undefined : pid || undefined,
@@ -297,12 +329,7 @@ async function stopOpenAICompatProxyUnlocked(
     return { success: true };
   }
 
-  const ownership = verifyProcessOwnership(
-    pid,
-    (commandLine) =>
-      commandLine.includes('--ccs-openai-proxy-daemon') &&
-      commandLine.includes('proxy-daemon-entry')
-  );
+  const ownership = verifyProxyProcessOwnership(pid, profileName);
 
   if (ownership === 'not-owned') {
     removeOpenAICompatProxyState(state, profileName);
@@ -368,12 +395,7 @@ async function stopLegacyOpenAICompatProxyUnlocked(): Promise<{
     return { success: true };
   }
 
-  const ownership = verifyProcessOwnership(
-    pid,
-    (commandLine) =>
-      commandLine.includes('--ccs-openai-proxy-daemon') &&
-      commandLine.includes('proxy-daemon-entry')
-  );
+  const ownership = verifyProxyProcessOwnership(pid);
 
   if (ownership === 'not-owned' || ownership === 'not-running') {
     removeLegacyOpenAICompatProxyPid();
@@ -490,6 +512,16 @@ export async function startOpenAICompatProxy(
     if (!Number.isInteger(preferredPort) || preferredPort < 1 || preferredPort > 65535) {
       return { success: false, port: preferredPort, error: `Invalid port: ${preferredPort}` };
     }
+    if (status.pid && !status.port) {
+      const stopped = await stopOpenAICompatProxyUnlocked(profile.profileName);
+      if (!stopped.success) {
+        return {
+          success: false,
+          port: preferredPort,
+          error: stopped.error || 'Failed to clear stale proxy state',
+        };
+      }
+    }
 
     const daemonEntry = await resolveDaemonEntrypoint();
     if (!daemonEntry) {
@@ -565,7 +597,7 @@ export async function startOpenAICompatProxy(
         let attempts = 0;
         const poll = async () => {
           attempts += 1;
-          if (await isOpenAICompatProxyRunning(port)) {
+          if (await isOpenAICompatProxyRunning(port, profile.profileName)) {
             if (persistState) {
               commitState();
             }
