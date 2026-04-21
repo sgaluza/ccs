@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import express from 'express';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -15,8 +15,8 @@ describe('browser routes', () => {
   let originalDashboardAuthEnabled: string | undefined;
   let originalBrowserUserDataDir: string | undefined;
   let originalBrowserProfileDir: string | undefined;
-  let originalBrowserDevtoolsPort: string | undefined;
   let originalBrowserDevtoolsHost: string | undefined;
+  let originalBrowserDevtoolsPort: string | undefined;
   let originalBrowserDevtoolsHttpUrl: string | undefined;
   let originalBrowserDevtoolsWsUrl: string | undefined;
   let originalBrowserEvalMode: string | undefined;
@@ -63,8 +63,8 @@ describe('browser routes', () => {
     originalDashboardAuthEnabled = process.env.CCS_DASHBOARD_AUTH_ENABLED;
     originalBrowserUserDataDir = process.env.CCS_BROWSER_USER_DATA_DIR;
     originalBrowserProfileDir = process.env.CCS_BROWSER_PROFILE_DIR;
-    originalBrowserDevtoolsPort = process.env.CCS_BROWSER_DEVTOOLS_PORT;
     originalBrowserDevtoolsHost = process.env.CCS_BROWSER_DEVTOOLS_HOST;
+    originalBrowserDevtoolsPort = process.env.CCS_BROWSER_DEVTOOLS_PORT;
     originalBrowserDevtoolsHttpUrl = process.env.CCS_BROWSER_DEVTOOLS_HTTP_URL;
     originalBrowserDevtoolsWsUrl = process.env.CCS_BROWSER_DEVTOOLS_WS_URL;
     originalBrowserEvalMode = process.env.CCS_BROWSER_EVAL_MODE;
@@ -72,8 +72,8 @@ describe('browser routes', () => {
     process.env.CCS_DASHBOARD_AUTH_ENABLED = 'false';
     delete process.env.CCS_BROWSER_USER_DATA_DIR;
     delete process.env.CCS_BROWSER_PROFILE_DIR;
-    delete process.env.CCS_BROWSER_DEVTOOLS_PORT;
     delete process.env.CCS_BROWSER_DEVTOOLS_HOST;
+    delete process.env.CCS_BROWSER_DEVTOOLS_PORT;
     delete process.env.CCS_BROWSER_DEVTOOLS_HTTP_URL;
     delete process.env.CCS_BROWSER_DEVTOOLS_WS_URL;
     delete process.env.CCS_BROWSER_EVAL_MODE;
@@ -98,37 +98,31 @@ describe('browser routes', () => {
     } else {
       delete process.env.CCS_BROWSER_USER_DATA_DIR;
     }
-
     if (originalBrowserProfileDir !== undefined) {
       process.env.CCS_BROWSER_PROFILE_DIR = originalBrowserProfileDir;
     } else {
       delete process.env.CCS_BROWSER_PROFILE_DIR;
     }
-
-    if (originalBrowserDevtoolsPort !== undefined) {
-      process.env.CCS_BROWSER_DEVTOOLS_PORT = originalBrowserDevtoolsPort;
-    } else {
-      delete process.env.CCS_BROWSER_DEVTOOLS_PORT;
-    }
-
     if (originalBrowserDevtoolsHost !== undefined) {
       process.env.CCS_BROWSER_DEVTOOLS_HOST = originalBrowserDevtoolsHost;
     } else {
       delete process.env.CCS_BROWSER_DEVTOOLS_HOST;
     }
-
+    if (originalBrowserDevtoolsPort !== undefined) {
+      process.env.CCS_BROWSER_DEVTOOLS_PORT = originalBrowserDevtoolsPort;
+    } else {
+      delete process.env.CCS_BROWSER_DEVTOOLS_PORT;
+    }
     if (originalBrowserDevtoolsHttpUrl !== undefined) {
       process.env.CCS_BROWSER_DEVTOOLS_HTTP_URL = originalBrowserDevtoolsHttpUrl;
     } else {
       delete process.env.CCS_BROWSER_DEVTOOLS_HTTP_URL;
     }
-
     if (originalBrowserDevtoolsWsUrl !== undefined) {
       process.env.CCS_BROWSER_DEVTOOLS_WS_URL = originalBrowserDevtoolsWsUrl;
     } else {
       delete process.env.CCS_BROWSER_DEVTOOLS_WS_URL;
     }
-
     if (originalBrowserEvalMode !== undefined) {
       process.env.CCS_BROWSER_EVAL_MODE = originalBrowserEvalMode;
     } else {
@@ -156,23 +150,27 @@ describe('browser routes', () => {
     expect(payload.config).toMatchObject({
       claude: {
         enabled: false,
+        policy: 'manual',
         userDataDir: join(tempHome, '.ccs', 'browser', 'chrome-user-data'),
         devtoolsPort: 9222,
-        evalMode: 'readonly',
       },
       codex: {
-        enabled: true,
-        evalMode: 'readonly',
+        enabled: false,
+        policy: 'manual',
       },
     });
     expect(payload.status.claude).toMatchObject({
       state: 'disabled',
+      policy: 'manual',
       managedMcpServerName: 'ccs-browser',
     });
     expect(payload.status.codex).toMatchObject({
-      enabled: true,
+      enabled: false,
+      state: 'disabled',
+      policy: 'manual',
       serverName: 'ccs_browser',
     });
+    expect(payload.status.codex.detail).toContain('off by default');
   });
 
   it('updates the saved browser config through the dashboard route', async () => {
@@ -182,13 +180,13 @@ describe('browser routes', () => {
       body: JSON.stringify({
         claude: {
           enabled: true,
+          policy: 'manual',
           userDataDir: '/tmp/ccs-browser',
           devtoolsPort: 9333,
-          evalMode: 'readwrite',
         },
         codex: {
           enabled: false,
-          evalMode: 'disabled',
+          policy: 'manual',
         },
       }),
     });
@@ -198,13 +196,13 @@ describe('browser routes', () => {
     expect(payload.browser.config).toMatchObject({
       claude: {
         enabled: true,
+        policy: 'manual',
         userDataDir: '/tmp/ccs-browser',
         devtoolsPort: 9333,
-        evalMode: 'readwrite',
       },
       codex: {
         enabled: false,
-        evalMode: 'disabled',
+        policy: 'manual',
       },
     });
 
@@ -212,13 +210,13 @@ describe('browser routes', () => {
     expect(config.browser).toMatchObject({
       claude: {
         enabled: true,
+        policy: 'manual',
         user_data_dir: '/tmp/ccs-browser',
         devtools_port: 9333,
-        eval_mode: 'readwrite',
       },
       codex: {
         enabled: false,
-        eval_mode: 'disabled',
+        policy: 'manual',
       },
     });
   });
@@ -230,6 +228,7 @@ describe('browser routes', () => {
       body: JSON.stringify({
         claude: {
           enabled: true,
+          policy: 'manual',
           userDataDir: '/tmp/ccs-browser-custom',
           devtoolsPort: 9333,
         },
@@ -252,18 +251,21 @@ describe('browser routes', () => {
     const payload = await resetResponse.json();
     expect(payload.browser.config.claude).toMatchObject({
       enabled: true,
+      policy: 'manual',
       userDataDir: join(tempHome, '.ccs', 'browser', 'chrome-user-data'),
       devtoolsPort: 9333,
-      evalMode: 'readonly',
     });
+    expect(payload.browser.status.claude.state).toBe('browser_not_running');
+    expect(payload.browser.status.claude.detail).toContain('CCS created the managed browser profile');
+    expect(existsSync(join(tempHome, '.ccs', 'browser', 'chrome-user-data'))).toBe(true);
 
     const config = loadOrCreateUnifiedConfig();
     expect(config.browser).toMatchObject({
       claude: {
         enabled: true,
+        policy: 'manual',
         user_data_dir: join(tempHome, '.ccs', 'browser', 'chrome-user-data'),
         devtools_port: 9333,
-        eval_mode: 'readonly',
       },
     });
   });
@@ -285,35 +287,69 @@ describe('browser routes', () => {
     });
   });
 
-  it('rejects invalid eval modes at the route boundary', async () => {
-    const claudeResponse = await fetch(`${baseUrl}/api/browser`, {
+  it('rejects null browser lane payloads instead of treating them as no-ops', async () => {
+    const response = await fetch(`${baseUrl}/api/browser`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        claude: {
-          evalMode: 'dangerous',
+        claude: null,
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Invalid value for claude. Must be an object.',
+    });
+  });
+
+  it('rejects unknown browser config fields instead of silently ignoring them', async () => {
+    const response = await fetch(`${baseUrl}/api/browser`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        codxe: {
+          enabled: true,
         },
       }),
     });
 
-    expect(claudeResponse.status).toBe(400);
-    expect(await claudeResponse.json()).toEqual({
-      error: 'Invalid value for claude.evalMode. Must be one of: disabled, readonly, readwrite.',
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Unknown browser config field(s): codxe.',
     });
+  });
 
-    const codexResponse = await fetch(`${baseUrl}/api/browser`, {
+  it('rejects invalid browser policy values at the route boundary', async () => {
+    const response = await fetch(`${baseUrl}/api/browser`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         codex: {
-          evalMode: 'dangerous',
+          policy: 'always',
         },
       }),
     });
 
-    expect(codexResponse.status).toBe(400);
-    expect(await codexResponse.json()).toEqual({
-      error: 'Invalid value for codex.evalMode. Must be one of: disabled, readonly, readwrite.',
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Invalid value for codex.policy. Must be auto or manual.',
+    });
+  });
+
+  it('rejects unknown nested browser lane fields instead of silently ignoring them', async () => {
+    const response = await fetch(`${baseUrl}/api/browser`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        claude: {
+          userDatDir: '/tmp/typo',
+        },
+      }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'Unknown claude browser field(s): userDatDir.',
     });
   });
 });

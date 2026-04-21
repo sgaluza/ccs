@@ -39,8 +39,11 @@ import {
 import {
   appendBrowserToolArgs,
   ensureBrowserMcpOrThrow,
+  getBlockedBrowserOverrideWarning,
   getEffectiveClaudeBrowserAttachConfig,
-  resolveBrowserRuntimeEnv,
+  resolveBrowserExposure,
+  resolveBrowserLaunchFlagResolution,
+  resolveOptionalBrowserAttachRuntime,
   syncBrowserMcpToConfigDir,
 } from './utils/browser';
 import {
@@ -83,6 +86,7 @@ import { maybeWarnAboutResumeLaneMismatch } from './auth/resume-lane-warning';
 import { createLogger } from './services/logging';
 import { buildCodexBrowserMcpOverrides } from './utils/browser-codex-overrides';
 import type { ProfileDetectionResult } from './auth/profile-detector';
+import type { BrowserLaunchOverride } from './utils/browser';
 
 // Import target adapter system
 import {
@@ -137,11 +141,21 @@ const CODEX_RUNTIME_REASONING_LEVELS = new Set(['minimal', 'low', 'medium', 'hig
 const CODEX_NATIVE_PASSTHROUGH_FLAGS = new Set(['--help', '-h', '--version', '-v']);
 
 function resolveCodexRuntimeConfigOverrides(
-  target: ReturnType<typeof resolveTargetType>
+  target: ReturnType<typeof resolveTargetType>,
+  browserLaunchOverride: BrowserLaunchOverride | undefined
 ): string[] {
-  if (target !== 'codex' || !getBrowserConfig().codex.enabled) {
+  if (target !== 'codex') {
     return [];
   }
+
+  const codexBrowserExposure = resolveBrowserExposure(
+    getBrowserConfig().codex,
+    browserLaunchOverride
+  );
+  if (!codexBrowserExposure.exposeForLaunch) {
+    return [];
+  }
+
   return buildCodexBrowserMcpOverrides();
 }
 
@@ -449,6 +463,16 @@ async function main(): Promise<void> {
   }
 
   args = normalizeLegacyCursorArgs(args);
+  let browserLaunchOverride: BrowserLaunchOverride | undefined;
+  try {
+    const browserLaunchFlags = resolveBrowserLaunchFlagResolution(args);
+    browserLaunchOverride = browserLaunchFlags.override;
+    args = browserLaunchFlags.argsWithoutFlags;
+  } catch (error) {
+    console.error(fail((error as Error).message));
+    process.exit(1);
+    return;
+  }
 
   cliLogger.info('command.start', 'CLI invocation started', {
     command: args[0] || 'default',
@@ -604,6 +628,7 @@ async function main(): Promise<void> {
     } catch (error) {
       console.error(fail((error as Error).message));
       process.exit(1);
+      return;
     }
 
     // Detect Claude CLI (needed for claude target and all CLIProxy-derived flows)
@@ -696,7 +721,38 @@ async function main(): Promise<void> {
 
     // For non-claude targets, verify target binary exists once and pass it through.
     const targetBinaryInfo = targetAdapter?.detectBinary() ?? null;
-    const codexRuntimeConfigOverrides = resolveCodexRuntimeConfigOverrides(resolvedTarget);
+    const browserConfig = getBrowserConfig();
+    const claudeAttachConfig =
+      resolvedTarget === 'claude'
+        ? getEffectiveClaudeBrowserAttachConfig(browserConfig)
+        : undefined;
+    const codexRuntimeConfigOverrides = resolveCodexRuntimeConfigOverrides(
+      resolvedTarget,
+      browserLaunchOverride
+    );
+    const claudeBrowserExposure =
+      resolvedTarget === 'claude'
+        ? resolveBrowserExposure(
+            {
+              enabled: claudeAttachConfig?.enabled ?? browserConfig.claude.enabled,
+              policy: browserConfig.claude.policy,
+            },
+            browserLaunchOverride
+          )
+        : undefined;
+    const codexBrowserExposure =
+      resolvedTarget === 'codex'
+        ? resolveBrowserExposure(browserConfig.codex, browserLaunchOverride)
+        : undefined;
+    const blockedBrowserOverrideWarning =
+      resolvedTarget === 'claude' && claudeBrowserExposure
+        ? getBlockedBrowserOverrideWarning('Claude Browser Attach', claudeBrowserExposure)
+        : resolvedTarget === 'codex' && codexBrowserExposure
+          ? getBlockedBrowserOverrideWarning('Codex Browser Tools', codexBrowserExposure)
+          : undefined;
+    if (blockedBrowserOverrideWarning) {
+      console.error(warn(blockedBrowserOverrideWarning));
+    }
     if (resolvedTarget !== 'claude' && !targetBinaryInfo) {
       const displayName = targetAdapter?.displayName || resolvedTarget;
       console.error(fail(`${displayName} CLI not found.`));
@@ -1056,14 +1112,19 @@ async function main(): Promise<void> {
       // Settings-based profiles (glm, glmt) are third-party providers
       const imageAnalysisMcpReady =
         resolvedTarget === 'claude' ? ensureImageAnalysisMcpOrThrow() : true;
-      let browserRuntimeEnv: TargetCredentials['browserRuntimeEnv'];
-      const browserAttachConfig =
-        resolvedTarget === 'claude'
-          ? getEffectiveClaudeBrowserAttachConfig(getBrowserConfig())
+      const browserAttachRuntime =
+        resolvedTarget === 'claude' &&
+        claudeBrowserExposure?.exposeForLaunch &&
+        claudeAttachConfig?.enabled
+          ? await resolveOptionalBrowserAttachRuntime(claudeAttachConfig)
           : undefined;
+      const browserRuntimeEnv = browserAttachRuntime?.runtimeEnv;
+      if (browserAttachRuntime?.warning) {
+        process.stderr.write(`${warn(browserAttachRuntime.warning)}\n`);
+      }
       if (resolvedTarget === 'claude') {
         ensureWebSearchMcpOrThrow();
-        if (browserAttachConfig?.enabled) {
+        if (browserRuntimeEnv) {
           ensureBrowserMcpOrThrow();
         }
       }
@@ -1088,15 +1149,9 @@ async function main(): Promise<void> {
       }
       const inheritedClaudeConfigDir = continuityInheritance.claudeConfigDir;
       syncWebSearchMcpToConfigDir(inheritedClaudeConfigDir);
-      if (!syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir) && inheritedClaudeConfigDir) {
-        console.error(
-          warn(
-            'Image Analysis MCP config could not be synced into the inherited Claude instance. This session will continue with the current fallback behavior.'
-          )
-        );
-      }
+      syncImageAnalysisMcpToConfigDir(inheritedClaudeConfigDir);
       if (
-        browserAttachConfig?.enabled &&
+        browserRuntimeEnv &&
         inheritedClaudeConfigDir &&
         !syncBrowserMcpToConfigDir(inheritedClaudeConfigDir)
       ) {
@@ -1274,13 +1329,7 @@ async function main(): Promise<void> {
             ...imageAnalysisEnv,
             CCS_CURRENT_PROVIDER: '',
             CCS_IMAGE_ANALYSIS_SKIP: '1',
-            CCS_IMAGE_ANALYSIS_BACKEND_ID: '',
-            CCS_IMAGE_ANALYSIS_MODEL: '',
-            CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL: '',
-            CCS_IMAGE_ANALYSIS_RUNTIME_PATH: '',
           };
-          delete imageAnalysisEnv.CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY;
-          delete imageAnalysisEnv.CCS_IMAGE_ANALYSIS_RUNTIME_ALLOW_SELF_SIGNED;
         } else if (imageAnalysisStatus.proxyReadiness === 'stopped') {
           const ensureServiceResult = await ensureCliproxyService(
             CLIPROXY_DEFAULT_PORT,
@@ -1296,13 +1345,7 @@ async function main(): Promise<void> {
               ...imageAnalysisEnv,
               CCS_CURRENT_PROVIDER: '',
               CCS_IMAGE_ANALYSIS_SKIP: '1',
-              CCS_IMAGE_ANALYSIS_BACKEND_ID: '',
-              CCS_IMAGE_ANALYSIS_MODEL: '',
-              CCS_IMAGE_ANALYSIS_RUNTIME_BASE_URL: '',
-              CCS_IMAGE_ANALYSIS_RUNTIME_PATH: '',
             };
-            delete imageAnalysisEnv.CCS_IMAGE_ANALYSIS_RUNTIME_API_KEY;
-            delete imageAnalysisEnv.CCS_IMAGE_ANALYSIS_RUNTIME_ALLOW_SELF_SIGNED;
           }
         }
       }
@@ -1318,18 +1361,6 @@ async function main(): Promise<void> {
 
       // Explicitly inject effective settings env vars so stale ANTHROPIC_*
       // values from prior sessions cannot leak into the active profile.
-      if (browserAttachConfig?.enabled) {
-        browserRuntimeEnv = {
-          ...(await resolveBrowserRuntimeEnv({
-            profileDir: browserAttachConfig.userDataDir,
-            devtoolsPort: browserAttachConfig.hasExplicitDevtoolsPort
-              ? String(browserAttachConfig.devtoolsPort)
-              : undefined,
-            evalMode: browserAttachConfig.evalMode,
-          })),
-        };
-      }
-
       const envVars: NodeJS.ProcessEnv = {
         ...globalEnv,
         ...settingsEnv,
@@ -1489,24 +1520,20 @@ async function main(): Promise<void> {
         CCS_WEBSEARCH_SKIP: '1',
         CCS_IMAGE_ANALYSIS_SKIP: '1',
       };
-      let browserRuntimeEnv: TargetCredentials['browserRuntimeEnv'];
-      const browserAttachConfig =
-        resolvedTarget === 'claude'
-          ? getEffectiveClaudeBrowserAttachConfig(getBrowserConfig())
+      const browserAttachRuntime =
+        resolvedTarget === 'claude' &&
+        claudeBrowserExposure?.exposeForLaunch &&
+        claudeAttachConfig?.enabled
+          ? await resolveOptionalBrowserAttachRuntime(claudeAttachConfig)
           : undefined;
+      const browserRuntimeEnv = browserAttachRuntime?.runtimeEnv;
+      if (browserAttachRuntime?.warning) {
+        process.stderr.write(`${warn(browserAttachRuntime.warning)}\n`);
+      }
 
       if (resolvedTarget === 'claude') {
-        if (browserAttachConfig?.enabled) {
+        if (browserRuntimeEnv) {
           ensureBrowserMcpOrThrow();
-          browserRuntimeEnv = {
-            ...(await resolveBrowserRuntimeEnv({
-              profileDir: browserAttachConfig.userDataDir,
-              devtoolsPort: browserAttachConfig.hasExplicitDevtoolsPort
-                ? String(browserAttachConfig.devtoolsPort)
-                : undefined,
-            })),
-            CCS_BROWSER_EVAL_MODE: browserAttachConfig.evalMode,
-          };
           Object.assign(envVars, browserRuntimeEnv);
         }
         const defaultContinuityInheritance = await resolveProfileContinuityInheritance({
@@ -1524,7 +1551,7 @@ async function main(): Promise<void> {
         if (defaultContinuityInheritance.claudeConfigDir) {
           envVars.CLAUDE_CONFIG_DIR = defaultContinuityInheritance.claudeConfigDir;
           if (
-            browserAttachConfig?.enabled &&
+            browserRuntimeEnv &&
             !syncBrowserMcpToConfigDir(defaultContinuityInheritance.claudeConfigDir)
           ) {
             throw new Error(

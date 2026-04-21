@@ -19,6 +19,7 @@ import {
   DEFAULT_GLOBAL_ENV,
   DEFAULT_CLIPROXY_SERVER_CONFIG,
   DEFAULT_CLIPROXY_SAFETY_CONFIG,
+  DEFAULT_OPENAI_COMPAT_PROXY_CONFIG,
   DEFAULT_QUOTA_MANAGEMENT_CONFIG,
   DEFAULT_THINKING_CONFIG,
   DEFAULT_OFFICIAL_CHANNELS_CONFIG,
@@ -36,7 +37,7 @@ import type {
   OfficialChannelId,
   DashboardAuthConfig,
   BrowserConfig,
-  BrowserEvalMode,
+  BrowserToolPolicy,
   ImageAnalysisConfig,
   LoggingConfig,
   CursorConfig,
@@ -71,25 +72,21 @@ function normalizeBrowserDevtoolsPort(value: number | undefined): number {
   return port;
 }
 
-function normalizeBrowserEvalMode(value: string | undefined): BrowserEvalMode {
-  if (value === 'disabled' || value === 'readonly' || value === 'readwrite') {
-    return value;
-  }
-
-  return DEFAULT_BROWSER_CONFIG.claude.eval_mode;
+function normalizeBrowserPolicy(value: string | undefined): BrowserToolPolicy {
+  return value === 'auto' || value === 'manual' ? value : DEFAULT_BROWSER_CONFIG.claude.policy;
 }
 
 function canonicalizeBrowserConfig(config?: BrowserConfig): BrowserConfig {
   return {
     claude: {
       enabled: config?.claude?.enabled ?? DEFAULT_BROWSER_CONFIG.claude.enabled,
+      policy: normalizeBrowserPolicy(config?.claude?.policy),
       user_data_dir: config?.claude?.user_data_dir?.trim() || getRecommendedBrowserUserDataDir(),
       devtools_port: normalizeBrowserDevtoolsPort(config?.claude?.devtools_port),
-      eval_mode: normalizeBrowserEvalMode(config?.claude?.eval_mode),
     },
     codex: {
       enabled: config?.codex?.enabled ?? DEFAULT_BROWSER_CONFIG.codex.enabled,
-      eval_mode: normalizeBrowserEvalMode(config?.codex?.eval_mode),
+      policy: normalizeBrowserPolicy(config?.codex?.policy),
     },
   };
 }
@@ -425,6 +422,10 @@ function mergeWithDefaults(partial: Partial<UnifiedConfig>): UnifiedConfig {
       },
     },
     proxy: {
+      port: partial.proxy?.port ?? DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.port,
+      profile_ports: partial.proxy?.profile_ports ?? {
+        ...DEFAULT_OPENAI_COMPAT_PROXY_CONFIG.profile_ports,
+      },
       routing: {
         default: partial.proxy?.routing?.default ?? defaults.proxy?.routing?.default,
         background: partial.proxy?.routing?.background ?? defaults.proxy?.routing?.background,
@@ -966,7 +967,6 @@ function generateYamlWithComments(config: UnifiedConfig): string {
     lines.push('#');
     lines.push('# claude.user_data_dir should point at the Chrome user-data directory for the');
     lines.push('# dedicated attach session. claude.devtools_port is the expected debugging port.');
-    lines.push('# eval_mode controls browser_eval access: disabled | readonly | readwrite.');
     lines.push('# Configure via: Settings > Browser or `ccs browser ...`.');
     lines.push('# ----------------------------------------------------------------------------');
     lines.push(

@@ -1,10 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mutateUnifiedConfig } from '../../../../src/config/unified-config-loader';
+import {
+  getBrowserConfig,
+  mutateUnifiedConfig,
+  saveUnifiedConfig,
+} from '../../../../src/config/unified-config-loader';
+import { createEmptyUnifiedConfig } from '../../../../src/config/unified-config-types';
 import * as chromeReuse from '../../../../src/utils/browser/chrome-reuse';
 import { getBrowserStatus } from '../../../../src/utils/browser/browser-status';
+import {
+  getEffectiveClaudeBrowserAttachConfig,
+  resolveOptionalBrowserAttachRuntime,
+} from '../../../../src/utils/browser/browser-settings';
 import * as codexDetector from '../../../../src/targets/codex-detector';
 
 describe('browser status', () => {
@@ -55,7 +64,7 @@ describe('browser status', () => {
     rmSync(tempHome, { recursive: true, force: true });
   });
 
-  it('returns a disabled Claude lane with the recommended managed user-data dir by default', async () => {
+  it('returns disabled/manual browser lanes with the recommended managed user-data dir by default', async () => {
     const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
       path: '/usr/local/bin/codex',
       needsShell: false,
@@ -69,21 +78,110 @@ describe('browser status', () => {
       expect(status.claude).toMatchObject({
         enabled: false,
         state: 'disabled',
+        policy: 'manual',
         source: 'config',
         effectiveUserDataDir: join(tempHome, '.ccs', 'browser', 'chrome-user-data'),
         devtoolsPort: 9222,
-        evalMode: 'readonly',
         managedMcpServerName: 'ccs-browser',
       });
       expect(status.claude.launchCommands.linux).toContain('--remote-debugging-port=9222');
+      expect(status.claude.detail).toContain('off by default');
+      expect(status.codex).toMatchObject({
+        enabled: false,
+        policy: 'manual',
+        state: 'disabled',
+        serverName: 'ccs_browser',
+        supportsConfigOverrides: false,
+      });
+      expect(status.codex.detail).toContain('off by default');
+      expect(existsSync(join(tempHome, '.ccs', 'browser', 'chrome-user-data'))).toBe(false);
+    } finally {
+      codexSpy.mockRestore();
+    }
+  });
+
+  it('resolves missing saved browser policies to manual while preserving explicit enabled values', async () => {
+    const config = createEmptyUnifiedConfig();
+    config.browser = {
+      claude: {
+        enabled: true,
+        user_data_dir: '/tmp/explicit-claude',
+        devtools_port: 9333,
+      } as typeof config.browser.claude,
+      codex: {
+        enabled: true,
+      } as typeof config.browser.codex,
+    };
+    saveUnifiedConfig(config);
+
+    const runtimeSpy = spyOn(chromeReuse, 'resolveBrowserRuntimeEnv').mockRejectedValue(
+      new Error('Chrome reuse metadata not found: /tmp/explicit-claude/DevToolsActivePort')
+    );
+    const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
+      path: '/usr/local/bin/codex',
+      needsShell: false,
+      version: 'codex-cli 0.120.0',
+      features: ['config-overrides'],
+    });
+
+    try {
+      const status = await getBrowserStatus();
+
+      expect(status.claude).toMatchObject({
+        enabled: true,
+        policy: 'manual',
+        effectiveUserDataDir: '/tmp/explicit-claude',
+        devtoolsPort: 9333,
+      });
       expect(status.codex).toMatchObject({
         enabled: true,
+        policy: 'manual',
         state: 'enabled',
-        serverName: 'ccs_browser',
-        evalMode: 'readonly',
-        supportsConfigOverrides: true,
       });
     } finally {
+      runtimeSpy.mockRestore();
+      codexSpy.mockRestore();
+    }
+  });
+
+  it('bootstraps the managed default browser profile dir before reporting attach readiness', async () => {
+    mutateUnifiedConfig((config) => {
+      config.browser = {
+        claude: {
+          enabled: true,
+          policy: 'auto',
+          user_data_dir: '',
+          devtools_port: 9222,
+        },
+        codex: {
+          enabled: true,
+          policy: 'auto',
+        },
+      };
+    });
+
+    const runtimeSpy = spyOn(chromeReuse, 'resolveBrowserRuntimeEnv').mockRejectedValue(
+      new Error(
+        `Chrome reuse metadata not found: ${join(tempHome, '.ccs', 'browser', 'chrome-user-data', 'DevToolsActivePort')}`
+      )
+    );
+    const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
+      path: '/usr/local/bin/codex',
+      needsShell: false,
+      version: 'codex-cli 0.120.0',
+      features: ['config-overrides'],
+    });
+
+    try {
+      const status = await getBrowserStatus();
+
+      expect(status.claude.state).toBe('browser_not_running');
+      expect(status.claude.title).toBe('Claude Browser Attach is not ready yet.');
+      expect(status.claude.detail).toContain('created the managed browser profile directory');
+      expect(status.claude.nextStep).toContain('ccs browser setup');
+      expect(existsSync(join(tempHome, '.ccs', 'browser', 'chrome-user-data'))).toBe(true);
+    } finally {
+      runtimeSpy.mockRestore();
       codexSpy.mockRestore();
     }
   });
@@ -93,13 +191,13 @@ describe('browser status', () => {
       config.browser = {
         claude: {
           enabled: true,
+          policy: 'auto',
           user_data_dir: '/config-browser',
           devtools_port: 9333,
-          eval_mode: 'readwrite',
         },
         codex: {
           enabled: true,
-          eval_mode: 'disabled',
+          policy: 'auto',
         },
       };
     });
@@ -112,7 +210,6 @@ describe('browser status', () => {
       CCS_BROWSER_DEVTOOLS_PORT: '9444',
       CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9444',
       CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/test',
-      CCS_BROWSER_EVAL_MODE: 'readwrite',
     });
     const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
       path: '/usr/local/bin/codex',
@@ -130,29 +227,70 @@ describe('browser status', () => {
         source: 'CCS_BROWSER_USER_DATA_DIR',
         effectiveUserDataDir: '/env-browser',
         devtoolsPort: 9444,
-        evalMode: 'readwrite',
       });
       expect(status.claude.runtimeEnv?.CCS_BROWSER_DEVTOOLS_PORT).toBe('9444');
-      expect(status.claude.runtimeEnv?.CCS_BROWSER_EVAL_MODE).toBe('readwrite');
-      expect(status.codex.evalMode).toBe('disabled');
     } finally {
       runtimeSpy.mockRestore();
       codexSpy.mockRestore();
     }
   });
 
-  it('reports browser_not_running when attach metadata is missing', async () => {
+  it('returns a short managed attach warning when the managed browser dir is missing', async () => {
     mutateUnifiedConfig((config) => {
       config.browser = {
         claude: {
           enabled: true,
-          user_data_dir: '/tmp/browser-profile',
+          policy: 'auto',
+          user_data_dir: '',
           devtools_port: 9222,
-          eval_mode: 'readonly',
         },
         codex: {
           enabled: true,
-          eval_mode: 'readonly',
+          policy: 'auto',
+        },
+      };
+    });
+
+    const resolution = await resolveOptionalBrowserAttachRuntime(
+      getEffectiveClaudeBrowserAttachConfig(getBrowserConfig())
+    );
+
+    expect(resolution.runtimeEnv).toBeUndefined();
+    expect(resolution.warning).toContain('Claude Browser Attach is not ready yet.');
+    expect(resolution.warning).toContain('ccs browser setup');
+    expect(resolution.warning).toContain('ccs browser doctor');
+  });
+
+  it('returns the same managed attach warning when the configured DevTools port is unreachable', async () => {
+    const managedDir = join(tempHome, '.ccs', 'browser', 'chrome-user-data');
+    mkdirSync(managedDir, { recursive: true });
+
+    const resolution = await resolveOptionalBrowserAttachRuntime({
+      enabled: true,
+      source: 'config',
+      overrideActive: false,
+      userDataDir: managedDir,
+      devtoolsPort: 43123,
+      hasExplicitDevtoolsPort: true,
+    });
+
+    expect(resolution.runtimeEnv).toBeUndefined();
+    expect(resolution.warning).toContain('Claude Browser Attach is not ready yet.');
+    expect(resolution.warning).toContain('ccs browser setup');
+  });
+
+  it('reports browser_not_running when attach metadata is missing for a custom path', async () => {
+    mutateUnifiedConfig((config) => {
+      config.browser = {
+        claude: {
+          enabled: true,
+          policy: 'auto',
+          user_data_dir: '/tmp/browser-profile',
+          devtools_port: 9222,
+        },
+        codex: {
+          enabled: true,
+          policy: 'auto',
         },
       };
     });
@@ -188,7 +326,6 @@ describe('browser status', () => {
       CCS_BROWSER_DEVTOOLS_PORT: '50123',
       CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:50123',
       CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/legacy',
-      CCS_BROWSER_EVAL_MODE: 'readonly',
     });
     const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
       path: '/usr/local/bin/codex',
@@ -203,10 +340,8 @@ describe('browser status', () => {
       expect(runtimeSpy.mock.calls[0]?.[0]).toEqual({
         profileDir: '/legacy-browser',
         devtoolsPort: undefined,
-        evalMode: 'readonly',
       });
       expect(status.claude.runtimeEnv?.CCS_BROWSER_DEVTOOLS_PORT).toBe('50123');
-      expect(status.claude.runtimeEnv?.CCS_BROWSER_EVAL_MODE).toBe('readonly');
     } finally {
       runtimeSpy.mockRestore();
       codexSpy.mockRestore();
@@ -218,13 +353,13 @@ describe('browser status', () => {
       config.browser = {
         claude: {
           enabled: true,
+          policy: 'auto',
           user_data_dir: '/tmp/config-browser',
           devtools_port: 9222,
-          eval_mode: 'disabled',
         },
         codex: {
           enabled: true,
-          eval_mode: 'readwrite',
+          policy: 'auto',
         },
       };
     });
@@ -235,7 +370,6 @@ describe('browser status', () => {
       CCS_BROWSER_DEVTOOLS_PORT: '9222',
       CCS_BROWSER_DEVTOOLS_HTTP_URL: 'http://127.0.0.1:9222',
       CCS_BROWSER_DEVTOOLS_WS_URL: 'ws://127.0.0.1/devtools/browser/config',
-      CCS_BROWSER_EVAL_MODE: 'disabled',
     });
     const codexSpy = spyOn(codexDetector, 'getCodexBinaryInfo').mockReturnValue({
       path: '/usr/local/bin/codex',
@@ -250,7 +384,6 @@ describe('browser status', () => {
       expect(runtimeSpy.mock.calls[0]?.[0]).toEqual({
         profileDir: '/tmp/config-browser',
         devtoolsPort: '9222',
-        evalMode: 'disabled',
       });
     } finally {
       runtimeSpy.mockRestore();

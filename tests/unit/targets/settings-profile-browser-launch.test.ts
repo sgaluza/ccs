@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, setDefaultTimeout } from 'bun:test';
+import { request as httpRequest } from 'http';
 import { spawn, spawnSync, type ChildProcess } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -6,6 +7,7 @@ import * as path from 'path';
 import { mutateUnifiedConfig } from '../../../src/config/unified-config-loader';
 
 const BROWSER_PROMPT_SNIPPET = 'prefer the CCS MCP Browser tool';
+setDefaultTimeout(30000);
 
 interface RunResult {
   status: number | null;
@@ -26,6 +28,52 @@ function runCcs(args: string[], env: NodeJS.ProcessEnv): RunResult {
     stdout: result.stdout || '',
     stderr: result.stderr || '',
   };
+}
+
+function reserveClosedPort(): number {
+  const server = Bun.serve({
+    port: 0,
+    fetch() {
+      return new Response('ok');
+    },
+  });
+  const { port } = server;
+  server.stop(true);
+  return port;
+}
+
+async function waitForDevtoolsVersionEndpoint(port: string, timeoutMs = 5000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const req = httpRequest(
+          {
+            hostname: '127.0.0.1',
+            port: Number.parseInt(port, 10),
+            path: '/json/version',
+            method: 'GET',
+          },
+          (res) => {
+            res.resume();
+            if (res.statusCode === 200) {
+              resolve();
+              return;
+            }
+            reject(new Error(`Unexpected status: ${res.statusCode ?? 'unknown'}`));
+          }
+        );
+        req.on('error', reject);
+        req.end();
+      });
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  throw new Error('Timed out waiting for mock DevTools endpoint to become ready');
 }
 
 describe('settings profile browser launch', () => {
@@ -87,7 +135,6 @@ printf "%s\n" "$@" > "${claudeArgsLogPath}"
   printf "port=%s\n" "$CCS_BROWSER_DEVTOOLS_PORT"
   printf "httpUrl=%s\n" "$CCS_BROWSER_DEVTOOLS_HTTP_URL"
   printf "wsUrl=%s\n" "$CCS_BROWSER_DEVTOOLS_WS_URL"
-  printf "evalMode=%s\n" "$CCS_BROWSER_EVAL_MODE"
 } > "${claudeEnvLogPath}"
 exit 0
 `,
@@ -102,14 +149,14 @@ exit 0
       CCS_HOME: tmpHome,
       CCS_CLAUDE_PATH: fakeClaudePath,
       CCS_DEBUG: '1',
+      CCS_BROWSER_USER_DATA_DIR: '',
+      CCS_BROWSER_PROFILE_DIR: '',
+      CCS_BROWSER_DEVTOOLS_HOST: '',
+      CCS_BROWSER_DEVTOOLS_PORT: '',
+      CCS_BROWSER_DEVTOOLS_HTTP_URL: '',
+      CCS_BROWSER_DEVTOOLS_WS_URL: '',
+      CCS_BROWSER_EVAL_MODE: '',
     };
-    delete baseEnv.CCS_BROWSER_USER_DATA_DIR;
-    delete baseEnv.CCS_BROWSER_PROFILE_DIR;
-    delete baseEnv.CCS_BROWSER_DEVTOOLS_PORT;
-    delete baseEnv.CCS_BROWSER_DEVTOOLS_HOST;
-    delete baseEnv.CCS_BROWSER_DEVTOOLS_HTTP_URL;
-    delete baseEnv.CCS_BROWSER_DEVTOOLS_WS_URL;
-    delete baseEnv.CCS_BROWSER_EVAL_MODE;
   });
 
   afterEach(() => {
@@ -124,7 +171,7 @@ exit 0
     fs.rmSync(tmpHome, { recursive: true, force: true });
   });
 
-  it('fails before Claude launch when browser reuse cannot resolve DevToolsActivePort', () => {
+  it('does not block settings-profile launches when browser reuse cannot resolve DevToolsActivePort and the lane stays default-off', () => {
     if (process.platform === 'win32') return;
 
     fs.mkdirSync(browserProfileDir, { recursive: true });
@@ -134,12 +181,12 @@ exit 0
       CCS_BROWSER_PROFILE_DIR: browserProfileDir,
     });
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('DevToolsActivePort');
-    expect(fs.existsSync(claudeArgsLogPath)).toBe(false);
+    expect(result.status).toBe(0);
+    expect(result.stderr).not.toContain('DevToolsActivePort');
+    expect(fs.existsSync(claudeArgsLogPath)).toBe(true);
   });
 
-  it('passes browser reuse env and steering prompt into the Claude launch', async () => {
+  it('does not auto-enable browser reuse for settings-profile launches from env overrides alone', async () => {
     if (process.platform === 'win32') return;
 
     const mockServerScriptPath = path.join(tmpHome, 'mock-devtools-server.js');
@@ -178,6 +225,7 @@ server.listen(0, '127.0.0.1', () => {
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
     const port = fs.readFileSync(mockServerPortPath, 'utf8').trim();
+    await waitForDevtoolsVersionEndpoint(port);
 
     fs.mkdirSync(browserProfileDir, { recursive: true });
     fs.writeFileSync(
@@ -196,15 +244,106 @@ server.listen(0, '127.0.0.1', () => {
     expect(result.stderr).not.toContain('Chrome reuse metadata not found');
     expect(result.status).toBe(0);
     const launchedArgs = fs.readFileSync(claudeArgsLogPath, 'utf8');
-    expect(launchedArgs).toContain('--append-system-prompt');
-    expect(launchedArgs).toContain(BROWSER_PROMPT_SNIPPET);
+    expect(launchedArgs).not.toContain(BROWSER_PROMPT_SNIPPET);
 
     const launchedEnv = fs.readFileSync(claudeEnvLogPath, 'utf8');
-    expect(launchedEnv).toContain(`userDataDir=${browserProfileDir}`);
-    expect(launchedEnv).toContain(`port=${port}`);
-    expect(launchedEnv).toContain(`httpUrl=http://127.0.0.1:${port}`);
-    expect(launchedEnv).toContain('wsUrl=ws://127.0.0.1/devtools/browser/browser-target');
-    expect(launchedEnv).toContain('evalMode=readonly');
+    expect(launchedEnv).not.toContain(`userDataDir=${browserProfileDir}`);
+    expect(launchedEnv).not.toContain(`port=${port}`);
+    expect(launchedEnv).not.toContain(`httpUrl=http://127.0.0.1:${port}`);
+    expect(launchedEnv).not.toContain('wsUrl=ws://127.0.0.1/devtools/browser/browser-target');
+  });
+
+  it('skips managed browser attach for settings-profile launches when the default CCS browser profile directory is missing', () => {
+    if (process.platform === 'win32') return;
+
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpHome;
+
+    try {
+      mutateUnifiedConfig((config) => {
+        config.browser = {
+          claude: {
+            enabled: true,
+            policy: 'auto',
+            user_data_dir: '',
+            devtools_port: 43123,
+          },
+          codex: {
+            enabled: true,
+            policy: 'auto',
+          },
+        };
+      });
+
+      const result = runCcs(['glm', 'smoke'], {
+        ...baseEnv,
+      });
+
+      expect(result.status).toBe(0);
+      expect(result.stderr).toContain('Claude Browser Attach is not ready yet.');
+      expect(result.stderr).toContain('ccs browser setup');
+      expect(result.stderr).toContain('Diagnose only: `ccs browser doctor`.');
+      expect(result.stderr).toContain('continue without browser tools');
+      expect(fs.existsSync(path.join(tmpHome, '.ccs', 'browser', 'chrome-user-data'))).toBe(true);
+
+      const launchedArgs = fs.readFileSync(claudeArgsLogPath, 'utf8');
+      expect(launchedArgs).not.toContain(BROWSER_PROMPT_SNIPPET);
+
+      const launchedEnv = fs.readFileSync(claudeEnvLogPath, 'utf8');
+      expect(launchedEnv).toContain('userDataDir=');
+      expect(launchedEnv).not.toContain('.ccs/browser/chrome-user-data');
+      expect(launchedEnv).not.toContain('ws://127.0.0.1/devtools/browser/');
+    } finally {
+      if (originalCcsHome !== undefined) {
+        process.env.CCS_HOME = originalCcsHome;
+      } else {
+        delete process.env.CCS_HOME;
+      }
+    }
+  });
+
+  it('skips managed browser attach for settings-profile launches when no managed browser session is running', () => {
+    if (process.platform === 'win32') return;
+
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpHome;
+
+    try {
+      const unreachablePort = reserveClosedPort();
+      fs.mkdirSync(path.join(tmpHome, '.ccs', 'browser', 'chrome-user-data'), {
+        recursive: true,
+      });
+
+      mutateUnifiedConfig((config) => {
+        config.browser = {
+          claude: {
+            enabled: true,
+            policy: 'auto',
+            user_data_dir: '',
+            devtools_port: unreachablePort,
+          },
+          codex: {
+            enabled: true,
+            policy: 'auto',
+          },
+        };
+      });
+
+      const result = runCcs(['glm', 'smoke'], {
+        ...baseEnv,
+      });
+
+      expect(result.status).toBe(0);
+
+      const launchedArgs = fs.readFileSync(claudeArgsLogPath, 'utf8');
+      expect(launchedArgs).not.toContain(BROWSER_PROMPT_SNIPPET);
+    } finally {
+      if (originalCcsHome !== undefined) {
+        process.env.CCS_HOME = originalCcsHome;
+      } else {
+        delete process.env.CCS_HOME;
+      }
+    }
   });
 
   it('uses config-backed browser attach settings for settings-profile launches', async () => {
@@ -250,6 +389,7 @@ server.listen(0, '127.0.0.1', () => {
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
       const port = fs.readFileSync(mockServerPortPath, 'utf8').trim();
+      await waitForDevtoolsVersionEndpoint(port);
 
       fs.mkdirSync(browserProfileDir, { recursive: true });
       fs.writeFileSync(
@@ -262,13 +402,13 @@ server.listen(0, '127.0.0.1', () => {
         config.browser = {
           claude: {
             enabled: true,
+            policy: 'auto',
             user_data_dir: browserProfileDir,
             devtools_port: Number.parseInt(port, 10),
-            eval_mode: 'disabled',
           },
           codex: {
             enabled: true,
-            eval_mode: 'readonly',
+            policy: 'auto',
           },
         };
       });
@@ -285,7 +425,95 @@ server.listen(0, '127.0.0.1', () => {
       expect(launchedEnv).toContain(`userDataDir=${browserProfileDir}`);
       expect(launchedEnv).toContain(`port=${port}`);
       expect(launchedEnv).toContain('wsUrl=ws://127.0.0.1/devtools/browser/config-settings-target');
-      expect(launchedEnv).toContain('evalMode=disabled');
+    } finally {
+      if (originalCcsHome !== undefined) {
+        process.env.CCS_HOME = originalCcsHome;
+      } else {
+        delete process.env.CCS_HOME;
+      }
+    }
+  });
+
+  it('keeps settings-profile Claude attach hidden under manual policy until --browser is passed', async () => {
+    if (process.platform === 'win32') return;
+
+    const mockServerScriptPath = path.join(tmpHome, 'mock-devtools-server-manual-settings.js');
+    const mockServerPortPath = path.join(tmpHome, 'mock-devtools-port-manual-settings.txt');
+    fs.writeFileSync(
+      mockServerScriptPath,
+      `const { createServer } = require('http');
+const fs = require('fs');
+const server = createServer((req, res) => {
+  if (req.url === '/json/version') {
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ Browser: 'Chrome/136.0.0.0', webSocketDebuggerUrl: 'ws://127.0.0.1/devtools/browser/manual-settings-target' }));
+    return;
+  }
+  res.writeHead(404);
+  res.end('not found');
+});
+server.listen(0, '127.0.0.1', () => {
+  const address = server.address();
+  fs.writeFileSync(${JSON.stringify(mockServerPortPath)}, String(address.port), 'utf8');
+});
+`,
+      'utf8'
+    );
+
+    devtoolsServer = spawn(process.execPath, [mockServerScriptPath], {
+      stdio: 'ignore',
+      env: baseEnv,
+    });
+
+    const startDeadline = Date.now() + 5000;
+    while (!fs.existsSync(mockServerPortPath)) {
+      if (Date.now() > startDeadline) {
+        throw new Error('Timed out waiting for mock DevTools server to start');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    const port = fs.readFileSync(mockServerPortPath, 'utf8').trim();
+    await waitForDevtoolsVersionEndpoint(port);
+
+    fs.mkdirSync(browserProfileDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(browserProfileDir, 'DevToolsActivePort'),
+      `${port}\n/devtools/browser/manual-settings-target`,
+      'utf8'
+    );
+
+    const originalCcsHome = process.env.CCS_HOME;
+    process.env.CCS_HOME = tmpHome;
+
+    try {
+      mutateUnifiedConfig((config) => {
+        config.browser = {
+          claude: {
+            enabled: true,
+            policy: 'manual',
+            user_data_dir: browserProfileDir,
+            devtools_port: Number.parseInt(port, 10),
+          },
+          codex: {
+            enabled: true,
+            policy: 'auto',
+          },
+        };
+      });
+
+      const hiddenResult = runCcs(['glm', 'smoke'], {
+        ...baseEnv,
+      });
+      expect(hiddenResult.status).toBe(0);
+      expect(fs.readFileSync(claudeArgsLogPath, 'utf8')).not.toContain(BROWSER_PROMPT_SNIPPET);
+      expect(fs.readFileSync(claudeEnvLogPath, 'utf8')).not.toContain(browserProfileDir);
+
+      const forcedResult = runCcs(['glm', '--browser', 'smoke'], {
+        ...baseEnv,
+      });
+      expect(forcedResult.status).toBe(0);
+      expect(fs.readFileSync(claudeArgsLogPath, 'utf8')).toContain(BROWSER_PROMPT_SNIPPET);
+      expect(fs.readFileSync(claudeEnvLogPath, 'utf8')).toContain(browserProfileDir);
     } finally {
       if (originalCcsHome !== undefined) {
         process.env.CCS_HOME = originalCcsHome;
