@@ -103,7 +103,6 @@ function writeClaudeStatus(
   writeLine(`  Source: ${status.source}${status.overrideActive ? ' (env override active)' : ''}`);
   writeLine(`  User data dir: ${userDataDirDisplay}`);
   writeLine(`  DevTools port: ${status.devtoolsPort}`);
-  writeLine(`  browser_eval access: ${status.evalMode}`);
   writeLine(`  Managed MCP: ${status.managedMcpServerName}`);
   writeLine(`  Managed path: ${status.managedMcpServerPath}`);
   if (status.runtimeEnv?.CCS_BROWSER_DEVTOOLS_HTTP_URL) {
@@ -127,7 +126,6 @@ function writeCodexStatus(
   writeLine(`  Enabled: ${status.enabled ? 'yes' : 'no'}`);
   writeLaunchPolicy(status.policy, writeLine);
   writeLine(`  Managed server: ${status.serverName}`);
-  writeLine(`  browser_eval access: ${status.evalMode}`);
   writeLine(`  Supports overrides: ${status.supportsConfigOverrides ? 'yes' : 'no'}`);
   writeLine(`  Codex binary: ${status.binaryPath || 'not detected'}`);
   if (status.version) {
