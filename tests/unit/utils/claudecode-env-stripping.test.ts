@@ -367,6 +367,26 @@ describe('CLAUDECODE environment stripping', () => {
     expect(env.ANTHROPIC_SMALL_FAST_MODEL).toBe('gpt-5-codex-mini');
   });
 
+  it('execClaude strips routing env reintroduced by explicit settings-profile overrides', () => {
+    execClaude('claude', ['--help'], {
+      CCS_PROFILE_TYPE: 'settings',
+      CCS_STRIP_INHERITED_ANTHROPIC_ENV: '1',
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:8317/api/provider/codex',
+      ANTHROPIC_AUTH_TOKEN: 'reintroduced-routing-token',
+      ANTHROPIC_API_KEY: 'reintroduced-api-key',
+      ANTHROPIC_MODEL: 'gpt-5.4',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'gpt-5.4',
+    });
+
+    expect(spawnCalls.length).toBeGreaterThan(0);
+    const env = spawnCalls[0].options?.env as NodeJS.ProcessEnv;
+    expect(env.ANTHROPIC_BASE_URL).toBeUndefined();
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    expect(env.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(env.ANTHROPIC_MODEL).toBe('gpt-5.4');
+    expect(env.ANTHROPIC_DEFAULT_SONNET_MODEL).toBe('gpt-5.4');
+  });
+
   it('headless executor spawn path strips CLAUDECODE before spawn', async () => {
     writeConfigWithAutoUpdatePreference(false);
     process.env.CLAUDECODE = 'nested';

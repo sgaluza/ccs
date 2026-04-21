@@ -177,10 +177,13 @@ export function execClaude(
   const mergedEnv = envVars
     ? { ...baseEnv, ...claudeLaunchEnv, ...envVars, ...webSearchEnv }
     : { ...baseEnv, ...claudeLaunchEnv, ...webSearchEnv };
+  const effectiveMergedEnv = stripInheritedAnthropicRoutingEnv
+    ? stripAnthropicRoutingEnv(mergedEnv)
+    : mergedEnv;
 
   // Strip Claude Code nested session guard env var to allow CCS delegation
   // (Claude Code v2.1.39+ sets CLAUDECODE to detect nested sessions)
-  const env = stripClaudeCodeEnv(mergedEnv);
+  const env = stripClaudeCodeEnv(effectiveMergedEnv);
 
   if (profileType !== 'account') {
     try {
