@@ -77,7 +77,7 @@
     "test:ci": "bun run test:all",
     "test:fast": "node scripts/run-test-bucket.js fast",
     "test:slow": "node scripts/run-test-bucket.js slow",
-    "test:all": "bun run test:fast && bun run test:slow",
+    "test:all": "node scripts/run-test-bucket.js all",
     "test:unit": "bun test tests/unit",
     "test:npm": "bun test tests/npm/",
     "test:native": "bash tests/native/unix/edge-cases.sh",

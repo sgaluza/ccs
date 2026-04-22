@@ -23,8 +23,8 @@ const slowTests = [
   'tests/unit/web-server/websearch-routes.test.ts',
 ];
 
-if (bucket !== 'fast' && bucket !== 'slow') {
-  console.error('[X] Usage: node scripts/run-test-bucket.js <fast|slow>');
+if (!['fast', 'slow', 'all'].includes(bucket)) {
+  console.error('[X] Usage: node scripts/run-test-bucket.js <fast|slow|all>');
   process.exit(1);
 }
 
@@ -66,36 +66,66 @@ const forceSlow = discovered.filter((file) => {
   return readsBuiltDist(file);
 });
 const slowSet = new Set([...slowTests, ...forceSlow]);
-const selected =
-  bucket === 'slow'
+
+function selectBucket(name) {
+  return name === 'slow'
     ? [...slowSet].sort()
     : discovered.filter((file) => !slowSet.has(file));
-
-if (selected.length === 0) {
-  console.error(`[X] No tests matched the '${bucket}' bucket.`);
-  process.exit(1);
 }
 
-if (bucket === 'slow' && !fs.existsSync(path.join(rootDir, 'dist', 'ccs.js'))) {
+function ensureBuildForSlowBucket() {
+  if (fs.existsSync(path.join(rootDir, 'dist', 'ccs.js'))) {
+    return 0;
+  }
+
   const build = spawnSync('bun', ['run', 'build'], {
     cwd: rootDir,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
 
-  if (build.status !== 0) {
-    process.exit(build.status ?? 1);
-  }
+  return build.status ?? 1;
 }
 
-const result = spawnSync(
-  'bun',
-  ['test', '--max-concurrency=1', ...selected],
-  {
-    cwd: rootDir,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  },
-);
+function runBucket(name) {
+  const selected = selectBucket(name);
 
-process.exit(result.status ?? 1);
+  if (selected.length === 0) {
+    console.error(`[X] No tests matched the '${name}' bucket.`);
+    return 1;
+  }
+
+  if (name === 'slow') {
+    const buildStatus = ensureBuildForSlowBucket();
+    if (buildStatus !== 0) {
+      return buildStatus;
+    }
+  }
+
+  const result = spawnSync(
+    'bun',
+    ['test', '--max-concurrency=1', ...selected],
+    {
+      cwd: rootDir,
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    },
+  );
+
+  return result.status ?? 1;
+}
+
+if (bucket === 'all') {
+  let exitCode = 0;
+
+  for (const name of ['fast', 'slow']) {
+    const status = runBucket(name);
+    if (status !== 0) {
+      exitCode = status;
+    }
+  }
+
+  process.exit(exitCode);
+}
+
+process.exit(runBucket(bucket));
