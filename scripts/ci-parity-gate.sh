@@ -56,6 +56,8 @@ if git show-ref --verify --quiet "refs/remotes/origin/$BASE_BRANCH"; then
 fi
 
 echo "[i] Running CI-parity local checks..."
+# `set -euo pipefail` above makes every step fail fast. Keep these commands
+# explicit so parity drift is visible when CI changes.
 bun run typecheck
 bun run lint
 bun run format:check

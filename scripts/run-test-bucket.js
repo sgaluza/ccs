@@ -4,9 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
-const bucket = process.argv[2];
 const rootDir = path.resolve(__dirname, '..');
 const candidateRoots = ['tests/unit', 'tests/integration', 'tests/npm'];
+// Keep this list in sync with any newly added dist-dependent or long-running
+// tests. `tests/unit/scripts/run-test-bucket.test.js` verifies every path here
+// exists so bucket drift fails loudly instead of silently slowing `test:fast`.
 const slowTests = [
   'tests/integration/cursor-daemon-lifecycle.test.ts',
   'tests/integration/proxy/daemon-lifecycle.test.ts',
@@ -22,11 +24,6 @@ const slowTests = [
   'tests/unit/web-server/cursor-routes.test.ts',
   'tests/unit/web-server/websearch-routes.test.ts',
 ];
-
-if (!['fast', 'slow', 'all'].includes(bucket)) {
-  console.error('[X] Usage: node scripts/run-test-bucket.js <fast|slow|all>');
-  process.exit(1);
-}
 
 const filePattern = /(\.test\.(c|m)?[jt]s|\.spec\.(c|m)?[jt]s|-test\.(c|m)?[jt]s)$/;
 
@@ -51,19 +48,30 @@ function readsBuiltDist(relativePath) {
   return source.includes('dist/');
 }
 
-const discovered = candidateRoots
-  .flatMap((relativeDir) => collectFiles(path.join(rootDir, relativeDir)))
-  .sort();
-const forceSlow = discovered.filter((file) => {
+function getDiscoveredTests() {
+  return candidateRoots
+    .flatMap((relativeDir) => collectFiles(path.join(rootDir, relativeDir)))
+    .sort();
+}
+
+function shouldForceSlow(file) {
   if (file.startsWith('tests/npm/')) {
     return true;
   }
 
   return readsBuiltDist(file);
-});
-const slowSet = new Set([...slowTests, ...forceSlow]);
+}
+
+function getSlowSet() {
+  const discovered = getDiscoveredTests();
+  const forceSlow = discovered.filter((file) => shouldForceSlow(file));
+  return new Set([...slowTests, ...forceSlow]);
+}
 
 function selectBucket(name) {
+  const discovered = getDiscoveredTests();
+  const slowSet = getSlowSet();
+
   return name === 'slow'
     ? [...slowSet].sort()
     : discovered.filter((file) => !slowSet.has(file));
@@ -111,17 +119,40 @@ function runBucket(name) {
   return result.status ?? 1;
 }
 
-if (bucket === 'all') {
-  let exitCode = 0;
+function main(args = process.argv.slice(2)) {
+  const bucket = args[0];
 
-  for (const name of ['fast', 'slow']) {
-    const status = runBucket(name);
-    if (status !== 0) {
-      exitCode = status;
-    }
+  if (!['fast', 'slow', 'all'].includes(bucket)) {
+    console.error('[X] Usage: node scripts/run-test-bucket.js <fast|slow|all>');
+    return 1;
   }
 
-  process.exit(exitCode);
+  if (bucket === 'all') {
+    let exitCode = 0;
+
+    for (const name of ['fast', 'slow']) {
+      const status = runBucket(name);
+      if (status !== 0) {
+        exitCode = status;
+      }
+    }
+
+    return exitCode;
+  }
+
+  return runBucket(bucket);
 }
 
-process.exit(runBucket(bucket));
+if (require.main === module) {
+  process.exit(main());
+}
+
+module.exports = {
+  slowTests,
+  readsBuiltDist,
+  shouldForceSlow,
+  getDiscoveredTests,
+  getSlowSet,
+  selectBucket,
+  main,
+};
