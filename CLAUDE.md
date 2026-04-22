@@ -53,7 +53,8 @@ AI MUST NOT declare a task done, close a session, or move to the next task while
 - `Push CI` is the post-merge quality signal for `dev`.
 - `Dev Release` publishes the `@dev` package after `dev` changes land.
 - A red `Dev Release` does **not** automatically mean contributor code failed. Check `Push CI` first.
-- `dev-release.yml` currently pushes with `PAT_TOKEN` because `dev` is protected by required status checks (`typecheck`, `lint`, `format`, `build`, `test`). Do not switch it back to `github.token` unless branch protection changes with it.
+- Verified on `2026-04-22` via `gh api repos/kaitranntt/ccs/branches/dev/protection`: `dev` currently requires `typecheck`, `lint`, `format`, `build`, and `test`, has no branch restrictions, and has no required PR-review gate.
+- `dev-release.yml` currently pushes with `PAT_TOKEN` because `dev` is protected by those required status checks. Do not switch it back to `github.token` unless branch protection changes with it.
 
 ## Core Function
 
@@ -276,6 +277,12 @@ bun run validate            # Step 3: Final check (must pass)
 - husky `pre-commit` runs quick lint/type/format checks
 - husky `pre-push` runs the full `bun run validate:ci-parity` gate on `main`/`dev`/hotfix branches
 - husky `pre-push` runs a faster feature-branch gate (`typecheck` + `lint` + `format:check` + `test:fast`) plus targeted checks based on changed files
+
+### Maintainability Gate Status
+
+- The historical maintainability baseline gate is retired from the active CCS workflow.
+- `validate`, `validate:ci-parity`, PR `CI`, `Push CI`, and release workflows do **not** invoke `maintainability:check`.
+- Older roadmap references to `maintainability:baseline` / `maintainability:check` are historical context, not current repo commands.
 
 ## Critical Constraints (NEVER VIOLATE)
 

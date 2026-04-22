@@ -59,10 +59,6 @@ const forceSlow = discovered.filter((file) => {
     return true;
   }
 
-  if (/\.(c|m)?js$/.test(file)) {
-    return true;
-  }
-
   return readsBuiltDist(file);
 });
 const slowSet = new Set([...slowTests, ...forceSlow]);
