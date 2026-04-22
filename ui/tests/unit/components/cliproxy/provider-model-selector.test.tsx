@@ -129,4 +129,26 @@ describe('FlexibleModelSelector', () => {
     expect(screen.getByText('gpt-5.3-codex')).toBeInTheDocument();
     expect(screen.getAllByText('gpt-5.3-codex-high').length).toBeGreaterThan(0);
   });
+
+  it('preserves explicit suffixes on supplemental codex models outside the static catalog', async () => {
+    const onChange = vi.fn();
+
+    render(
+      <FlexibleModelSelector
+        label="Primary model"
+        value={undefined}
+        onChange={onChange}
+        catalog={MODEL_CATALOGS.codex}
+        allModels={[{ id: 'gpt-5.5-codex-high', owned_by: 'openai' }]}
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: /select model/i }));
+
+    expect(screen.getByText(/All Models \(1\)/i)).toBeInTheDocument();
+    expect(screen.getByText('gpt-5.5-codex-high')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('gpt-5.5-codex-high'));
+    expect(onChange).toHaveBeenCalledWith('gpt-5.5-codex-high');
+  });
 });

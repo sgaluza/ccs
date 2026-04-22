@@ -34,7 +34,8 @@ export function getCodexEffortVariants(
   maxEffort: CodexEffort | undefined
 ): string[] {
   if (!maxEffort) {
-    return [stripCodexEffortSuffix(modelId)];
+    const explicitEffort = parseCodexEffort(modelId);
+    return [applyCodexEffortSuffix(modelId, explicitEffort)];
   }
 
   const normalizedModelId = stripCodexEffortSuffix(modelId);
