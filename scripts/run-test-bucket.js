@@ -125,15 +125,18 @@ function runBucket(name) {
     }
   }
 
-  const result = spawnSync(
-    'bun',
-    ['test', '--max-concurrency=1', ...selected],
-    {
-      cwd: rootDir,
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-    },
-  );
+  // Slow bucket forces sequential execution because it spawns subprocesses,
+  // binds ports, and touches shared state — parallelism causes flakes.
+  // Fast bucket keeps bun's default parallelism for speed.
+  const bunArgs = name === 'slow'
+    ? ['test', '--max-concurrency=1', ...selected]
+    : ['test', ...selected];
+
+  const result = spawnSync('bun', bunArgs, {
+    cwd: rootDir,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  });
 
   return result.status ?? 1;
 }
