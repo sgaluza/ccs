@@ -6,9 +6,18 @@ const { spawnSync } = require('node:child_process');
 
 const rootDir = path.resolve(__dirname, '..');
 const candidateRoots = ['tests/unit', 'tests/integration', 'tests/npm'];
-// Keep this list in sync with any newly added dist-dependent or long-running
-// tests. `tests/unit/scripts/run-test-bucket.test.js` verifies every path here
-// exists so bucket drift fails loudly instead of silently slowing `test:fast`.
+// Add a `.ts` test to `slowTests` when ANY of these apply:
+//   1. It spawns a child process (CLI, bun test, node, gh, etc.).
+//   2. It binds a port, starts a server, or talks to localhost.
+//   3. It reads a real file from `dist/` or the repo root at runtime.
+//   4. It waits on a timer > 500ms or a filesystem watcher.
+//   5. A single run consistently takes > 1500ms on reference hardware.
+// Tests that literally reference `dist/` in source are auto-forced slow by
+// `readsBuiltDist`. This list is the manual catch-all for `.ts` tests that
+// meet the criteria above without the literal `dist/` string.
+// `tests/unit/scripts/run-test-bucket.test.js` verifies every path here exists
+// (catches deletion drift) but CANNOT detect new undeclared slow tests.
+// Automated perf-budget enforcement tracked in issue #1071.
 const slowTests = [
   'tests/integration/cursor-daemon-lifecycle.test.ts',
   'tests/integration/proxy/daemon-lifecycle.test.ts',
