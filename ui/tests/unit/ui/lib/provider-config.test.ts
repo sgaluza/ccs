@@ -16,6 +16,7 @@ import {
   parseRequestedUpstreamModelRules,
   PLUS_EXTRA_CLIPROXY_PROVIDERS,
   PROVIDER_COLORS,
+  variantUsesPlusExtraProvider,
 } from '@/lib/provider-config';
 
 describe('provider model mapping helpers', () => {
@@ -87,6 +88,27 @@ describe('provider presentation metadata', () => {
     expect(grouped[0]?.items.map((entry) => entry.provider)).toEqual(['gemini']);
     expect(grouped[1]?.id).toBe('plus-extra');
     expect(grouped[1]?.items.map((entry) => entry.provider)).toEqual(['cursor']);
+  });
+
+  it('detects plus-extra providers inside composite variants', () => {
+    expect(
+      variantUsesPlusExtraProvider({
+        provider: 'gemini',
+        tiers: {
+          opus: { provider: 'gemini' },
+          sonnet: { provider: 'cursor' },
+        },
+      })
+    ).toBe(true);
+    expect(
+      variantUsesPlusExtraProvider({
+        provider: 'gemini',
+        tiers: {
+          opus: { provider: 'gemini' },
+          sonnet: { provider: 'kimi' },
+        },
+      })
+    ).toBe(false);
   });
 
   it.each([

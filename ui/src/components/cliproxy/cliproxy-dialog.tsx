@@ -206,7 +206,7 @@ export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
                 >
                   <option value="">{t('cliproxyDialog.selectProvider')}</option>
                   {CLIPROXY_PROVIDER_SECTIONS.map((section) => (
-                    <optgroup key={section.id} label={section.label}>
+                    <optgroup key={section.id} label={t(section.labelKey)}>
                       {providerOptions
                         .filter((opt) => section.providers.includes(opt.value))
                         .map((opt) => (
@@ -224,9 +224,9 @@ export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
                 )}
                 {selectedProviderSection && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    {selectedProviderSection.hint}
+                    {t(selectedProviderSection.hintKey)}
                     {isPlusExtraProvider(selectedProvider)
-                      ? ' Requires the optional Plus backend while that track remains community-maintained.'
+                      ? ` ${t('providerConfig.plusTrackNote')}`
                       : ''}
                   </p>
                 )}
@@ -320,7 +320,7 @@ export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
                           className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                         >
                           {CLIPROXY_PROVIDER_SECTIONS.map((section) => (
-                            <optgroup key={section.id} label={section.label}>
+                            <optgroup key={section.id} label={t(section.labelKey)}>
                               {providerOptions
                                 .filter((opt) => section.providers.includes(opt.value))
                                 .map((opt) => (
@@ -333,9 +333,9 @@ export function CliproxyDialog({ open, onClose }: CliproxyDialogProps) {
                         </select>
                         {compositeTiers?.[tier]?.provider && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {getProviderSection(compositeTiers[tier].provider)?.hint}
+                            {t(getProviderSection(compositeTiers[tier].provider)?.hintKey || '')}
                             {isPlusExtraProvider(compositeTiers[tier].provider)
-                              ? ' Requires the optional Plus backend while that track remains community-maintained.'
+                              ? ` ${t('providerConfig.plusTrackNote')}`
                               : ''}
                           </p>
                         )}

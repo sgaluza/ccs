@@ -406,10 +406,10 @@ export function CliproxyPage() {
                   <div key={section.id} className="space-y-1">
                     <div className="px-3">
                       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {section.label}
+                        {t(section.labelKey)}
                       </div>
                       <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-                        {section.hint}
+                        {t(section.hintKey)}
                       </p>
                     </div>
                     <div className="space-y-1">

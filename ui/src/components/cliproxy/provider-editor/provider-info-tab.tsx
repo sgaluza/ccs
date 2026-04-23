@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 interface ProviderInfoTabProps {
   provider: string;
   displayName: string;
+  baseProvider?: string;
   defaultTarget?: CliTarget;
   data?: SettingsResponse;
   authStatus: AuthStatus;
@@ -25,6 +26,7 @@ interface ProviderInfoTabProps {
 export function ProviderInfoTab({
   provider,
   displayName,
+  baseProvider,
   defaultTarget,
   data,
   authStatus,
@@ -34,7 +36,8 @@ export function ProviderInfoTab({
   const resolvedTarget = defaultTarget || 'claude';
   const isDroidTarget = resolvedTarget === 'droid';
   const isCodexProvider = provider === 'codex';
-  const providerSection = getProviderSection(provider);
+  const sectionProvider = baseProvider || authStatus.provider || provider;
+  const providerSection = getProviderSection(sectionProvider);
   const managementPrefix =
     resolvedTarget === 'claude' ? `ccs ${provider}` : `ccs ${provider} --target claude`;
   const changeModelCommand = `${managementPrefix} --config`;
@@ -105,13 +108,15 @@ export function ProviderInfoTab({
             </div>
             {providerSection && (
               <div className="grid grid-cols-[100px_1fr] gap-2 text-sm items-start">
-                <span className="font-medium text-muted-foreground">Track</span>
+                <span className="font-medium text-muted-foreground">
+                  {t('providerConfig.trackLabel')}
+                </span>
                 <div className="space-y-1">
-                  <span className="font-mono">{providerSection.label}</span>
+                  <span className="font-mono">{t(providerSection.labelKey)}</span>
                   <p className="text-xs text-muted-foreground">
-                    {providerSection.hint}
-                    {isPlusExtraProvider(provider)
-                      ? ' Requires the optional Plus backend while that track remains community-maintained.'
+                    {t(providerSection.hintKey)}
+                    {isPlusExtraProvider(sectionProvider)
+                      ? ` ${t('providerConfig.plusTrackNote')}`
                       : ''}
                   </p>
                 </div>

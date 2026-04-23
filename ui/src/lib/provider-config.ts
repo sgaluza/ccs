@@ -24,8 +24,8 @@ export type CLIProxyProviderSectionId = 'core' | 'plus-extra';
 
 export interface CLIProxyProviderSection {
   id: CLIProxyProviderSectionId;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   providers: readonly CLIProxyProvider[];
 }
 
@@ -42,14 +42,14 @@ export const PLUS_EXTRA_CLIPROXY_PROVIDERS: readonly CLIProxyProvider[] = Object
 export const CLIPROXY_PROVIDER_SECTIONS: readonly CLIProxyProviderSection[] = Object.freeze([
   {
     id: 'core',
-    label: 'Core / original backend',
-    hint: 'Default, always-available provider track',
+    labelKey: 'providerConfig.sectionCoreLabel',
+    hintKey: 'providerConfig.sectionCoreHint',
     providers: CORE_CLIPROXY_PROVIDERS,
   },
   {
     id: 'plus-extra',
-    label: 'Plus extras / community-maintained',
-    hint: 'Still supported, but separated from the default backend for now',
+    labelKey: 'providerConfig.sectionPlusLabel',
+    hintKey: 'providerConfig.sectionPlusHint',
     providers: PLUS_EXTRA_CLIPROXY_PROVIDERS,
   },
 ]);
@@ -307,6 +307,23 @@ export function getProviderSection(provider: unknown): CLIProxyProviderSection |
   return (
     CLIPROXY_PROVIDER_SECTIONS.find((section) => section.providers.includes(normalized)) || null
   );
+}
+
+interface VariantLike {
+  provider?: unknown;
+  tiers?: Record<string, { provider?: unknown } | undefined> | null;
+}
+
+export function variantUsesPlusExtraProvider(variant: VariantLike | null | undefined): boolean {
+  if (!variant) {
+    return false;
+  }
+
+  if (variant.tiers) {
+    return Object.values(variant.tiers).some((tier) => isPlusExtraProvider(tier?.provider));
+  }
+
+  return isPlusExtraProvider(variant.provider);
 }
 
 export function groupProvidersBySection<T>(

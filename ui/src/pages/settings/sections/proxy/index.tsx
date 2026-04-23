@@ -33,7 +33,7 @@ import {
   CORE_CLIPROXY_PROVIDERS,
   PLUS_EXTRA_CLIPROXY_PROVIDERS,
   getProviderDisplayName,
-  isPlusExtraProvider,
+  variantUsesPlusExtraProvider,
 } from '@/lib/provider-config';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
@@ -216,7 +216,9 @@ export default function ProxySection() {
   const checkPlusOnlyVariants = useCallback(async () => {
     try {
       const result = await api.cliproxy.list();
-      const hasIncompatible = result.variants.some((v) => isPlusExtraProvider(v.provider));
+      const hasIncompatible = result.variants.some((variant) =>
+        variantUsesPlusExtraProvider(variant)
+      );
       setHasKiroGhcpVariants(hasIncompatible);
     } catch (err) {
       console.error('[Proxy] Failed to check variants:', err);
@@ -496,10 +498,7 @@ export default function ProxySection() {
                 <div className="flex items-center gap-3 mb-2">
                   <span className="font-medium">{t('settingsProxy.backendPlusApi')}</span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Optional track for extra providers. Still supported, but currently
-                  community-maintained instead of upstream-maintained.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('settingsProxy.plusDesc')}</p>
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                   {plusProviderNames}
                 </p>
@@ -521,9 +520,7 @@ export default function ProxySection() {
                     {t('settingsProxy.default')}
                   </span>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Default, always-available backend for the core provider track.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('settingsProxy.originalDesc')}</p>
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                   {coreProviderNames}
                 </p>
@@ -533,8 +530,7 @@ export default function ProxySection() {
               <Alert className="py-2 border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-900/20 [&>svg]:top-2.5">
                 <AlertTriangle className="h-4 w-4 text-amber-600" />
                 <AlertDescription className="text-amber-700 dark:text-amber-400">
-                  The Plus provider track is not deprecated, but local CLIProxy still falls back to
-                  the original backend while the maintained fork path is being brought back.
+                  {t('settingsProxy.plusFallbackNotice')}
                 </AlertDescription>
               </Alert>
             )}
@@ -543,8 +539,7 @@ export default function ProxySection() {
               <Alert variant="destructive" className="py-2">
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Existing plus-extra variants ({plusProviderNames}) will not run on the original
-                  backend. Keep them visible for reference, but switch to Plus before using them.
+                  {t('settingsProxy.variantsIncompatible', { providers: plusProviderNames })}
                 </AlertDescription>
               </Alert>
             )}
