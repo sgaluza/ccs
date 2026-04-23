@@ -390,8 +390,10 @@ export function buildClaudeEnvironment(config: ProxyChainConfig): Record<string,
     >
   ) as Record<string, string>;
 
-  const effectiveEnvVarsFiltered = Object.fromEntries(
-    Object.entries(effectiveEnvVars).filter(([, v]) => v !== undefined)
+  const effectiveEnvVarsFiltered = stripBrowserEnv(
+    Object.fromEntries(
+      Object.entries(effectiveEnvVars).filter(([, v]) => v !== undefined)
+    ) as Record<string, string>
   ) as Record<string, string>;
 
   const mergedEnv = {
